@@ -1,0 +1,46 @@
+# Build output
+target/
+build/
+out/
+
+# Maven wrapper binary (optional to track; ignore here)
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE files
+.idea/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+.factorypath
+.apt_generated/
+
+# VS Code
+.vscode/
+
+# Logs
+*.log
+logs/
+
+# Local environment / secrets
+.env
+.env.*
+!.env.example
+
+# Spring local profile configs
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+src/main/resources/application-local.properties
+src/main/resources/application-dev.yml
+src/main/resources/application-dev.yaml
+src/main/resources/application-dev.properties
+src/main/resources/application-prod.yml
+src/main/resources/application-prod.yaml
+src/main/resources/application-prod.properties
+
+# OS files
+.DS_Store
+Thumbs.db
+Desktop.ini

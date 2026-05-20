@@ -1,0 +1,60 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# Logs
+*.log
+logs/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.jks
+
+# Java / Maven / Gradle
+**/target/
+**/build/
+!**/src/main/**/target/
+!**/src/test/**/target/
+!**/src/main/**/build/
+!**/src/test/**/build/
+.mvn/wrapper/maven-wrapper.jar
+
+# Spring / local config variants
+**/application-local.yml
+**/application-local.yaml
+**/application-local.properties
+**/application-dev.yml
+**/application-dev.yaml
+**/application-dev.properties
+**/application-prod.yml
+**/application-prod.yaml
+**/application-prod.properties
+
+# Node / frontend (future web app)
+**/node_modules/
+**/.next/
+**/.nuxt/
+**/dist/
+**/coverage/
+**/.cache/
+
+# Mobile / Flutter (future mobile app)
+**/.dart_tool/
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+**/build/
+
