@@ -6,9 +6,10 @@ import android.widget.EditText
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
-import androidx.appcompat.app.AppCompatActivity
+import androidx.activity.ComponentActivity
 
-class SignUpActivity : AppCompatActivity() {
+class SignUpActivity : ComponentActivity() {
+    // Jetpack Compose codebase sits here safely
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
