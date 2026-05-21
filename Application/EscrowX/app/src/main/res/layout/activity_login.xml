@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:gravity="center_horizontal"
+    android:background="#F7F9FC">
+
+    <ImageView
+        android:id="@+id/ivLogo"
+        android:layout_width="64dp"
+        android:layout_height="64dp"
+        android:layout_marginTop="40dp"
+        android:src="@drawable/ic_shield_lock"
+        android:contentDescription="EscrowX Security Logo" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/app_name"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="#002066"
+        android:layout_marginTop="16dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/app_tagline"
+        android:textAlignment="center"
+        android:textColor="#666666"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="32dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="#EEEFFF"
+        android:padding="4dp"
+        android:layout_marginBottom="24dp"
+        style="?android:attr/buttonBarStyle">
+
+        <Button
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/label_login"
+            android:backgroundTint="#FFFFFF"
+            android:textColor="#002066"
+            style="?android:attr/buttonBarButtonStyle"/>
+
+        <Button
+            android:id="@+id/btnTabSignUp"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/label_sign_up"
+            android:backgroundTint="#EEEFFF"
+            android:textColor="#666666"
+            style="?android:attr/buttonBarButtonStyle"/>
+    </LinearLayout>
+
+    <EditText
+        android:id="@+id/etLoginIdentifier"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:hint="@string/hint_login_identifier"
+        android:inputType="textEmailAddress"
+        android:autofillHints="emailAddress|phone"
+        android:background="@android:drawable/editbox_background"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp"/>
+
+    <EditText
+        android:id="@+id/etLoginPassword"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:hint="@string/hint_password"
+        android:inputType="textPassword"
+        android:autofillHints="password"
+        android:background="@android:drawable/editbox_background"
+        android:padding="12dp"/>
+
+    <TextView
+        android:id="@+id/tvForgotPassword"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/btn_forgot_password"
+        android:textColor="#002066"
+        android:textStyle="bold"
+        android:layout_gravity="end"
+        android:layout_marginTop="12dp"
+        android:layout_marginBottom="24dp"/>
+
+    <Button
+        android:id="@+id/btnLoginContinue"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="@string/btn_continue"
+        android:backgroundTint="#002066"
+        android:textColor="#FFFFFF"
+        android:textStyle="bold"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="@string/label_or_continue"
+        android:textSize="12sp"
+        android:textColor="#999999"
+        android:layout_marginVertical="24dp"/>
+
+    <Button
+        android:id="@+id/btnGoogleLogin"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:text="@string/btn_google"
+        android:backgroundTint="#FFFFFF"
+        android:textColor="#333333"
+        style="@style/Widget.AppCompat.Button.Colored"/>
+
+</LinearLayout>
