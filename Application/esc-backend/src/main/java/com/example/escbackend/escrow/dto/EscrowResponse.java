@@ -19,6 +19,7 @@ public class EscrowResponse {
     private UUID buyerId;
     private UUID sellerId;
     private String title;
+    private String productDescription;
     private BigDecimal amount;
     private String currency;
     private String status;
