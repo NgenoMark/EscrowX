@@ -4,10 +4,14 @@ import com.example.escbackend.auth.dto.ConfirmRequest;
 import com.example.escbackend.auth.dto.ConfirmResponse;
 import com.example.escbackend.auth.dto.LoginRequest;
 import com.example.escbackend.auth.dto.LoginResponse;
+import com.example.escbackend.auth.dto.LogoutRequest;
+import com.example.escbackend.auth.dto.LogoutResponse;
 import com.example.escbackend.auth.dto.PasswordResetConfirmRequest;
 import com.example.escbackend.auth.dto.PasswordResetConfirmResponse;
 import com.example.escbackend.auth.dto.PasswordResetRequestDto;
 import com.example.escbackend.auth.dto.PasswordResetRequestResponse;
+import com.example.escbackend.auth.dto.RefreshTokenRequest;
+import com.example.escbackend.auth.dto.RefreshTokenResponse;
 import com.example.escbackend.auth.dto.RegisterRequest;
 import com.example.escbackend.auth.dto.RegisterResponse;
 import com.example.escbackend.common.constants.UserRole;
@@ -112,15 +116,14 @@ public class AuthService {
             throw new ApiException(HttpStatus.FORBIDDEN, "User account is not active");
         }
 
-        String accessToken = tokenService.createAccessToken(user.getId());
-        String refreshToken = tokenService.createRefreshToken(user.getId());
+        TokenService.TokenPair tokenPair = tokenService.getOrCreateLoginTokens(user.getId());
         User responseUser = mapper.toSimple(user);
 
         return LoginResponse.builder()
-            .accessToken(accessToken)
-            .refreshToken(refreshToken)
+            .accessToken(tokenPair.accessToken())
+            .refreshToken(tokenPair.refreshToken())
             .tokenType("Bearer")
-            .expiresIn(3600)
+            .expiresIn(tokenPair.expiresInSeconds())
             .user(responseUser)
             .build();
     }
@@ -150,6 +153,24 @@ public class AuthService {
         return PasswordResetConfirmResponse.builder()
             .phone(user.getPhone())
             .passwordUpdated(true)
+            .build();
+    }
+
+    public RefreshTokenResponse refresh(RefreshTokenRequest request) {
+        TokenService.TokenPair tokenPair = tokenService.refreshTokenPair(request.getRefreshToken());
+        return RefreshTokenResponse.builder()
+            .accessToken(tokenPair.accessToken())
+            .refreshToken(tokenPair.refreshToken())
+            .tokenType("Bearer")
+            .expiresIn(tokenPair.expiresInSeconds())
+            .build();
+    }
+
+    public LogoutResponse logout(LogoutRequest request) {
+        tokenService.invalidateByRefreshToken(request.getRefreshToken());
+        return LogoutResponse.builder()
+            .loggedOut(true)
+            .message("Logged out successfully")
             .build();
     }
 }
