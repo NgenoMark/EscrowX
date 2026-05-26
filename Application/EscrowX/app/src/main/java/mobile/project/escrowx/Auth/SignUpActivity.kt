@@ -16,7 +16,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mobile.project.escrowx.R
-import mobile.project.escrowx.RegisterRequest
 import mobile.project.escrowx.RetrofitClient // FIXED: Explicitly import RetrofitClient
 
 class SignUpActivity : ComponentActivity() {

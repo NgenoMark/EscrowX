@@ -7,7 +7,7 @@
     <string name="app_tagline">Secure mobile escrow for safer transactions</string>
     <string name="label_login">Login</string>
     <string name="label_sign_up">Sign Up</string>
-    <string name="hint_login_identifier">Email or phone number</string>
+    <string name="hint_login_identifier">Email address</string>
     <string name="hint_password">Password</string>
     <string name="btn_forgot_password">Forgot Password?</string>
     <string name="btn_continue">Continue</string>

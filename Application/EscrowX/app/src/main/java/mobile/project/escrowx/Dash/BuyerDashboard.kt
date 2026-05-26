@@ -42,6 +42,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import mobile.project.escrowx.RetrofitClient
+import mobile.project.escrowx.UserProfileResponse
+import mobile.project.escrowx.auth.SessionManager
 
 private val EscrowXColors = lightColorScheme(
     primary = Color(0xFF00236F),
@@ -182,115 +185,149 @@ fun BuyerDashboardScreen() {
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState())
+        when (selectedTab) {
+            0 -> HomeTabContent(paddingValues, context)
+            1 -> TransactionsTabContent(paddingValues)
+            2 -> ProfileTabContent(paddingValues)
+        }
+    }
+}
+
+@Composable
+private fun HomeTabContent(paddingValues: PaddingValues, context: android.content.Context) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(paddingValues)
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Spacer(modifier = Modifier.height(16.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Hello, Kamau", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
-                    Text(text = "Welcome back to your secure dashboard.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.surfaceContainerHigh),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Default.Person, contentDescription = "Profile Pic", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = "Hello, Kamau", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.onSurface)
+                Text(text = "Welcome back to your secure dashboard.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Column(
-                modifier = Modifier.fillMaxWidth(),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Button(
-                    onClick = {
-                        // Safely trigger explicit routing initialization mapping
-                        val intent = Intent(context, CreateEscrowActivity::class.java)
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(84.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
-                            Icon(imageVector = Icons.Default.AddCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(text = "New Escrow", style = MaterialTheme.typography.headlineSmall, color = Color.White)
-                        }
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White)
-                    }
-                }
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    QuickActionButton(text = "History", icon = Icons.Default.History, iconColor = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f)) {}
-                    QuickActionButton(text = "Disputes", icon = Icons.Default.Gavel, iconColor = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f)) {}
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text(text = "Active Escrows", style = MaterialTheme.typography.headlineSmall)
-                Text(text = "View All", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable {})
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
+            Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHigh),
+                contentAlignment = Alignment.Center
             ) {
-                ActiveEscrowCard(
-                    statusText = "PENDING DELIVERY",
-                    statusContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    statusTextColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    amountText = "KES 12,500",
-                    partyName = "Jumia Electronics",
-                    partyIcon = Icons.Default.Store,
-                    timeLeftText = "2 days left"
-                )
-
-                ActiveEscrowCard(
-                    statusText = "IN INSPECTION",
-                    statusContainerColor = Color(0xFFFFDDB8),
-                    statusTextColor = Color(0xFF2A1700),
-                    amountText = "KES 45,000",
-                    partyName = "Sarah W.",
-                    partyIcon = Icons.Default.Person,
-                    timeLeftText = "5 days left"
-                )
+                Icon(imageVector = Icons.Default.Person, contentDescription = "Profile Pic", tint = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(text = "Recent Transactions", style = MaterialTheme.typography.headlineSmall)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                TransactionListItem(title = "Funds Released", subtitle = "M-Pesa Store #452", amount = "KES 2,400", date = "Oct 12", icon = Icons.Default.Store, iconColor = MaterialTheme.colorScheme.secondary)
-                TransactionListItem(title = "Dispute Opened", subtitle = "Apple AirPods Gen 3", amount = "KES 18,000", date = "Oct 10", icon = Icons.Default.Gavel, iconColor = MaterialTheme.colorScheme.error)
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = {
+                    val intent = Intent(context, CreateEscrowActivity::class.java)
+                    context.startActivity(intent)
+                },
+                modifier = Modifier.fillMaxWidth().height(84.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Row(modifier = Modifier.fillMaxSize(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                        Icon(imageVector = Icons.Default.AddCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "New Escrow", style = MaterialTheme.typography.headlineSmall, color = Color.White)
+                    }
+                    Icon(imageVector = Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Color.White)
+                }
             }
-            Spacer(modifier = Modifier.height(32.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                QuickActionButton(text = "History", icon = Icons.Default.History, iconColor = MaterialTheme.colorScheme.primary, modifier = Modifier.weight(1f)) {}
+                QuickActionButton(text = "Disputes", icon = Icons.Default.Gavel, iconColor = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f)) {}
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text(text = "Active Escrows", style = MaterialTheme.typography.headlineSmall)
+            Text(text = "View All", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, modifier = Modifier.clickable {})
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            ActiveEscrowCard("PENDING DELIVERY", MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.onSecondaryContainer, "KES 12,500", "Jumia Electronics", Icons.Default.Store, "2 days left")
+            ActiveEscrowCard("IN INSPECTION", Color(0xFFFFDDB8), Color(0xFF2A1700), "KES 45,000", "Sarah W.", Icons.Default.Person, "5 days left")
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(text = "Recent Transactions", style = MaterialTheme.typography.headlineSmall)
+        Spacer(modifier = Modifier.height(12.dp))
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            TransactionListItem("Funds Released", "M-Pesa Store #452", "KES 2,400", "Oct 12", Icons.Default.Store, MaterialTheme.colorScheme.secondary)
+            TransactionListItem("Dispute Opened", "Apple AirPods Gen 3", "KES 18,000", "Oct 10", Icons.Default.Gavel, MaterialTheme.colorScheme.error)
+        }
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun TransactionsTabContent(paddingValues: PaddingValues) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Transactions view", style = MaterialTheme.typography.headlineSmall)
+        Text("Connect this tab to /api/v1/transactions list.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ProfileTabContent(paddingValues: PaddingValues) {
+    val context = LocalContext.current
+    val session = remember { SessionManager(context) }
+    var loading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var profile by remember { mutableStateOf<UserProfileResponse?>(null) }
+
+    LaunchedEffect(Unit) {
+        val token = session.getAccessToken()
+        val email = session.getEmail()
+        if (token.isNullOrBlank() || email.isNullOrBlank()) {
+            error = "No active session. Please login again."
+            loading = false
+            return@LaunchedEffect
+        }
+        try {
+            val response = RetrofitClient.authenticated(token).getUserByEmail(email)
+            if (response.isSuccessful) {
+                profile = response.body()
+            } else {
+                error = "Failed to load profile (${response.code()})"
+            }
+        } catch (e: Exception) {
+            error = "Network error: ${e.message}"
+        } finally {
+            loading = false
+        }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxSize().padding(paddingValues).padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text("My Profile", style = MaterialTheme.typography.headlineSmall)
+        when {
+            loading -> Text("Loading profile...", style = MaterialTheme.typography.bodyMedium)
+            error != null -> Text(error!!, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+            profile != null -> {
+                Text("Email: ${profile!!.email}", style = MaterialTheme.typography.bodyMedium)
+                Text("Phone: ${profile!!.phone}", style = MaterialTheme.typography.bodyMedium)
+                Text("Role: ${profile!!.role}", style = MaterialTheme.typography.bodyMedium)
+                Text("Status: ${profile!!.status}", style = MaterialTheme.typography.bodyMedium)
+                Text("Created At: ${profile!!.createdAt}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }

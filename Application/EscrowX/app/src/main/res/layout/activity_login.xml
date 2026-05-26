@@ -68,7 +68,7 @@
         android:layout_height="52dp"
         android:hint="@string/hint_login_identifier"
         android:inputType="textEmailAddress"
-        android:autofillHints="emailAddress|phone"
+        android:autofillHints="emailAddress"
         android:background="@android:drawable/editbox_background"
         android:padding="12dp"
         android:layout_marginBottom="16dp"/>
