@@ -1,4 +1,4 @@
-package mobile.project.escrowx
+package mobile.project.escrowx.auth
 
 // POST /api/v1/auth/confirm request structure
 data class ConfirmRequest(
@@ -15,7 +15,7 @@ data class ConfirmResponse(
 
 // POST /api/v1/auth/login request payload
 data class LoginRequest(
-    val phone: String,
+    val email: String,
     val password: String
 )
 
@@ -52,4 +52,25 @@ data class RegisterResponse(
     val status: String,
     val role: String,
     val otpPreview: String
+)
+
+data class PasswordResetRequestDto(
+    val phone: String
+)
+
+data class PasswordResetRequestResponse(
+    val phone: String,
+    val message: String,
+    val otpPreview: String
+)
+
+data class PasswordResetConfirmRequest(
+    val phone: String,
+    val otp: String,
+    val newPassword: String
+)
+
+data class PasswordResetConfirmResponse(
+    val phone: String,
+    val passwordUpdated: Boolean
 )

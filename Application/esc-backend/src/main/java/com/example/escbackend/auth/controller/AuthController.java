@@ -4,10 +4,14 @@ import com.example.escbackend.auth.dto.ConfirmRequest;
 import com.example.escbackend.auth.dto.ConfirmResponse;
 import com.example.escbackend.auth.dto.LoginRequest;
 import com.example.escbackend.auth.dto.LoginResponse;
+import com.example.escbackend.auth.dto.LogoutRequest;
+import com.example.escbackend.auth.dto.LogoutResponse;
 import com.example.escbackend.auth.dto.PasswordResetConfirmRequest;
 import com.example.escbackend.auth.dto.PasswordResetConfirmResponse;
 import com.example.escbackend.auth.dto.PasswordResetRequestDto;
 import com.example.escbackend.auth.dto.PasswordResetRequestResponse;
+import com.example.escbackend.auth.dto.RefreshTokenRequest;
+import com.example.escbackend.auth.dto.RefreshTokenResponse;
 import com.example.escbackend.auth.dto.RegisterRequest;
 import com.example.escbackend.auth.dto.RegisterResponse;
 import com.example.escbackend.auth.service.AuthService;
@@ -53,5 +57,15 @@ public class AuthController {
     @PostMapping("/password-reset/confirm")
     public PasswordResetConfirmResponse confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
         return authService.confirmPasswordReset(request);
+    }
+
+    @PostMapping("/refresh")
+    public RefreshTokenResponse refresh(@Valid @RequestBody RefreshTokenRequest request) {
+        return authService.refresh(request);
+    }
+
+    @PostMapping("/logout")
+    public LogoutResponse logout(@Valid @RequestBody LogoutRequest request) {
+        return authService.logout(request);
     }
 }
