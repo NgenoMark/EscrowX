@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+// FIXED: Path pointing to the correct dashboard subpackage directory
 import mobile.project.escrowx.dash.BuyerDashboardActivity
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.R
@@ -54,12 +55,12 @@ class LoginActivity : ComponentActivity() {
 
                 CoroutineScope(Dispatchers.IO).launch {
                     try {
-                        // FIXED: Replaced the non-existent ApiService with RetrofitClient.instance
                         val response: Response<LoginResponse> = RetrofitClient.instance.loginUser(loginPayload)
 
                         withContext(Dispatchers.Main) {
                             val loginData = response.body()
                             if (response.isSuccessful && loginData != null) {
+                                // Persist authentication session state parameters cleanly
                                 SessionManager(this@LoginActivity).saveSession(
                                     accessToken = loginData.accessToken,
                                     refreshToken = loginData.refreshToken,
@@ -68,21 +69,24 @@ class LoginActivity : ComponentActivity() {
                                 val userRole = loginData.user.role
 
                                 if (userRole.equals("BUYER", ignoreCase = true)) {
+                                    // FIXED: Intent now tracks the clean class token explicitly
                                     val intent = Intent(this@LoginActivity, BuyerDashboardActivity::class.java).apply {
                                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                     }
                                     startActivity(intent)
                                     finish()
+                                } else if (userRole.equals("SELLER", ignoreCase = true)) {
+                                    Toast.makeText(this@LoginActivity, "Welcome Seller! Dashboard coming soon.", Toast.LENGTH_LONG).show()
                                 } else {
-                                    Toast.makeText(this@LoginActivity, "Welcome $userRole! Dashboard coming soon.", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(this@LoginActivity, "Welcome $userRole!", Toast.LENGTH_LONG).show()
                                 }
                             } else {
                                 Toast.makeText(this@LoginActivity, "Invalid email or password", Toast.LENGTH_LONG).show()
                             }
                         }
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@LoginActivity, "Network connection error: ${e.message}", Toast.LENGTH_LONG).show()
+                            Toast.makeText(this@LoginActivity, "Network connection error", Toast.LENGTH_LONG).show()
                         }
                     }
                 }

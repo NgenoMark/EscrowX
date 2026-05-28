@@ -9,16 +9,8 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Path
 import retrofit2.http.POST
-import mobile.project.escrowx.auth.ConfirmRequest
-import mobile.project.escrowx.auth.ConfirmResponse
-import mobile.project.escrowx.auth.LoginRequest
-import mobile.project.escrowx.auth.LoginResponse
-import mobile.project.escrowx.auth.PasswordResetConfirmRequest
-import mobile.project.escrowx.auth.PasswordResetConfirmResponse
-import mobile.project.escrowx.auth.PasswordResetRequestDto
-import mobile.project.escrowx.auth.PasswordResetRequestResponse
-import mobile.project.escrowx.auth.RegisterRequest
-import mobile.project.escrowx.auth.RegisterResponse
+import mobile.project.escrowx.auth.*
+import mobile.project.escrowx.dash.* // Ensure your model classes are accessible
 
 interface AuthApiService {
 
@@ -39,11 +31,14 @@ interface AuthApiService {
 
     @GET("api/v1/users/by-email/{email}")
     suspend fun getUserByEmail(@Path("email") email: String): Response<UserProfileResponse>
+
+    // --- STEP 1: Added Dashboard Endpoint ---
+    @GET("api/v1/dashboard/summary")
+    suspend fun getDashboardData(): Response<DashboardResponse>
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://192.168.100.190:8081/"
-
+    private const val BASE_URL = "http://10.20.31.89:8081/"
     val instance: AuthApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
@@ -71,12 +66,16 @@ object RetrofitClient {
     }
 }
 
+// Data models for the response
+data class DashboardResponse(
+    val escrows: List<EscrowItem>,
+    val transactions: List<TransactionItem>
+)
+
+data class EscrowItem(val id: String, val title: String, val amount: String, val status: String, val timeLeft: String)
+data class TransactionItem(val id: String, val title: String, val amount: String, val date: String, val status: String)
+
 data class UserProfileResponse(
-    val id: String,
-    val email: String,
-    val phone: String,
-    val role: String,
-    val status: String,
-    val createdAt: String,
-    val updatedAt: String
+    val id: String, val email: String, val phone: String,
+    val role: String, val status: String, val createdAt: String, val updatedAt: String
 )
