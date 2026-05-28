@@ -7,7 +7,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class ConfirmResponse {
-    private String phone;
+    private String email;
     private UserStatus status;
     private boolean confirmed;
 }

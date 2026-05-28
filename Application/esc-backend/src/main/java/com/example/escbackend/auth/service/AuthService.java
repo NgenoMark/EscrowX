@@ -35,6 +35,7 @@ public class AuthService {
     private final ProfileRepository profileRepository;
     private final PasswordEncoder passwordEncoder;
     private final OtpService otpService;
+    private final OtpDeliveryService otpDeliveryService;
     private final TokenService tokenService;
     private final UserMapperService mapper;
 
@@ -43,6 +44,7 @@ public class AuthService {
         ProfileRepository profileRepository,
         PasswordEncoder passwordEncoder,
         OtpService otpService,
+        OtpDeliveryService otpDeliveryService,
         TokenService tokenService,
         UserMapperService mapper
     ) {
@@ -50,6 +52,7 @@ public class AuthService {
         this.profileRepository = profileRepository;
         this.passwordEncoder = passwordEncoder;
         this.otpService = otpService;
+        this.otpDeliveryService = otpDeliveryService;
         this.tokenService = tokenService;
         this.mapper = mapper;
     }
@@ -77,28 +80,29 @@ public class AuthService {
         profile.setBusinessName(request.getBusinessName());
         profileRepository.save(profile);
 
-        String otp = otpService.generate(user.getPhone(), "REGISTER");
+        String otp = otpService.generate(user.getEmail(), "REGISTER");
+        otpDeliveryService.sendRegistrationOtp(user.getEmail(), otp);
 
         return RegisterResponse.builder()
             .userId(user.getId())
             .phone(user.getPhone())
             .status(user.getStatus())
             .role(user.getRole())
-            .otpPreview(otp)
+            .otpPreview(null)
             .build();
     }
 
     @Transactional
     public ConfirmResponse confirm(ConfirmRequest request) {
-        UserEntity user = userRepository.findByPhone(request.getPhone())
+        UserEntity user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        otpService.verify(request.getPhone(), "REGISTER", request.getOtp());
+        otpService.verify(request.getEmail(), "REGISTER", request.getOtp());
         user.setStatus(UserStatus.ACTIVE);
         userRepository.save(user);
 
         return ConfirmResponse.builder()
-            .phone(user.getPhone())
+            .email(user.getEmail())
             .status(user.getStatus())
             .confirmed(true)
             .build();
@@ -133,11 +137,12 @@ public class AuthService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         String otp = otpService.generate(user.getPhone(), "PASSWORD_RESET");
+        otpDeliveryService.sendPasswordResetOtp(user.getEmail(), otp);
 
         return PasswordResetRequestResponse.builder()
             .phone(user.getPhone())
             .message("OTP sent")
-            .otpPreview(otp)
+            .otpPreview(null)
             .build();
     }
 
