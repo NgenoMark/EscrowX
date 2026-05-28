@@ -2,13 +2,13 @@ package mobile.project.escrowx.auth
 
 // POST /api/v1/auth/confirm request structure
 data class ConfirmRequest(
-    val phone: String,
+    val email: String,
     val otp: String
 )
 
 // POST /api/v1/auth/confirm response structure [cite: 21, 29]
 data class ConfirmResponse(
-    val phone: String,
+    val email: String,
     val status: String,
     val confirmed: Boolean
 )

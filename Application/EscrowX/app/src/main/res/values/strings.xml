@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">EscrowX</string>
     <string name="verify_account_title">Verify Your Account</string>
-    <string name="verify_account_instruction">We have sent a 6-digit one-time verification code (OTP) to your phone number.</string>
+    <string name="verify_account_instruction">We have sent a 6-digit one-time verification code (OTP) to your email address.</string>
     <string name="otp_hint">Enter 6-Digit Code</string>
     <string name="btn_verify">Verify &amp; Activate</string>
     <string name="app_tagline">Secure mobile escrow for safer transactions</string>

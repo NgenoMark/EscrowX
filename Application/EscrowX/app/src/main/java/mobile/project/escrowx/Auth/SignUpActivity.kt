@@ -77,7 +77,7 @@ class SignUpActivity : ComponentActivity() {
 
                                 // Explicitly targets VerificationActivity cleanly
                                 val intent = Intent(this@SignUpActivity, VerificationActivity::class.java).apply {
-                                    putExtra("PHONE_NUMBER", phone)
+                                    putExtra("EMAIL", email)
                                 }
                                 startActivity(intent)
                                 finish()

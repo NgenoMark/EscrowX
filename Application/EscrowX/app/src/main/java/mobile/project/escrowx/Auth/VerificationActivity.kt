@@ -24,8 +24,7 @@ class VerificationActivity : ComponentActivity() {
         val etOtpCode = findViewById<EditText>(R.id.etOtpCode)
         val btnVerifySubmit = findViewById<Button>(R.id.btnVerifySubmit)
 
-        // Pull contextual phone identifier sent cleanly from registration views
-        val phoneNumber = intent.getStringExtra("PHONE_NUMBER") ?: ""
+        val email = intent.getStringExtra("EMAIL") ?: ""
 
         btnVerifySubmit.setOnClickListener {
             val otp = etOtpCode.text.toString().trim()
@@ -34,7 +33,7 @@ class VerificationActivity : ComponentActivity() {
                 Toast.makeText(this, "Please enter the verification code", Toast.LENGTH_SHORT).show()
             } else {
                 val confirmPayload = ConfirmRequest(
-                    phone = phoneNumber,
+                    email = email,
                     otp = otp
                 )
 
