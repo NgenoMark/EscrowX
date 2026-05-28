@@ -49,6 +49,7 @@ public class EscrowService {
         transaction.setBuyer(buyer);
         transaction.setSeller(seller);
         transaction.setTitle(request.getTitle().trim());
+        transaction.setProductDescription(request.getProductDescription().trim());
         transaction.setAmount(request.getAmount());
         transaction.setCurrency(request.getCurrency() == null ? "KES" : request.getCurrency().trim().toUpperCase(Locale.ROOT));
         transaction.setStatus("CREATED");
@@ -192,6 +193,7 @@ public class EscrowService {
             .buyerId(transaction.getBuyer().getId())
             .sellerId(transaction.getSeller().getId())
             .title(transaction.getTitle())
+                .productDescription(transaction.getProductDescription())
             .amount(transaction.getAmount())
             .currency(transaction.getCurrency())
             .status(transaction.getStatus())

@@ -41,6 +41,11 @@ public class EscrowTransaction {
     @Column(name = "title", nullable = false, length = 200)
     private String title;
 
+    @Size(max = 2000)
+    @NotNull
+    @Column(name = "product_description" , nullable = false , length = 2000)
+    private String productDescription;
+
     @NotNull
     @Column(name = "amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;

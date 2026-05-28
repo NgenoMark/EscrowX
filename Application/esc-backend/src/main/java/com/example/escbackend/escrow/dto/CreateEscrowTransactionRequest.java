@@ -25,6 +25,10 @@ public class CreateEscrowTransactionRequest {
     @Size(max = 200)
     private String title;
 
+    @NotBlank
+    @Size(max  = 2000)
+    private String productDescription;
+
     @NotNull
     @DecimalMin(value = "0.01")
     private BigDecimal amount;
