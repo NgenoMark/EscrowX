@@ -38,6 +38,17 @@ escrowx:
   otp:
     email:
       from: ${MAIL_FROM:no-reply@escrowx.local}
+  mpesa:
+    base-url: ${MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
+    consumer-key: ${MPESA_CONSUMER_KEY:}
+    consumer-secret: ${MPESA_CONSUMER_SECRET:}
+    short-code: ${MPESA_SHORT_CODE:}
+    pass-key: ${MPESA_PASS_KEY:}
+    callback-url: ${MPESA_STK_CALLBACK_URL:}
+    initiator-name: ${MPESA_INITIATOR_NAME:}
+    security-credential: ${MPESA_SECURITY_CREDENTIAL:}
+    result-url: ${MPESA_B2C_RESULT_URL:}
+    timeout-url: ${MPESA_B2C_TIMEOUT_URL:}
 
 server:
   port: ${SERVER_PORT:8081}
