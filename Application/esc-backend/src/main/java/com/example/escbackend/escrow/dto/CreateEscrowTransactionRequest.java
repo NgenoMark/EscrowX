@@ -33,9 +33,11 @@ public class CreateEscrowTransactionRequest {
     @DecimalMin(value = "0.01")
     private BigDecimal amount;
 
+    @DecimalMin(value = "0.01")
+    private BigDecimal initialDepositAmount;
+
     @Size(min = 3, max = 3)
     private String currency;
 
     private OffsetDateTime deliveryDueAt;
 }
-

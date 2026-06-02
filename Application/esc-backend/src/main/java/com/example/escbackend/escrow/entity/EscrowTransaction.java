@@ -50,6 +50,10 @@ public class EscrowTransaction {
     @Column(name = "amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
 
+    @NotNull
+    @Column(name = "initial_deposit_amount", nullable = false, precision = 18, scale = 2)
+    private BigDecimal initialDepositAmount;
+
     @Size(max = 3)
     @NotNull
     @ColumnDefault("'KES'")
@@ -91,6 +95,9 @@ public class EscrowTransaction {
         }
         if (status == null || status.isBlank()) {
             status = "CREATED";
+        }
+        if (initialDepositAmount == null) {
+            initialDepositAmount = amount;
         }
         createdAt = now;
         updatedAt = now;

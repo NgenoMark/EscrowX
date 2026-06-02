@@ -18,7 +18,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -45,12 +44,17 @@ public class EscrowService {
         UserEntity seller = userRepository.findById(request.getSellerId())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Seller not found"));
 
+        if (request.getInitialDepositAmount() != null && request.getInitialDepositAmount().compareTo(request.getAmount()) != 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Partial deposits are not supported yet. initialDepositAmount must equal amount");
+        }
+
         EscrowTransaction transaction = new EscrowTransaction();
         transaction.setBuyer(buyer);
         transaction.setSeller(seller);
         transaction.setTitle(request.getTitle().trim());
         transaction.setProductDescription(request.getProductDescription().trim());
         transaction.setAmount(request.getAmount());
+        transaction.setInitialDepositAmount(request.getAmount());
         transaction.setCurrency(request.getCurrency() == null ? "KES" : request.getCurrency().trim().toUpperCase(Locale.ROOT));
         transaction.setStatus("CREATED");
         transaction.setDeliveryDueAt(request.getDeliveryDueAt());
@@ -98,7 +102,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsBuyer(transaction, actorUserId);
         assertState(transaction, "DELIVERED");
-        transaction.setStatus("COMPLETED");
+        transaction.setStatus("RELEASE_PENDING");
         return toResponse(escrowRepository.save(transaction));
     }
 
@@ -107,13 +111,12 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorCanCancel(transaction, actorUserId);
 
-        List<String> cancellable = Arrays.asList(
-            "CREATED", "PENDING_PAYMENT", "FUNDS_HELD", "SELLER_ACCEPTED", "IN_DELIVERY", "DELIVERED"
-        );
+        List<String> cancellable = List.of("CREATED", "PENDING_PAYMENT");
         if (!cancellable.contains(transaction.getStatus())) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
-                "Transaction cannot be cancelled from status: " + transaction.getStatus()
+                "Transaction cannot be cancelled directly from status: " + transaction.getStatus()
+                    + ". Funded transactions must use refund or dispute flow."
             );
         }
 
@@ -193,8 +196,9 @@ public class EscrowService {
             .buyerId(transaction.getBuyer().getId())
             .sellerId(transaction.getSeller().getId())
             .title(transaction.getTitle())
-                .productDescription(transaction.getProductDescription())
+            .productDescription(transaction.getProductDescription())
             .amount(transaction.getAmount())
+            .initialDepositAmount(transaction.getInitialDepositAmount())
             .currency(transaction.getCurrency())
             .status(transaction.getStatus())
             .deliveryDueAt(transaction.getDeliveryDueAt())
