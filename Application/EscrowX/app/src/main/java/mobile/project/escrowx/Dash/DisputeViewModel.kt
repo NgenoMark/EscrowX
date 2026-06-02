@@ -11,7 +11,7 @@ import mobile.project.escrowx.auth.SessionManager
 
 data class DisputeUiState(
     val isLoading: Boolean = true,
-    val disputesList: List<DisputeItem> = emptyList(), // Now visible via import
+    val disputesList: List<DisputeItem> = emptyList(),
     val errorMessage: String? = null,
     val userEmail: String = ""
 )
@@ -28,10 +28,27 @@ class DisputeViewModel : ViewModel() {
                 val session = SessionManager(context)
                 val email = session.getEmail() ?: "Unknown Buyer"
 
+                // Mock data - replace with actual API call
                 val liveDatabaseRecords = listOf(
-                    DisputeItem("TXN: #ESC-99281", "Samsung 4K Monitor", "KES 32,500", DisputeStatus.UNDER_INVESTIGATION),
-                    DisputeItem("TXN: #ESC-87211", "Premium Leather Sofa", "KES 120,000", DisputeStatus.AWAITING_EVIDENCE),
-                    DisputeItem("TXN: #ESC-77610", "Solar Inverter Kit", "KES 15,000", DisputeStatus.RESOLVED, isRefund = true)
+                    DisputeItem(
+                        txnId = "TXN: #ESC-99281",
+                        title = "Samsung 4K Monitor",
+                        amount = "KES 32,500",
+                        status = DisputeStatus.UNDER_INVESTIGATION
+                    ),
+                    DisputeItem(
+                        txnId = "TXN: #ESC-87211",
+                        title = "Premium Leather Sofa",
+                        amount = "KES 120,000",
+                        status = DisputeStatus.AWAITING_EVIDENCE
+                    ),
+                    DisputeItem(
+                        txnId = "TXN: #ESC-77610",
+                        title = "Solar Inverter Kit",
+                        amount = "KES 15,000",
+                        status = DisputeStatus.RESOLVED,
+                        isRefund = true
+                    )
                 )
 
                 _uiState.value = DisputeUiState(
@@ -43,7 +60,7 @@ class DisputeViewModel : ViewModel() {
             } catch (e: Exception) {
                 _uiState.value = DisputeUiState(
                     isLoading = false,
-                    errorMessage = "Database synchronization failure: ${e.localizedMessage}"
+                    errorMessage = "Failed to load disputes: ${e.localizedMessage}"
                 )
             }
         }

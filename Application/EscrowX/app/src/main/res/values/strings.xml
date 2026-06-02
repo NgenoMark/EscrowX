@@ -13,4 +13,10 @@
     <string name="btn_continue">Continue</string>
     <string name="label_or_continue">Or continue with</string>
     <string name="btn_google">Continue with Google</string>
+    <string name="profile_email">Email: %s</string>
+    <string name="profile_phone">Phone: %s</string>
+    <string name="profile_role">Role: %s</string>
+    <string name="profile_status">Status: %s</string>
+    <string name="profile_created_at">Created At: %s</string>
+
 </resources>
