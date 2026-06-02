@@ -70,6 +70,14 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
         <activity android:name=".dash.TransactionsActivity" android:exported="false" />
+        <activity
+            android:name=".dash.PaymentActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+        <activity
+            android:name=".dash.SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
 
 
     </application>

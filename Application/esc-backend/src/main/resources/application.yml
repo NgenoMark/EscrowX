@@ -6,7 +6,7 @@ spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/escrowx
     username: postgres
-    password: BmwM5CS@30
+    password: emunasye
     driver-class-name: org.postgresql.Driver
   jpa:
     hibernate:

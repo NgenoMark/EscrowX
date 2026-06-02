@@ -1,273 +1,554 @@
-@file:Suppress("SpellCheckingInspection")
-
 package mobile.project.escrowx.dash
 
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.HelpOutline
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.PersonAdd
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import mobile.project.escrowx.RetrofitClient
+import mobile.project.escrowx.auth.SessionManager
+import java.text.NumberFormat
+import java.util.Locale
 
 class CreateEscrowActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            CreateEscrowScreen(onBackClick = { finish() })
+            MaterialTheme {
+                CreateEscrowScreen()
+            }
         }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateEscrowScreen(onBackClick: () -> Unit = {}) {
-    var searchQuery by remember { mutableStateOf("") }
-    var transactionAmount by remember { mutableStateOf("") }
-    var itemDescription by remember { mutableStateOf("") }
-    var selectedTimeline by remember { mutableStateOf("1-3 days") }
+fun CreateEscrowScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val session = SessionManager(context)
 
-    // Business Math Computations
-    val amountVal = transactionAmount.toDoubleOrNull() ?: 0.0
-    val escrowFee = if (amountVal > 0) amountVal * 0.015 else 0.0 // 1.5% Escrow Guard Fee
-    val totalToPay = amountVal + escrowFee
+    // Form fields
+    var itemName by remember { mutableStateOf("") }
+    var amount by remember { mutableStateOf("") }
+    var sellerSearch by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var inspectionDays by remember { mutableIntStateOf(3) }
+    var deliveryMethod by remember { mutableStateOf("Courier") }
+
+    // Summary calculations
+    val parsedAmount = amount.toDoubleOrNull() ?: 0.0
+    val escrowFee = parsedAmount * 0.015
+    val totalAmount = parsedAmount + escrowFee
+
+    // Button states
+    var isProcessing by remember { mutableStateOf(false) }
+    var isSuccess by remember { mutableStateOf(false) }
+    var buttonText by remember { mutableStateOf("Proceed to Payment") }
+
+    // Dropdown states
+    var inspectionExpanded by remember { mutableStateOf(false) }
+    var deliveryExpanded by remember { mutableStateOf(false) }
+
+    // Format currency
+    fun formatCurrency(value: Double): String {
+        return NumberFormat.getCurrencyInstance(Locale("en", "KE"))
+            .format(value)
+            .replace("KES", "KES")
+    }
+
+    // Handle form submission and navigate to payment
+    fun handleSubmit() {
+        if (itemName.isBlank()) {
+            Toast.makeText(context, "Please enter item name", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (parsedAmount <= 0) {
+            Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (sellerSearch.isBlank()) {
+            Toast.makeText(context, "Please enter seller email or phone", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        isProcessing = true
+        buttonText = "Creating Escrow..."
+
+        scope.launch {
+            try {
+                val token = session.getAccessToken()
+                if (token.isNullOrBlank()) {
+                    Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_LONG).show()
+                    isProcessing = false
+                    buttonText = "Proceed to Payment"
+                    return@launch
+                }
+
+                // TODO: Implement actual API call to create escrow
+                // val request = CreateEscrowRequest(
+                //     itemName = itemName,
+                //     amount = parsedAmount,
+                //     sellerEmail = sellerSearch,
+                //     description = description,
+                //     inspectionDays = inspectionDays,
+                //     deliveryMethod = deliveryMethod
+                // )
+                // val response = RetrofitClient.authenticated(token).createEscrow(request)
+
+                delay(1500) // Simulate API call
+
+                // Success - Navigate to PaymentActivity
+                isSuccess = true
+                buttonText = "Success!"
+
+                Toast.makeText(context, "Escrow created! Proceed to payment.", Toast.LENGTH_LONG).show()
+
+                // Navigate to Payment Activity with transaction details
+                val intent = Intent(context, PaymentActivity::class.java).apply {
+                    putExtra("ITEM_NAME", itemName)
+                    putExtra("AMOUNT", totalAmount)
+                    putExtra("TRANSACTION_AMOUNT", parsedAmount)
+                    putExtra("ESCROW_FEE", escrowFee)
+                    putExtra("SELLER_EMAIL", sellerSearch)
+                }
+                context.startActivity(intent)
+
+                // Close current activity
+                (context as? CreateEscrowActivity)?.finish()
+
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                isProcessing = false
+                buttonText = "Proceed to Payment"
+                isSuccess = false
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Create Escrow", fontSize = 18.sp, fontWeight = FontWeight.SemiBold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
+                title = {
+                    Text(
+                        "Create New Escrow",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF151C27)
+                    )
                 },
-                actions = {
-                    IconButton(onClick = { /* Help context */ }) {
-                        Icon(imageVector = Icons.Filled.HelpOutline, contentDescription = "Help")
+                navigationIcon = {
+                    IconButton(onClick = {
+                        (context as? CreateEscrowActivity)?.finish()
+                    }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFF00236F)
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF9F9FF)
+                    containerColor = Color(0xFFF9F9FF),
+                    titleContentColor = Color(0xFF151C27)
                 )
             )
         },
         bottomBar = {
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                tonalElevation = 4.dp,
-                color = Color(0xFFF9F9FF),
-                border = BorderStroke(1.dp, Color(0xFFC5C5D3).copy(alpha = 0.4f))
-            ) {
-                Column(
-                    modifier = Modifier
-                        .padding(16.dp)
-                        .navigationBarsPadding(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = { /* Proceed execution payload */ },
-                        modifier = Modifier.fillMaxWidth().height(56.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F)),
-                        shape = RoundedCornerShape(99.dp)
-                    ) {
-                        Text("Proceed to Payment", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    }
-
-                    OutlinedButton(
-                        onClick = onBackClick,
-                        modifier = Modifier.fillMaxWidth().height(48.dp),
-                        border = BorderStroke(0.dp, Color.Transparent),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFF444651))
-                    ) {
-                        Text("Cancel Transaction", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
-            }
-        },
-        containerColor = Color(0xFFF9F9FF)
-    ) { innerPadding ->
+            CreateEscrowBottomNavigation()
+        }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .padding(horizontal = 16.dp)
+                .padding(paddingValues)
+                .background(Color(0xFFF9F9FF))
                 .verticalScroll(rememberScrollState())
+                .padding(16.dp)
         ) {
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text("New Transaction", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
-            Text("Secure your purchase by setting up a conditional payment.", fontSize = 14.sp, color = Color(0xFF444651), modifier = Modifier.padding(top = 4.dp))
+            // Step Indicator
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "New Escrow Details",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF151C27)
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(4.dp)
+                            .background(Color(0xFF00236F), RoundedCornerShape(2.dp))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(24.dp)
+                            .height(4.dp)
+                            .background(Color(0xFFC5C5D3), RoundedCornerShape(2.dp))
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Section 1: Seller Selector
-            Text("Search or select seller", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
+            // Item Info Card
+            Card(
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Enter phone number or username", color = Color(0xFF757682).copy(alpha = 0.6f)) },
-                leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = null, tint = Color(0xFF757682)) },
                 shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00236F),
-                    unfocusedBorderColor = Color(0xFFC5C5D3)
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    // Item Name Field
+                    Column {
+                        Text(
+                            "Item Name",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF444651),
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = itemName,
+                            onValueChange = { itemName = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("e.g., iPhone 15 Pro") },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF00236F),
+                                unfocusedBorderColor = Color(0xFFC5C5D3)
+                            )
+                        )
+                    }
+
+                    // Transaction Amount Field
+                    Column {
+                        Text(
+                            "Transaction Amount (KES)",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF444651),
+                            modifier = Modifier.padding(start = 4.dp, bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            value = amount,
+                            onValueChange = { amount = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("0.00") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF00236F),
+                                unfocusedBorderColor = Color(0xFFC5C5D3)
+                            ),
+                            trailingIcon = {
+                                Text("KES", fontSize = 12.sp, color = Color(0xFF444651))
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Seller Info Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Seller Contact",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF444651)
+                    )
+                    OutlinedTextField(
+                        value = sellerSearch,
+                        onValueChange = { sellerSearch = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Search Seller") },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00236F),
+                            unfocusedBorderColor = Color(0xFFC5C5D3)
+                        ),
+                        leadingIcon = {
+                            Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF444651))
+                        }
+                    )
+                    Text(
+                        "We'll invite the seller to join this transaction.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF444651)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Description Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "Terms of Sale / Description",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF444651)
+                    )
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("Describe the item condition, inclusions, and agreed terms...") },
+                        minLines = 4,
+                        maxLines = 4,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00236F),
+                            unfocusedBorderColor = Color(0xFFC5C5D3)
+                        )
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Settings Grid - Inspection & Delivery
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Inspection Days Card
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Inspection",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF444651),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = "$inspectionDays Days",
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { inspectionExpanded = true }
+                                    .padding(vertical = 8.dp),
+                                fontSize = 14.sp,
+                                color = Color(0xFF151C27)
+                            )
+                            DropdownMenu(
+                                expanded = inspectionExpanded,
+                                onDismissRequest = { inspectionExpanded = false }
+                            ) {
+                                listOf(1, 3, 5, 7).forEach { days ->
+                                    DropdownMenuItem(
+                                        text = { Text("$days Day${if (days > 1) "s" else ""}") },
+                                        onClick = {
+                                            inspectionDays = days
+                                            inspectionExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Delivery Method Card
+                Card(
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            "Delivery",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFF444651),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                text = deliveryMethod,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { deliveryExpanded = true }
+                                    .padding(vertical = 8.dp),
+                                fontSize = 14.sp,
+                                color = Color(0xFF151C27)
+                            )
+                            DropdownMenu(
+                                expanded = deliveryExpanded,
+                                onDismissRequest = { deliveryExpanded = false }
+                            ) {
+                                listOf("Courier", "In-Person", "Digital").forEach { method ->
+                                    DropdownMenuItem(
+                                        text = { Text(method) },
+                                        onClick = {
+                                            deliveryMethod = method
+                                            deliveryExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Summary Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3A8A)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Transaction Summary",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF90A8FF)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Item Price", fontSize = 14.sp, color = Color(0xFF90A8FF).copy(alpha = 0.8f))
+                        Text(
+                            formatCurrency(parsedAmount),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Escrow Fee (1.5%)", fontSize = 14.sp, color = Color(0xFF90A8FF).copy(alpha = 0.8f))
+                        Text(
+                            formatCurrency(escrowFee),
+                            fontSize = 14.sp,
+                            color = Color(0xFF90A8FF)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    HorizontalDivider(color = Color(0xFF90A8FF).copy(alpha = 0.2f))
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total to Pay", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            formatCurrency(totalAmount),
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF6CF8BB)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // Submit Button
+            Button(
+                onClick = { handleSubmit() },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isSuccess) Color(0xFF006C49) else Color(0xFF00236F)
                 ),
-                singleLine = true
-            )
+                enabled = !isProcessing
+            ) {
+                if (isProcessing) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                } else {
+                    Icon(
+                        if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Shield,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                }
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Horizontal Recent Sellers Row List
-            Row(
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                SellerAvatarItem(name = "New", isAction = true) {}
-                SellerAvatarItem(name = "Kamau", isAction = false) {}
-                SellerAvatarItem(name = "Amani", isAction = false) {}
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Section 2: Financial Amount Input
-            Text("Amount (KES)", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = transactionAmount,
-                onValueChange = { transactionAmount = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("0.00") },
-                leadingIcon = { Text("KES", fontWeight = FontWeight.Bold, color = Color(0xFF151C27), modifier = Modifier.padding(start = 12.dp)) },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00236F),
-                    unfocusedBorderColor = Color(0xFFC5C5D3)
-                ),
-                singleLine = true
+            Text(
+                "Funds are held securely in trust until you verify the item.",
+                fontSize = 12.sp,
+                color = Color(0xFF444651),
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
             )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Section 3: Item Context Descriptions
-            Text("Item Description", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-            Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = itemDescription,
-                onValueChange = { itemDescription = it },
-                modifier = Modifier.fillMaxWidth().height(100.dp),
-                placeholder = { Text("What are you paying for? (e.g. MacBook Air M2, Space Gray)") },
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF00236F),
-                    unfocusedBorderColor = Color(0xFFC5C5D3)
-                ),
-                maxLines = 3
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Section 4: Timelines Choice Selection Grid Map
-            Text("Delivery Timeline", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val options = listOf("1-3 days", "4-7 days", "7-14 days", "Custom")
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TimelineGridCard(text = options[0], selected = selectedTimeline == options[0], modifier = Modifier.weight(1f)) { selectedTimeline = options[0] }
-                    TimelineGridCard(text = options[1], selected = selectedTimeline == options[1], modifier = Modifier.weight(1f)) { selectedTimeline = options[1] }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TimelineGridCard(text = options[2], selected = selectedTimeline == options[2], modifier = Modifier.weight(1f)) { selectedTimeline = options[2] }
-                    TimelineGridCard(text = options[3], selected = selectedTimeline == options[3], modifier = Modifier.weight(1f)) { selectedTimeline = options[3] }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Section 5: Real-time Mathematical Calculation Card
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F3FF)),
-                border = BorderStroke(1.dp, Color(0xFFC5C5D3).copy(alpha = 0.3f))
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Subtotal", color = Color(0xFF444651), fontSize = 14.sp)
-                        Text(String.format("KES %.2f", amountVal), color = Color(0xFF151C27), fontWeight = FontWeight.Medium)
-                    }
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Escrow Fee", color = Color(0xFF444651), fontSize = 14.sp)
-                            Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = Color(0xFF00236F), modifier = Modifier.size(16.dp))
-                        }
-                        Text(String.format("KES %.2f", escrowFee), color = Color(0xFF444651), fontSize = 14.sp)
-                    }
-
-                    HorizontalDivider(color = Color(0xFFC5C5D3).copy(alpha = 0.4f))
-
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Total to Pay", color = Color(0xFF00236F), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        Text(String.format("KES %.2f", totalToPay), color = Color(0xFF00236F), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -275,49 +556,43 @@ fun CreateEscrowScreen(onBackClick: () -> Unit = {}) {
 }
 
 @Composable
-fun SellerAvatarItem(name: String, isAction: Boolean, onClick: () -> Unit) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.clickable { onClick() }
-    ) {
-        Box(
-            modifier = Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(if (isAction) Color(0xFF6CF8BB) else Color(0xFFE2E8F8)),
-            contentAlignment = Alignment.Center
-        ) {
-            if (isAction) {
-                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = null, tint = Color(0xFF00714D))
-            } else {
-                Icon(imageVector = Icons.Default.PersonAdd, contentDescription = null, tint = Color(0xFF444651).copy(alpha = 0.4f))
-            }
-        }
-        Text(name, fontSize = 12.sp, color = Color(0xFF151C27), fontWeight = FontWeight.Medium)
-    }
-}
+fun CreateEscrowBottomNavigation() {
+    val context = LocalContext.current
+    var selectedTab by remember { mutableIntStateOf(0) }
 
-@Composable
-fun TimelineGridCard(text: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    Card(
-        modifier = modifier
-            .height(48.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) Color(0xFF6CF8BB) else Color(0xFFF9F9FF)
-        ),
-        border = BorderStroke(1.dp, if (selected) Color(0xFF00714D) else Color(0xFFC5C5D3))
+    NavigationBar(
+        modifier = Modifier.height(80.dp),
+        containerColor = Color(0xFFF9F9FF),
+        tonalElevation = 0.dp
     ) {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text(text = text, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF151C27))
-        }
-    }
-}
+        NavigationBarItem(
+            selected = selectedTab == 0,
+            onClick = {
+                selectedTab = 0
+                context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
+            },
+            icon = { Icon(Icons.Default.Home, contentDescription = "Home", modifier = Modifier.size(24.dp)) },
+            label = { Text("Home", fontSize = 11.sp) }
+        )
 
-@Preview(showBackground = true)
-@Composable
-fun CreateEscrowPreview() {
-    CreateEscrowScreen()
+        NavigationBarItem(
+            selected = selectedTab == 1,
+            onClick = {
+                selectedTab = 1
+                context.startActivity(Intent(context, TransactionsActivity::class.java))
+            },
+            icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Transactions", modifier = Modifier.size(24.dp)) },
+            label = { Text("Transactions", fontSize = 11.sp) }
+        )
+
+        NavigationBarItem(
+            selected = selectedTab == 2,
+            onClick = {
+                selectedTab = 2
+                context.startActivity(Intent(context, ProfileActivity::class.java))
+            },
+            icon = { Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(24.dp)) },
+            label = { Text("Profile", fontSize = 11.sp) }
+        )
+    }
 }

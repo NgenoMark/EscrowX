@@ -5,12 +5,9 @@ import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.Response
 import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.Body
-import retrofit2.http.GET
-import retrofit2.http.Path
-import retrofit2.http.POST
+import retrofit2.http.*
 import mobile.project.escrowx.auth.*
-import mobile.project.escrowx.dash.* // Ensure your model classes are accessible
+import mobile.project.escrowx.dash.*
 
 interface AuthApiService {
 
@@ -30,15 +27,43 @@ interface AuthApiService {
     suspend fun confirmPasswordReset(@Body request: PasswordResetConfirmRequest): Response<PasswordResetConfirmResponse>
 
     @GET("api/v1/users/by-email/{email}")
-    suspend fun getUserByEmail(@Path("email") email: String): Response<UserProfileResponse>
+    suspend fun getUserByEmail(@Path("email") email: String): Response<UserDetailsResponse>
 
-    // --- STEP 1: Added Dashboard Endpoint ---
     @GET("api/v1/dashboard/summary")
     suspend fun getDashboardData(): Response<DashboardResponse>
+
+    // Escrow endpoints
+    @POST("api/v1/transactions")
+    suspend fun createEscrow(@Body request: CreateEscrowRequest): Response<EscrowResponse>
+
+    @GET("api/v1/transactions")
+    suspend fun listTransactions(
+        @Query("role") role: String? = null,
+        @Query("status") status: String? = null,
+        @Query("userId") userId: String? = null,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20
+    ): Response<PageResponse<EscrowResponse>>
+
+    @GET("api/v1/transactions/{id}")
+    suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/accept")
+    suspend fun acceptTransaction(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/cancel")
+    suspend fun cancelTransaction(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://10.20.31.89:8081/"
+    private const val BASE_URL = "http://192.168.100.3:8081/"
+
     val instance: AuthApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
@@ -66,16 +91,56 @@ object RetrofitClient {
     }
 }
 
-// Data models for the response
-data class DashboardResponse(
-    val escrows: List<EscrowItem>,
-    val transactions: List<TransactionItem>
+// Additional data classes
+data class CreateEscrowRequest(
+    val buyerId: String,
+    val sellerId: String,
+    val title: String,
+    val amount: String,
+    val currency: String = "KES",
+    val deliveryDueAt: String? = null
 )
 
-data class EscrowItem(val id: String, val title: String, val amount: String, val status: String, val timeLeft: String)
-data class TransactionItem(val id: String, val title: String, val amount: String, val date: String, val status: String)
+data class EscrowResponse(
+    val id: String,
+    val reference: String,
+    val buyerId: String,
+    val sellerId: String,
+    val title: String,
+    val amount: String,
+    val currency: String,
+    val status: String,
+    val deliveryDueAt: String? = null,
+    val autoReleaseAt: String? = null,
+    val createdAt: String,
+    val updatedAt: String
+)
 
-data class UserProfileResponse(
-    val id: String, val email: String, val phone: String,
-    val role: String, val status: String, val createdAt: String, val updatedAt: String
+data class PageResponse<T>(
+    val content: List<T>,
+    val pageable: PageableInfo,
+    val totalPages: Int,
+    val totalElements: Long,
+    val last: Boolean,
+    val size: Int,
+    val number: Int,
+    val sort: SortInfo,
+    val first: Boolean,
+    val numberOfElements: Int,
+    val empty: Boolean
+)
+
+data class PageableInfo(
+    val pageNumber: Int,
+    val pageSize: Int,
+    val sort: SortInfo,
+    val offset: Long,
+    val paged: Boolean,
+    val unpaged: Boolean
+)
+
+data class SortInfo(
+    val empty: Boolean,
+    val sorted: Boolean,
+    val unsorted: Boolean
 )
