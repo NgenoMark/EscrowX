@@ -27,7 +27,6 @@ data class LoginResponse(
     val expiresIn: Long,
     val user: UserProfileData // Resolves the 'user' reference issue
 )
-
 // Embedded user profile details inside the login response object
 data class UserProfileData(
     val id: String,

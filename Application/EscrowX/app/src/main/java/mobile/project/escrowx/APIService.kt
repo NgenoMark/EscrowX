@@ -35,6 +35,8 @@ interface AuthApiService {
     // Escrow endpoints
     @POST("api/v1/transactions")
     suspend fun createEscrow(@Body request: CreateEscrowRequest): Response<EscrowResponse>
+    @GET("api/v1/users/by-phone/{phone}")
+    suspend fun getUserByPhone(@Path("phone") phone: String): Response<UserDetailsResponse>
 
     @GET("api/v1/transactions")
     suspend fun listTransactions(
@@ -62,7 +64,7 @@ interface AuthApiService {
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://192.168.100.3:8081/"
+    private const val BASE_URL = "http://10.20.31.89:8081/"
 
     val instance: AuthApiService by lazy {
         Retrofit.Builder()
