@@ -70,6 +70,30 @@ public class EscrowService {
         return toResponse(transaction);
     }
 
+    public List <EscrowResponse> getBySellerId(UUID sellerId){
+        List <EscrowTransaction> transactions = escrowRepository.findBySellerId(sellerId);
+
+        if (transactions.isEmpty()){
+                throw new ApiException(HttpStatus.NOT_FOUND, "No transactions found for this seller");
+        }
+
+        return transactions.stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
+    public List <EscrowResponse> getByBuyerId(UUID buyerId){
+        List <EscrowTransaction> transactions = escrowRepository.findByBuyerId(buyerId);
+
+        if (transactions.isEmpty()){
+            throw new ApiException(HttpStatus.NOT_FOUND , "No transactions found for this buyer");
+        }
+
+        return transactions.stream()
+                .map(this::toResponse)
+                .toList();
+    }
+
     @Transactional
     public EscrowResponse acceptTransaction(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);

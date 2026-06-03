@@ -4,16 +4,19 @@ package com.example.escbackend.escrow.controller;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
 import com.example.escbackend.escrow.dto.EscrowResponse;
 import com.example.escbackend.escrow.service.EscrowService;
+import jakarta.persistence.Entity;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/v1")
+@CrossOrigin(origins = "*", allowedHeaders = "*") // <-- Add this line here
 public class EscrowController {
 
     private final EscrowService escrowService;
@@ -23,7 +26,7 @@ public class EscrowController {
     }
 
 
-    @PostMapping("/transactions")
+    @PostMapping("/transactions/create")
     @ResponseStatus(HttpStatus.CREATED)
     public EscrowResponse createTransaction(@Valid @RequestBody CreateEscrowTransactionRequest request) {
         return escrowService.createTransaction(request);
@@ -34,7 +37,16 @@ public class EscrowController {
         return escrowService.getById(id);
     }
 
-    @GetMapping("/transactions")
+    @GetMapping("/transactions/seller/{sellerId}")
+    public List<EscrowResponse> getBySellerId(@PathVariable UUID sellerId){
+        return escrowService.getBySellerId(sellerId);}
+
+    @GetMapping("/transactions/buyer/{buyerId}")
+    public List <EscrowResponse> getByBuyerId(@PathVariable UUID buyerId){
+        return escrowService.getByBuyerId(buyerId);
+    }
+
+    @GetMapping("/transactions/search")
     public Page<EscrowResponse> listTransactions(
         @RequestParam(required = false) String role,
         @RequestParam(required = false) String status,
