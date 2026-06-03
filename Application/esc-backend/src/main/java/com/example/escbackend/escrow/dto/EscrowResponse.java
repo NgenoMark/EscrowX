@@ -21,6 +21,7 @@ public class EscrowResponse {
     private String title;
     private String productDescription;
     private BigDecimal amount;
+    private BigDecimal initialDepositAmount;
     private String currency;
     private String status;
     private OffsetDateTime deliveryDueAt;

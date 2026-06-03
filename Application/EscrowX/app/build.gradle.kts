@@ -10,7 +10,7 @@ android {
     defaultConfig {
         applicationId = "mobile.project.escrowx"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 34  // Updated to 34 for better compatibility
         versionCode = 1
         versionName = "1.0"
 
@@ -86,4 +86,11 @@ dependencies {
     implementation(platform("androidx.compose:compose-bom:2024.04.01"))
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.material3:material3")
+
+    // For AsyncImage (Coil) - Image loading library
+    implementation("io.coil-kt:coil-compose:2.5.0")
+
+    // For Camera and Gallery interactions
+    implementation("androidx.activity:activity-ktx:1.9.3")
+    implementation("androidx.fragment:fragment-ktx:1.8.0")
 }
