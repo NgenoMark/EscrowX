@@ -1,0 +1,92 @@
+<div class="space-y-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+    <app-stat-card
+      label="Total Volume"
+      [value]="(totalVolume | number) + ' KES'"
+      note="+12.3% vs last month"
+      icon="fa-credit-card"
+    ></app-stat-card>
+    <app-stat-card
+      label="Platform Fees"
+      [value]="(platformFees | number) + ' KES'"
+      note="2.5% collected fee"
+      icon="fa-chart-line"
+    ></app-stat-card>
+    <app-stat-card
+      label="Active Escrows"
+      [value]="activeEscrows"
+      note="Funds currently protected"
+      icon="fa-lock"
+    ></app-stat-card>
+    <app-stat-card
+      label="Open Disputes"
+      [value]="openDisputes"
+      note="Require admin review"
+      icon="fa-gavel"
+      tone="danger"
+    ></app-stat-card>
+  </div>
+
+  <section class="panel">
+    <div class="panel-header">
+      <div>
+        <p class="section-kicker">Live queue</p>
+        <h3>Recent Transactions</h3>
+      </div>
+      <a routerLink="/transactions" class="text-indigo-600 text-sm font-semibold">
+        View all <i class="fas fa-arrow-right ml-1 text-xs"></i>
+      </a>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="min-w-full">
+        <thead>
+          <tr>
+            <th class="px-6 py-3 text-left uppercase">ID</th>
+            <th class="px-6 py-3 text-left uppercase">Buyer / Seller</th>
+            <th class="px-6 py-3 text-left uppercase">Amount</th>
+            <th class="px-6 py-3 text-left uppercase">Status</th>
+            <th class="px-6 py-3 text-left uppercase">Auto Release</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          <tr *ngFor="let tx of filteredRecentTransactions()">
+            <td class="px-6 py-3 text-xs font-mono text-gray-600">{{ tx.id }}</td>
+            <td class="px-6 py-3 text-sm">
+              {{ tx.buyer }} <i class="fas fa-arrow-right text-xs text-gray-400 mx-1"></i> {{ tx.seller }}
+            </td>
+            <td class="px-6 py-3 font-semibold text-gray-800">{{ tx.amount | number }} KES</td>
+            <td class="px-6 py-3">
+              <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getStatusClass(tx.status)">
+                {{ tx.status }}
+              </span>
+            </td>
+            <td class="px-6 py-3 text-xs text-gray-500">
+              {{ tx.autoReleaseDate ? (tx.autoReleaseDate | date) : '-' }}
+            </td>
+          </tr>
+          <tr *ngIf="filteredRecentTransactions().length === 0">
+            <td colspan="5" class="px-6 py-8 text-center text-gray-500">No matching transactions found</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div class="insight-card">
+      <p>Success Rate</p>
+      <strong>96.2%</strong>
+      <span>Up 2.1% from last month</span>
+    </div>
+    <div class="insight-card">
+      <p>Avg Resolution Time</p>
+      <strong>2.4 days</strong>
+      <span>For disputed transactions</span>
+    </div>
+    <div class="insight-card">
+      <p>Total Refunded</p>
+      <strong>KES 89,200</strong>
+      <span>Across 12 transactions</span>
+    </div>
+  </div>
+</div>

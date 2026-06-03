@@ -1,0 +1,43 @@
+/* Smooth transitions for all interactive elements */
+button, .card-hover {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Table row hover effect */
+tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+/* Custom scrollbar for the table */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 6px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #c7d2fe;
+  border-radius: 10px;
+}
+
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #818cf8;
+}
+
+/* Focus styles for input */
+input:focus {
+  outline: none;
+}
+
+/* Animation for stat cards */
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
