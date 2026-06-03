@@ -1,11 +1,17 @@
 package mobile.project.escrowx.dash
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,15 +29,28 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
+import mobile.project.escrowx.auth.ChangePasswordVerificationActivity
 import mobile.project.escrowx.auth.SessionManager
+import java.io.File
+import java.io.IOException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -62,9 +81,80 @@ fun ProfileScreenContent() {
     var businessName by remember { mutableStateOf("") }
     var deliveryAddress by remember { mutableStateOf("") }
 
+    var profileImageUri by remember { mutableStateOf<Uri?>(null) }
+
     var isSaving by remember { mutableStateOf(false) }
     var saveButtonText by remember { mutableStateOf("Save Changes") }
     var isSaveSuccess by remember { mutableStateOf(false) }
+
+    var showImagePickerDialog by remember { mutableStateOf(false) }
+
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun createImageFile(): File {
+        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+        val imageFileName = "JPEG_${timeStamp}_"
+        val storageDir = context.cacheDir
+        return File.createTempFile(imageFileName, ".jpg", storageDir)
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            val photoFile = createImageFile()
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+            profileImageUri = uri
+            Toast.makeText(context, "Photo updated", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            profileImageUri = it
+            Toast.makeText(context, "Image selected", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun onEditImageClick() {
+        showImagePickerDialog = true
+    }
+
+    fun onCameraClick() {
+        if (ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            val photoFile = createImageFile()
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+            cameraLauncher.launch(uri)
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+        showImagePickerDialog = false
+    }
+
+    fun onGalleryClick() {
+        galleryLauncher.launch("image/*")
+        showImagePickerDialog = false
+    }
 
     // Load user profile
     LaunchedEffect(Unit) {
@@ -84,7 +174,7 @@ fun ProfileScreenContent() {
                 if (response.isSuccessful && response.body() != null) {
                     userProfile = response.body()
                     displayName = userProfile?.displayName ?: ""
-                    fullName = userProfile?.displayName ?: userProfile?.email?.substringBefore("@") ?: ""
+                    fullName = userProfile?.displayName?.ifBlank { userProfile?.email?.substringBefore("@") ?: "" } ?: ""
                     email = userProfile?.email ?: ""
                     phoneNumber = userProfile?.phone ?: ""
                     businessName = userProfile?.businessName ?: ""
@@ -92,8 +182,8 @@ fun ProfileScreenContent() {
                 } else {
                     errorMessage = "Failed to load profile: ${response.code()}"
                 }
-            } catch (e: Exception) {
-                errorMessage = "Network error: ${e.message}"
+            } catch (_: Exception) {
+                errorMessage = "Network error. Please try again."
             } finally {
                 isLoading = false
             }
@@ -129,8 +219,8 @@ fun ProfileScreenContent() {
                 isSaveSuccess = false
                 isSaving = false
 
-            } catch (e: Exception) {
-                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_SHORT).show()
+            } catch (_: Exception) {
+                Toast.makeText(context, "Error updating profile", Toast.LENGTH_SHORT).show()
                 isSaving = false
                 saveButtonText = "Save Changes"
                 isSaveSuccess = false
@@ -138,24 +228,66 @@ fun ProfileScreenContent() {
         }
     }
 
+    if (showImagePickerDialog) {
+        AlertDialog(
+            onDismissRequest = { showImagePickerDialog = false },
+            title = { Text("Choose Option") },
+            text = { Text("Select image from gallery or take a photo") },
+            confirmButton = {
+                Column {
+                    TextButton(
+                        onClick = { onGalleryClick() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Gallery")
+                    }
+                    TextButton(
+                        onClick = { onCameraClick() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Camera")
+                    }
+                    TextButton(
+                        onClick = { showImagePickerDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancel", color = Color.Red)
+                    }
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF151C27)) },
+                title = {
+                    Text(
+                        "Profile",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF151C27)
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = {
                         context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
                         (context as? ProfileActivity)?.finish()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFF00236F)
+                        )
                     }
                 },
-                actions = {
-                    IconButton(onClick = { }) {
-                        Icon(Icons.Default.NotificationsNone, contentDescription = "Notifications", tint = Color(0xFF00236F))
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF))
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color(0xFFF9F9FF)
+                )
             )
         },
         bottomBar = { ProfileBottomNavigationBar() }
@@ -191,7 +323,7 @@ fun ProfileScreenContent() {
                                                 if (response.isSuccessful && response.body() != null) {
                                                     userProfile = response.body()
                                                     displayName = userProfile?.displayName ?: ""
-                                                    fullName = userProfile?.displayName ?: userProfile?.email?.substringBefore("@") ?: ""
+                                                    fullName = userProfile?.displayName?.ifBlank { userProfile?.email?.substringBefore("@") ?: "" } ?: ""
                                                     email = userProfile?.email ?: ""
                                                     phoneNumber = userProfile?.phone ?: ""
                                                     businessName = userProfile?.businessName ?: ""
@@ -200,8 +332,8 @@ fun ProfileScreenContent() {
                                                     errorMessage = "Failed to load profile"
                                                 }
                                             }
-                                        } catch (e: Exception) {
-                                            errorMessage = "Network error: ${e.message}"
+                                        } catch (_: Exception) {
+                                            errorMessage = "Network error. Please try again."
                                         } finally {
                                             isLoading = false
                                         }
@@ -214,17 +346,26 @@ fun ProfileScreenContent() {
                     }
                 }
                 else -> {
-                    // Hero Section
-                    ProfileHero(displayName = displayName, fullName = fullName, role = userProfile?.role ?: "BUYER")
+                    ProfileHero(
+                        displayName = displayName,
+                        fullName = fullName,
+                        role = userProfile?.role ?: "BUYER",
+                        profileImageUri = profileImageUri,
+                        onEditClick = { onEditImageClick() }
+                    )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Account Info Card
-                    AccountInfoCard(email = email, phoneNumber = phoneNumber, role = userProfile?.role ?: "BUYER", status = userProfile?.status ?: "ACTIVE", createdAt = userProfile?.createdAt ?: "")
+                    AccountInfoCard(
+                        email = email,
+                        phoneNumber = phoneNumber,
+                        role = userProfile?.role ?: "BUYER",
+                        status = userProfile?.status ?: "ACTIVE",
+                        createdAt = userProfile?.createdAt ?: ""
+                    )
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Form Fields
                     ProfileFormFields(
                         fullName = fullName,
                         onFullNameChange = { fullName = it },
@@ -238,12 +379,10 @@ fun ProfileScreenContent() {
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Security Section
                     SecuritySettings()
 
                     Spacer(modifier = Modifier.height(24.dp))
 
-                    // Save Button
                     ProfileSaveButton(
                         isSaving = isSaving,
                         buttonText = saveButtonText,
@@ -259,31 +398,62 @@ fun ProfileScreenContent() {
 }
 
 @Composable
-fun ProfileHero(displayName: String, fullName: String, role: String) {
+fun ProfileHero(
+    displayName: String,
+    fullName: String,
+    role: String,
+    profileImageUri: Uri?,
+    onEditClick: () -> Unit
+) {
     val nameToShow = if (displayName.isNotBlank()) displayName else fullName.ifBlank { "User" }
 
     Column(
         modifier = Modifier.fillMaxWidth().background(Color.White).padding(vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // Profile Image
-        Box(modifier = Modifier.size(96.dp), contentAlignment = Alignment.BottomEnd) {
+        Box(modifier = Modifier.size(120.dp), contentAlignment = Alignment.BottomEnd) {
             Surface(
-                modifier = Modifier.size(96.dp).clip(CircleShape),
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape),
                 color = Color(0xFFDCE2F3),
                 border = BorderStroke(2.dp, Color(0xFFB6C4FF))
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(48.dp), tint = Color(0xFF00236F))
+                if (profileImageUri != null) {
+                    val painter = rememberImagePainter(profileImageUri)
+                    androidx.compose.foundation.Image(
+                        painter = painter,
+                        contentDescription = "Profile Photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = "Profile",
+                            modifier = Modifier.size(60.dp),
+                            tint = Color(0xFF00236F)
+                        )
+                    }
                 }
             }
+
             Surface(
-                modifier = Modifier.size(32.dp).clickable { },
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { onEditClick() },
                 shape = CircleShape,
-                color = Color(0xFF00236F)
+                color = Color(0xFF00236F),
+                shadowElevation = 4.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "Camera", modifier = Modifier.size(18.dp), tint = Color.White)
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "Edit Photo",
+                        modifier = Modifier.size(20.dp),
+                        tint = Color.White
+                    )
                 }
             }
         }
@@ -292,7 +462,6 @@ fun ProfileHero(displayName: String, fullName: String, role: String) {
         Text(text = nameToShow, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Role Badge
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
@@ -302,6 +471,27 @@ fun ProfileHero(displayName: String, fullName: String, role: String) {
             Icon(Icons.Default.Verified, contentDescription = "Verified", modifier = Modifier.size(16.dp), tint = if (role == "BUYER") Color(0xFF005236) else Color(0xFF00236F))
             Spacer(modifier = Modifier.width(4.dp))
             Text(text = if (role == "BUYER") "Verified Buyer" else "Verified Seller", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (role == "BUYER") Color(0xFF005236) else Color(0xFF00236F))
+        }
+    }
+}
+
+@Composable
+fun rememberImagePainter(uri: Uri): Painter {
+    val context = LocalContext.current
+    val bitmap = remember(uri) {
+        try {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                BitmapFactory.decodeStream(stream)
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+    return remember(bitmap) {
+        if (bitmap != null) {
+            BitmapPainter(bitmap.asImageBitmap())
+        } else {
+            ColorPainter(Color.Gray)
         }
     }
 }
@@ -318,15 +508,39 @@ fun AccountInfoCard(email: String, phoneNumber: String, role: String, status: St
             Spacer(modifier = Modifier.height(12.dp))
 
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column { Text("Email", fontSize = 11.sp, color = Color(0xFF444651)); Text(email.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
-                Column { Text("Role", fontSize = 11.sp, color = Color(0xFF444651)); Text(role, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
-                Column { Text("Status", fontSize = 11.sp, color = Color(0xFF444651)); Text(status, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (status == "ACTIVE") Color(0xFF10B981) else Color(0xFFF59E0B)) }
+                Column {
+                    Text("Email", fontSize = 11.sp, color = Color(0xFF444651))
+                    Text(email.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+                Column {
+                    Text("Role", fontSize = 11.sp, color = Color(0xFF444651))
+                    Text(role, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+                Column {
+                    Text("Status", fontSize = 11.sp, color = Color(0xFF444651))
+                    Text(
+                        status,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (status == "ACTIVE") Color(0xFF10B981) else Color(0xFFF59E0B)
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Row { Column { Text("Phone", fontSize = 11.sp, color = Color(0xFF444651)); Text(phoneNumber.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium) } }
+            Row {
+                Column {
+                    Text("Phone", fontSize = 11.sp, color = Color(0xFF444651))
+                    Text(phoneNumber.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
-            Row { Column { Text("Member Since", fontSize = 11.sp, color = Color(0xFF444651)); Text(formatDateString(createdAt), fontSize = 12.sp, color = Color(0xFF444651)) } }
+            Row {
+                Column {
+                    Text("Member Since", fontSize = 11.sp, color = Color(0xFF444651))
+                    Text(formatDateString(createdAt), fontSize = 12.sp, color = Color(0xFF444651))
+                }
+            }
         }
     }
 }
@@ -343,28 +557,97 @@ fun ProfileFormFields(
     onDeliveryAddressChange: (String) -> Unit
 ) {
     Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-        OutlinedTextField(value = fullName, onValueChange = onFullNameChange, modifier = Modifier.fillMaxWidth(), label = { Text("Full Name") }, shape = RoundedCornerShape(8.dp))
-        OutlinedTextField(value = phoneNumber, onValueChange = onPhoneNumberChange, modifier = Modifier.fillMaxWidth(), label = { Text("Phone Number (+254)") }, shape = RoundedCornerShape(8.dp), trailingIcon = { Icon(Icons.Default.Call, null, tint = Color(0xFF444651)) })
-        OutlinedTextField(value = businessName, onValueChange = onBusinessNameChange, modifier = Modifier.fillMaxWidth(), label = { Text("Business Name (Optional)") }, shape = RoundedCornerShape(8.dp))
-        OutlinedTextField(value = deliveryAddress, onValueChange = onDeliveryAddressChange, modifier = Modifier.fillMaxWidth(), label = { Text("Default Delivery Address") }, minLines = 3, shape = RoundedCornerShape(8.dp))
+        OutlinedTextField(
+            value = fullName,
+            onValueChange = onFullNameChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Full Name") },
+            shape = RoundedCornerShape(8.dp)
+        )
+        OutlinedTextField(
+            value = phoneNumber,
+            onValueChange = onPhoneNumberChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Phone Number (+254)") },
+            shape = RoundedCornerShape(8.dp),
+            trailingIcon = { Icon(Icons.Default.Call, null, tint = Color(0xFF444651)) }
+        )
+        OutlinedTextField(
+            value = businessName,
+            onValueChange = onBusinessNameChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Business Name (Optional)") },
+            shape = RoundedCornerShape(8.dp)
+        )
+        OutlinedTextField(
+            value = deliveryAddress,
+            onValueChange = onDeliveryAddressChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Default Delivery Address") },
+            minLines = 3,
+            shape = RoundedCornerShape(8.dp)
+        )
     }
 }
 
 @Composable
 fun SecuritySettings() {
     val context = LocalContext.current
+    val session = SessionManager(context)
+
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         Text("SECURITY & PRIVACY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF444651))
         Spacer(modifier = Modifier.height(8.dp))
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
             Column {
-                Row(modifier = Modifier.fillMaxWidth().clickable { Toast.makeText(context, "Change Password coming soon", Toast.LENGTH_SHORT).show() }.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row { Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651)); Spacer(modifier = Modifier.width(12.dp)); Text("Change Password", fontSize = 14.sp) }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            val userEmail = session.getEmail()
+                            if (!userEmail.isNullOrBlank()) {
+                                val intent = Intent(context, ChangePasswordVerificationActivity::class.java)
+                                intent.putExtra("EMAIL", userEmail)
+                                context.startActivity(intent)
+                            } else {
+                                Toast.makeText(context, "Please login again", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row {
+                        Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Change Password", fontSize = 14.sp)
+                    }
                     Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF757682))
                 }
                 HorizontalDivider(color = Color(0xFFC5C5D3))
-                Row(modifier = Modifier.fillMaxWidth().clickable { Toast.makeText(context, "2FA coming soon", Toast.LENGTH_SHORT).show() }.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row { Icon(Icons.Default.Security, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651)); Spacer(modifier = Modifier.width(12.dp)); Column { Text("Two-Factor Authentication", fontSize = 14.sp); Text("Enabled", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF006C49)) } }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable {
+                            Toast.makeText(context, "2FA coming soon", Toast.LENGTH_SHORT).show()
+                        }
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row {
+                        Icon(Icons.Default.Security, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Two-Factor Authentication", fontSize = 14.sp)
+                            Text("Enabled", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF006C49))
+                        }
+                    }
                     Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF757682))
                 }
             }
@@ -397,9 +680,24 @@ fun ProfileSaveButton(isSaving: Boolean, buttonText: String, isSuccess: Boolean,
 fun ProfileBottomNavigationBar() {
     val context = LocalContext.current
     NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color(0xFFF9F9FF)) {
-        NavigationBarItem(selected = false, onClick = { context.startActivity(Intent(context, BuyerDashboardActivity::class.java)) }, icon = { Icon(Icons.Default.Home, null, modifier = Modifier.size(24.dp)) }, label = { Text("Home", fontSize = 11.sp) })
-        NavigationBarItem(selected = false, onClick = { context.startActivity(Intent(context, TransactionsActivity::class.java)) }, icon = { Icon(Icons.Default.AccountBalanceWallet, null, modifier = Modifier.size(24.dp)) }, label = { Text("Transactions", fontSize = 11.sp) })
-        NavigationBarItem(selected = true, onClick = { }, icon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(24.dp)) }, label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.Bold) })
+        NavigationBarItem(
+            selected = false,
+            onClick = { context.startActivity(Intent(context, BuyerDashboardActivity::class.java)) },
+            icon = { Icon(Icons.Default.Home, null, modifier = Modifier.size(24.dp)) },
+            label = { Text("Home", fontSize = 11.sp) }
+        )
+        NavigationBarItem(
+            selected = false,
+            onClick = { context.startActivity(Intent(context, TransactionsActivity::class.java)) },
+            icon = { Icon(Icons.Default.AccountBalanceWallet, null, modifier = Modifier.size(24.dp)) },
+            label = { Text("Transactions", fontSize = 11.sp) }
+        )
+        NavigationBarItem(
+            selected = true,
+            onClick = { },
+            icon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(24.dp)) },
+            label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        )
     }
 }
 
@@ -407,7 +705,13 @@ fun formatDateString(dateString: String): String {
     return try {
         val parts = dateString.split("T")
         val dateParts = parts[0].split("-")
-        val month = when (dateParts[1].toInt()) { 1 -> "Jan"; 2 -> "Feb"; 3 -> "Mar"; 4 -> "Apr"; 5 -> "May"; 6 -> "Jun"; 7 -> "Jul"; 8 -> "Aug"; 9 -> "Sep"; 10 -> "Oct"; 11 -> "Nov"; 12 -> "Dec"; else -> dateParts[1] }
-        "${month} ${dateParts[2]}, ${dateParts[0]}"
-    } catch (e: Exception) { dateString }
+        val month = when (dateParts[1].toInt()) {
+            1 -> "Jan"; 2 -> "Feb"; 3 -> "Mar"; 4 -> "Apr"; 5 -> "May"; 6 -> "Jun"
+            7 -> "Jul"; 8 -> "Aug"; 9 -> "Sep"; 10 -> "Oct"; 11 -> "Nov"; 12 -> "Dec"
+            else -> dateParts[1]
+        }
+        "$month ${dateParts[2]}, ${dateParts[0]}"
+    } catch (_: Exception) {
+        dateString
+    }
 }

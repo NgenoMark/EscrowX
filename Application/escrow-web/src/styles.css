@@ -1,0 +1,138 @@
+@import '@fortawesome/fontawesome-free/css/all.min.css';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+  --ink: #102033;
+  --muted: #64748b;
+  --line: #dbe3ea;
+  --panel: #ffffff;
+  --panel-soft: #f8fafc;
+  --accent: #0f766e;
+  --accent-strong: #115e59;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background: #eef2f6;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  letter-spacing: 0;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+
+::selection {
+  background: rgba(20, 184, 166, 0.2);
+}
+
+div[class*="bg-white"][class*="rounded"] {
+  border-color: rgba(148, 163, 184, 0.28) !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.05) !important;
+}
+
+div[class*="rounded-2xl"],
+div[class*="rounded-xl"],
+input[class*="rounded-xl"],
+select[class*="rounded-xl"],
+textarea[class*="rounded-xl"],
+button[class*="rounded-xl"] {
+  border-radius: 0.75rem !important;
+}
+
+h2,
+h3 {
+  letter-spacing: 0;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead[class*="bg-gray-50"],
+div[class*="bg-gray-50"][class*="border-t"] {
+  background: #f8fafc !important;
+}
+
+th {
+  color: #475569 !important;
+  font-size: 0.72rem !important;
+  font-weight: 750 !important;
+  letter-spacing: 0.02em !important;
+}
+
+td {
+  color: #334155;
+}
+
+tbody tr {
+  transition: background 140ms ease;
+}
+
+tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+input,
+select,
+textarea {
+  border-color: var(--line) !important;
+  background-color: #ffffff !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.14) !important;
+}
+
+button {
+  font-weight: 650;
+}
+
+.text-indigo-600,
+.text-indigo-500,
+.text-purple-600 {
+  color: var(--accent) !important;
+}
+
+.bg-indigo-600,
+.bg-indigo-700 {
+  background-color: var(--accent) !important;
+}
+
+.hover\:bg-indigo-700:hover {
+  background-color: var(--accent-strong) !important;
+}
+
+.bg-indigo-50 {
+  background-color: #ecfdf5 !important;
+}
+
+.bg-indigo-100 {
+  background-color: #ccfbf1 !important;
+}
+
+.from-indigo-500,
+.from-indigo-600 {
+  --tw-gradient-from: #0f766e var(--tw-gradient-from-position) !important;
+  --tw-gradient-to: rgb(15 118 110 / 0) var(--tw-gradient-to-position) !important;
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to) !important;
+}
+
+.to-indigo-600,
+.to-purple-500 {
+  --tw-gradient-to: #164e63 var(--tw-gradient-to-position) !important;
+}

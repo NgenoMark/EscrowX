@@ -1,0 +1,289 @@
+<div class="space-y-6">
+  <!-- Statistics Cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+      <p class="text-xs text-gray-500">Total Transactions</p>
+      <p class="text-2xl font-bold text-gray-800">{{ stats().total }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+      <p class="text-xs text-gray-500">Funds Held</p>
+      <p class="text-2xl font-bold text-yellow-600">{{ stats().fundsHeld }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+      <p class="text-xs text-gray-500">Completed</p>
+      <p class="text-2xl font-bold text-green-600">{{ stats().completed }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+      <p class="text-xs text-gray-500">Disputed</p>
+      <p class="text-2xl font-bold text-red-600">{{ stats().disputed }}</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+      <p class="text-xs text-gray-500">Total Volume</p>
+      <p class="text-xl font-bold text-indigo-600">{{ stats().totalVolume | number }} KES</p>
+    </div>
+    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+      <p class="text-xs text-gray-500">Platform Fees</p>
+      <p class="text-xl font-bold text-emerald-600">{{ stats().totalFees | number }} KES</p>
+    </div>
+  </div>
+
+  <!-- Main Transaction Table -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100">
+    <!-- Filters Bar -->
+    <div class="p-5 border-b border-gray-100">
+      <div class="flex flex-wrap gap-3 justify-between items-center">
+        <h3 class="text-lg font-bold text-gray-800">
+          <i class="fas fa-exchange-alt mr-2 text-indigo-600"></i>
+          Transaction Monitoring
+        </h3>
+        <div class="flex gap-3">
+          <!-- Status Filter -->
+          <select 
+            (change)="onStatusFilterChange($event)"
+            class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200"
+          >
+            <option value="all">All Status</option>
+            <option value="FUNDS_HELD">Funds Held</option>
+            <option value="COMPLETED">Completed</option>
+            <option value="DISPUTED">Disputed</option>
+            <option value="REFUNDED">Refunded</option>
+            <option value="CANCELLED">Cancelled</option>
+          </select>
+          
+          <!-- Search -->
+          <div class="relative">
+            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
+            <input 
+              type="text" 
+              placeholder="Search by ID, buyer, seller..." 
+              (input)="onSearch($event)"
+              [value]="searchTerm()"
+              class="pl-9 pr-10 py-2 border border-gray-200 rounded-xl text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            >
+            <button 
+              *ngIf="searchTerm()" 
+              (click)="clearSearch()"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <i class="fas fa-times-circle"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Transactions Table -->
+    <div class="overflow-x-auto">
+      <table class="min-w-full">
+        <thead class="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Tx ID</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Buyer</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Seller</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Amount</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Created</th>
+            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Auto Release</th>
+            <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          @for (tx of filteredTransactions(); track tx.id) {
+            <tr class="hover:bg-gray-50 transition duration-150">
+              <td class="px-6 py-4">
+                <span class="font-mono text-xs font-medium text-indigo-600">{{ tx.id }}</span>
+              </td>
+              <td class="px-6 py-4">
+                <p class="text-sm font-medium text-gray-800">{{ tx.buyer }}</p>
+              </td>
+              <td class="px-6 py-4">
+                <p class="text-sm text-gray-700">{{ tx.seller }}</p>
+              </td>
+              <td class="px-6 py-4">
+                <p class="font-semibold text-gray-800">KES {{ tx.amount | number }}</p>
+              </td>
+              <td class="px-6 py-4">
+                <span class="px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit" [class]="getStatusBadgeClass(tx.status)">
+                  <i class="fas" [class]="getStatusIcon(tx.status)"></i>
+                  {{ tx.status }}
+                </span>
+              </td>
+              <td class="px-6 py-4 text-sm text-gray-500">
+                {{ formatDate(tx.created) }}
+              </td>
+              <td class="px-6 py-4 text-xs text-gray-400">
+                {{ tx.autoReleaseDate ? (tx.autoReleaseDate | date) : '-' }}
+              </td>
+              <td class="px-6 py-4">
+                <div class="flex gap-2 justify-center flex-wrap">
+                  <!-- View Details Button -->
+                  <button 
+                    (click)="viewTransactionDetails(tx)"
+                    class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
+                    title="View Details"
+                  >
+                    <i class="fas fa-eye"></i> View
+                  </button>
+                  
+                  <!-- Force Release Button (only for FUNDS_HELD) -->
+                  @if (tx.status === 'FUNDS_HELD') {
+                    <button 
+                      (click)="forceRelease(tx)"
+                      class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition"
+                      title="Force Release Funds to Seller"
+                    >
+                      <i class="fas fa-hand-holding-usd"></i> Release
+                    </button>
+                    <button 
+                      (click)="forceRefund(tx)"
+                      class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 transition"
+                      title="Force Refund to Buyer"
+                    >
+                      <i class="fas fa-undo-alt"></i> Refund
+                    </button>
+                  }
+                  
+                  <!-- Cancel Button (for FUNDS_HELD) -->
+                  @if (tx.status === 'FUNDS_HELD') {
+                    <button 
+                      (click)="cancelTransaction(tx)"
+                      class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200 transition"
+                      title="Cancel Transaction"
+                    >
+                      <i class="fas fa-times"></i> Cancel
+                    </button>
+                  }
+                </div>
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="8" class="px-6 py-12 text-center text-gray-500">
+                <i class="fas fa-search text-4xl mb-3 block text-gray-300"></i>
+                <p class="text-lg">No transactions found</p>
+                <p class="text-sm mt-1">Try changing your filters or search term</p>
+                <button 
+                  (click)="clearSearch(); statusFilter.set('all')" 
+                  class="mt-3 text-indigo-600 text-sm hover:underline"
+                >
+                  Clear all filters
+                </button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Footer -->
+    <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-2xl">
+      <p class="text-xs text-gray-500">
+        <i class="fas fa-shield-alt mr-1 text-indigo-500"></i>
+        <strong>Admin Override Actions:</strong> 
+        Force Release - Immediately sends funds to seller • 
+        Force Refund - Immediately returns funds to buyer • 
+        Cancel - Cancels transaction and refunds buyer
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- Transaction Details Modal -->
+@if (showModal() && selectedTransaction()) {
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeModal()">
+    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
+      <!-- Modal Header -->
+      <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
+        <h3 class="text-xl font-bold text-gray-800">
+          <i class="fas fa-info-circle text-indigo-600 mr-2"></i>
+          Transaction Details
+        </h3>
+        <button (click)="closeModal()" class="text-gray-400 hover:text-gray-600 transition">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+      
+      <!-- Modal Body -->
+      <div class="p-6 space-y-4">
+        <!-- Transaction ID -->
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Transaction ID</p>
+          <p class="font-mono text-lg font-semibold text-indigo-600">{{ selectedTransaction()?.id }}</p>
+        </div>
+        
+        <!-- Two Column Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Buyer</p>
+            <p class="font-semibold text-gray-800">{{ selectedTransaction()?.buyer }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Seller</p>
+            <p class="font-semibold text-gray-800">{{ selectedTransaction()?.seller }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Amount</p>
+            <p class="text-2xl font-bold text-indigo-600">KES {{ selectedTransaction()?.amount | number }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Status</p>
+            <span class="px-2 py-1 rounded-full text-xs font-semibold inline-flex items-center gap-1" [class]="getStatusBadgeClass(selectedTransaction()?.status || '')">
+              <i class="fas" [class]="getStatusIcon(selectedTransaction()?.status || '')"></i>
+              {{ selectedTransaction()?.status }}
+            </span>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Created Date</p>
+            <p class="text-gray-800">{{ formatDate(selectedTransaction()?.created || '') }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Auto Release Date</p>
+            <p class="text-gray-800">{{ selectedTransaction()?.autoReleaseDate ? (selectedTransaction()?.autoReleaseDate | date) : 'Not set' }}</p>
+          </div>
+        </div>
+        
+        <!-- Description (if available) -->
+        @if (selectedTransaction()?.description) {
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Description</p>
+            <p class="text-gray-700">{{ selectedTransaction()?.description }}</p>
+          </div>
+        }
+        
+        <!-- Admin Actions Section -->
+        @if (selectedTransaction()?.status === 'FUNDS_HELD') {
+          <div class="border-t border-gray-200 pt-4">
+            <p class="text-sm font-semibold text-gray-700 mb-3">Admin Override Actions</p>
+            <div class="flex gap-3">
+              <button 
+                (click)="forceRelease(selectedTransaction()!); closeModal()"
+                class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition"
+              >
+                <i class="fas fa-hand-holding-usd mr-1"></i> Force Release to Seller
+              </button>
+              <button 
+                (click)="forceRefund(selectedTransaction()!); closeModal()"
+                class="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition"
+              >
+                <i class="fas fa-undo-alt mr-1"></i> Force Refund to Buyer
+              </button>
+              <button 
+                (click)="cancelTransaction(selectedTransaction()!); closeModal()"
+                class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition"
+              >
+                <i class="fas fa-times mr-1"></i> Cancel Transaction
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+      
+      <!-- Modal Footer -->
+      <div class="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+        <button (click)="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+}

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>EscrowX Admin Portal | Full Compliance Suite</title>
+    <!-- Tailwind CSS v3 + Font Awesome + Chart.js + Inter Font -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto; }
+        .transition-smooth { transition: all 0.2s ease; }
+        .status-badge { @apply px-2.5 py-0.5 rounded-full text-xs font-semibold inline-block; }
+        .card-hover:hover { transform: translateY(-2px); box-shadow: 0 20px 25px -5px rgba(0,0,0,0.05), 0 8px 10px -6px rgba(0,0,0,0.02); }
+        .admin-action-btn { @apply px-3 py-1.5 rounded-lg text-xs font-medium transition-all shadow-sm; }
+        .evidence-thumb { @apply w-16 h-16 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-80; }
+    </style>
+</head>
+<body class="bg-gray-100 antialiased">
+
+<div class="flex h-screen overflow-hidden">
+    <!-- SIDEBAR (full spec navigation) -->
+    <aside class="w-72 bg-white shadow-xl border-r border-gray-200 flex flex-col fixed inset-y-0 z-20 hidden md:flex">
+        <div class="p-6 border-b border-gray-100 flex items-center gap-3">
+            <div class="h-9 w-9 bg-indigo-700 rounded-xl flex items-center justify-center shadow-md"><span class="text-white font-bold text-xl">E</span></div>
+            <div><h1 class="text-xl font-bold text-gray-800">Escrow<span class="text-indigo-600">X</span></h1><p class="text-[11px] text-gray-500 -mt-0.5">Admin Control · Full Compliance</p></div>
+        </div>
+        <nav class="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+            <a href="#" data-tab="dashboard" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-700 rounded-xl font-medium bg-indigo-50 text-indigo-700"><i class="fas fa-tachometer-alt w-5"></i>Dashboard</a>
+            <a href="#" data-tab="users" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl hover:bg-gray-100"><i class="fas fa-users w-5"></i>User Management</a>
+            <a href="#" data-tab="transactions" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl hover:bg-gray-100"><i class="fas fa-exchange-alt w-5"></i>Transaction Monitoring</a>
+            <a href="#" data-tab="disputes" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl hover:bg-gray-100"><i class="fas fa-gavel w-5"></i>Dispute Mediation</a>
+            <a href="#" data-tab="analytics" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl hover:bg-gray-100"><i class="fas fa-chart-line w-5"></i>Analytics & Reports</a>
+            <a href="#" data-tab="audit" class="sidebar-link flex items-center gap-3 px-4 py-3 text-gray-600 rounded-xl hover:bg-gray-100"><i class="fas fa-history w-5"></i>Audit Logs</a>
+        </nav>
+        <div class="p-4 border-t border-gray-200">
+            <div class="flex items-center gap-3 bg-gray-50 rounded-xl p-3">
+                <div class="h-9 w-9 rounded-full bg-indigo-200 flex items-center justify-center font-bold">SA</div>
+                <div><p class="text-sm font-semibold">Super Admin</p><p class="text-xs text-gray-500">super@escrowx.com</p></div>
+                <i class="fas fa-shield-alt text-indigo-500 ml-auto"></i>
+            </div>
+            <p class="text-[10px] text-gray-400 mt-3 text-center">Role: Super Admin (full override)</p>
+        </div>
+    </aside>
+
+    <!-- MAIN CONTENT -->
+    <main class="flex-1 md:ml-72 overflow-y-auto pb-12">
+        <div class="bg-white sticky top-0 z-10 border-b px-6 py-4 flex justify-between items-center shadow-sm">
+            <h2 class="text-xl font-semibold text-gray-800" id="pageTitle">Dashboard</h2>
+            <div class="flex gap-3"><i class="fas fa-bell text-gray-500 text-lg"></i><span class="text-sm text-gray-500 hidden md:block">super-admin@escrowx.com</span></div>
+        </div>
+
+        <!-- ========================= DASHBOARD ========================= -->
+        <div id="dashboardTab" class="tab-content px-6 py-6 space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div class="bg-white p-5 rounded-2xl shadow-sm border card-hover"><div><p class="text-gray-500 text-sm">Total Volume (KES)</p><p class="text-2xl font-bold">KES 2,184,500</p></div><i class="fas fa-chart-line text-indigo-500"></i></div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border"><p class="text-gray-500 text-sm">Platform Fees (2.5%)</p><p class="text-2xl font-bold">KES 54,612</p></div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border"><p class="text-gray-500 text-sm">Active Escrows</p><p class="text-2xl font-bold">132</p><span class="text-xs text-green-600">+18% vs last month</span></div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm border"><p class="text-gray-500 text-sm">Open Disputes</p><p class="text-2xl font-bold text-amber-600">4</p><a href="#" data-tab="disputes" class="text-xs text-indigo-600 view-all-link">Mediate now →</a></div>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm"><h3 class="font-semibold flex items-center gap-2"><i class="fas fa-clock text-indigo-500"></i>Recent Escrow Transactions</h3><div class="overflow-x-auto mt-3"><table class="min-w-full text-sm"><thead class="bg-gray-50"><tr><th class="px-4 py-2">TxID</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Status</th><th>Auto-release</th></tr></thead><tbody id="dashboardRecentTx"></tbody></table></div></div>
+        </div>
+
+        <!-- ========================= USER MANAGEMENT (suspend, verify, blacklist) ========================= -->
+        <div id="usersTab" class="tab-content hidden px-6 py-6">
+            <div class="bg-white rounded-2xl shadow-sm p-6">
+                <div class="flex flex-wrap justify-between gap-3 mb-5"><h3 class="text-lg font-bold"><i class="fas fa-user-shield mr-2 text-indigo-600"></i>Users & KYC Oversight</h3><input type="text" id="userSearchInput" placeholder="Search by phone/email/name" class="border rounded-xl px-4 py-2 text-sm w-64"></div>
+                <div class="overflow-x-auto"><table class="min-w-full text-sm"><thead class="bg-gray-100"><tr><th>User</th><th>Role</th><th>Status</th><th>Verified Seller</th><th>Blacklisted</th><th class="text-center">Actions</th></tr></thead><tbody id="usersTableBody"></tbody></table></div>
+                <p class="text-xs text-gray-400 mt-4"><i class="fas fa-info-circle"></i> Super Admin: Suspend accounts, verify sellers, blacklist fraudsters (prevents re-registration)</p>
+            </div>
+        </div>
+
+        <!-- ========================= TRANSACTION MONITORING (force release/refund) ========================= -->
+        <div id="transactionsTab" class="tab-content hidden px-6 py-6">
+            <div class="bg-white rounded-2xl shadow-sm p-6">
+                <div class="flex flex-wrap justify-between items-center gap-3 mb-4"><h3 class="font-bold"><i class="fas fa-hand-holding-usd mr-2"></i>All Escrow Transactions</h3><div><select id="txStatusFilter" class="border rounded-xl px-3 py-1 text-sm"><option value="all">All status</option><option>FUNDS_HELD</option><option>COMPLETED</option><option>DISPUTED</option><option>REFUNDED</option><option>CANCELLED</option></select><button id="refreshTxBtn" class="ml-2 bg-gray-100 px-3 py-1 rounded-xl text-sm">⟳</button></div></div>
+                <div class="overflow-x-auto"><table class="min-w-full text-sm border"><thead class="bg-gray-50"><tr><th>TxID</th><th>Buyer</th><th>Seller</th><th>Amount</th><th>Status</th><th>Created</th><th>Super Admin Override</th></tr></thead><tbody id="transactionsTableBody"></tbody></table></div>
+                <p class="text-xs text-gray-500 mt-3"><i class="fas fa-exclamation-triangle text-amber-500"></i> Force Release / Refund available only for Super Admin (manual override per spec)</p>
+            </div>
+        </div>
+
+        <!-- ========================= DISPUTE MANAGEMENT (evidence + mediation outcomes) ========================= -->
+        <div id="disputesTab" class="tab-content hidden px-6 py-6">
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm p-5"><h3 class="font-bold text-lg"><i class="fas fa-gavel text-amber-500 mr-2"></i>Active Disputes Queue</h3><div id="disputeListContainer" class="space-y-3 mt-3"></div></div>
+                <div class="bg-white rounded-2xl shadow-sm p-5"><h3 class="font-bold text-md">Mediation Console</h3><div id="disputeDetailPanel" class="text-sm text-gray-500 italic">Select any dispute to review evidence, chat logs, and render outcome (Refund Buyer / Release to Seller / Partial Settlement).</div></div>
+            </div>
+        </div>
+
+        <!-- ========================= ANALYTICS (volume, fees, disputes stats) ========================= -->
+        <div id="analyticsTab" class="tab-content hidden px-6 py-6 space-y-6">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-5 rounded-2xl shadow-sm"><canvas id="volumeChart" height="180"></canvas><p class="text-center text-sm mt-2">Weekly Transaction Volume (KES)</p></div>
+                <div class="bg-white p-5 rounded-2xl shadow-sm"><canvas id="disputeChart" height="180"></canvas><p class="text-center text-sm mt-2">Dispute Statistics (Last 6 weeks)</p></div>
+            </div>
+            <div class="bg-white rounded-2xl p-5 shadow-sm"><h4 class="font-semibold">Key Metrics</h4><div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3"><div class="bg-indigo-50 p-3 rounded-xl"><p class="text-xs">Success Rate</p><p class="text-xl font-bold">96.2%</p></div><div class="bg-green-50 p-3 rounded-xl"><p class="text-xs">Avg Resolution Time</p><p class="text-xl font-bold">2.4 days</p></div><div class="bg-amber-50 p-3 rounded-xl"><p class="text-xs">Total Refunded</p><p class="text-xl font-bold">KES 89,200</p></div><div class="bg-gray-100 p-3 rounded-xl"><p class="text-xs">Active Users</p><p class="text-xl font-bold">1,284</p></div></div></div>
+        </div>
+
+        <!-- ========================= AUDIT LOGS (admin actions) ========================= -->
+        <div id="auditTab" class="tab-content hidden px-6 py-6">
+            <div class="bg-white rounded-2xl shadow-sm p-6"><h3 class="font-bold text-lg mb-4"><i class="fas fa-clipboard-list mr-2"></i>Admin Action Audit Trail</h3><div class="overflow-x-auto"><table class="min-w-full text-sm"><thead><tr class="border-b"><th>Timestamp</th><th>Admin Email</th><th>Action Type</th><th>Target</th><th>Details</th></tr></thead><tbody id="auditLogsBody"></tbody></table></div></div>
+        </div>
+    </main>
+</div>
+
+<script>
+    // --------------------------------------------------------------
+    // FULL DATA MODELS (adhering to EscrowX V2 spec)
+    // --------------------------------------------------------------
+    let users = [
+        { id: 1, name: "John Kamau", phone: "+254712345678", email: "john@example.com", role: "BUYER", status: "ACTIVE", verifiedSeller: false, blacklisted: false },
+        { id: 2, name: "Mercy Achieng", phone: "+254722987654", email: "mercy@seller.com", role: "SELLER", status: "ACTIVE", verifiedSeller: true, blacklisted: false },
+        { id: 3, name: "Peter Omondi", phone: "+254799887766", email: "peter@fraud.com", role: "SELLER", status: "SUSPENDED", verifiedSeller: false, blacklisted: true },
+        { id: 4, name: "Zahra Hassan", phone: "+254700112233", email: "zahra@buyer.com", role: "BUYER", status: "ACTIVE", verifiedSeller: false, blacklisted: false },
+        { id: 5, name: "Samuel Njoroge", phone: "+254744556677", email: "samuel@shop.com", role: "SELLER", status: "ACTIVE", verifiedSeller: false, blacklisted: false },
+        { id: 6, name: "Grace Adhiambo", phone: "+254711223344", email: "grace@designs.com", role: "SELLER", status: "ACTIVE", verifiedSeller: false, blacklisted: false }
+    ];
+
+    let transactions = [
+        { id: "ESC-TX1001", buyer: "John Kamau", seller: "Mercy Achieng", amount: 12500, status: "FUNDS_HELD", created: "2025-05-28", autoReleaseDate: "2025-06-04" },
+        { id: "ESC-TX1002", buyer: "Zahra Hassan", seller: "Samuel Njoroge", amount: 4500, status: "COMPLETED", created: "2025-05-27", autoReleaseDate: null },
+        { id: "ESC-TX1003", buyer: "Peter Omondi", seller: "Faith Wanjiku", amount: 23000, status: "DISPUTED", created: "2025-05-26", autoReleaseDate: null },
+        { id: "ESC-TX1004", buyer: "Grace Adhiambo", seller: "James Mwangi", amount: 6750, status: "FUNDS_HELD", created: "2025-05-29", autoReleaseDate: "2025-06-05" },
+        { id: "ESC-TX1005", buyer: "John Kamau", seller: "Sharon Atieno", amount: 18800, status: "COMPLETED", created: "2025-05-25", autoReleaseDate: null },
+        { id: "ESC-TX1006", buyer: "Brian Odhiambo", seller: "Peter Omondi", amount: 9200, status: "DISPUTED", created: "2025-05-24", autoReleaseDate: null },
+        { id: "ESC-TX1007", buyer: "Linet Wambui", seller: "Samuel Njoroge", amount: 33000, status: "FUNDS_HELD", created: "2025-05-30", autoReleaseDate: "2025-06-06" }
+    ];
+
+    let disputes = [
+        { id: "DSP-101", txId: "ESC-TX1003", raisedBy: "Peter Omondi (Buyer)", against: "Faith Wanjiku", reason: "Item never delivered after payment. Seller unresponsive.", evidence: ["delivery_proof_missing.png", "chat_screenshot.jpg"], status: "PENDING", amount: 23000, requestedOutcome: null },
+        { id: "DSP-102", txId: "ESC-TX1006", raisedBy: "Brian Odhiambo (Buyer)", against: "Peter Omondi", reason: "Received counterfeit phone, seller refuses refund", evidence: ["counterfeit_photo.jpg", "receipt.png"], status: "PENDING", amount: 9200 },
+        { id: "DSP-103", txId: "ESC-TX1001", raisedBy: "Mercy Achieng (Seller)", against: "John Kamau", reason: "Buyer confirmed delivery but then raised false dispute", evidence: ["tracking_id.png", "whatsapp_confirm.jpg"], status: "UNDER_REVIEW", amount: 12500 },
+        { id: "DSP-104", txId: "ESC-TX1007", raisedBy: "Linet Wambui (Buyer)", against: "Samuel Njoroge", reason: "Partial delivery - missing items", evidence: ["packing_slip.jpg"], status: "PENDING", amount: 33000 }
+    ];
+
+    let auditLogs = [
+        { ts: "2025-05-30 09:12:44", admin: "super@escrowx.com", action: "FORCE_RELEASE", target: "ESC-TX1005", details: "Manual release after buyer confirmation stuck" },
+        { ts: "2025-05-29 14:33:21", admin: "super@escrowx.com", action: "SUSPEND_USER", target: "Peter Omondi", details: "Multiple fraud complaints" },
+        { ts: "2025-05-28 10:02:17", admin: "admin@escrowx.com", action: "VERIFY_SELLER", target: "Mercy Achieng", details: "KYC docs approved" },
+        { ts: "2025-05-27 16:45:03", admin: "super@escrowx.com", action: "BLACKLIST", target: "peter@fraud.com", details: "Blacklisted phone & email" },
+        { ts: "2025-05-26 11:30:00", admin: "super@escrowx.com", action: "RESOLVE_DISPUTE", target: "DSP-101", details: "Partial settlement 50% refund" }
+    ];
+
+    // Helper: render functions matching every spec requirement
+    function renderDashboardRecent() {
+        const tbody = document.getElementById("dashboardRecentTx");
+        if(tbody) tbody.innerHTML = transactions.slice(0,5).map(t => `<tr class="border-b"><td class="px-4 py-2 font-mono text-xs">${t.id}</td><td>${t.buyer}</td><td>${t.seller}</td><td class="font-semibold">KES ${t.amount.toLocaleString()}</td><td><span class="px-2 py-0.5 rounded-full text-xs ${t.status === 'FUNDS_HELD' ? 'bg-yellow-100 text-yellow-800' : t.status==='COMPLETED' ? 'bg-green-100' : 'bg-red-100'}">${t.status}</span></td><td class="text-xs text-gray-400">${t.autoReleaseDate ? 'auto: '+t.autoReleaseDate : '-'}</td></tr>`).join('');
+    }
+
+    function renderUserManagement() {
+        const searchTerm = document.getElementById("userSearchInput")?.value.toLowerCase() || "";
+        const filtered = users.filter(u => u.name.toLowerCase().includes(searchTerm) || u.phone.includes(searchTerm) || u.email.toLowerCase().includes(searchTerm));
+        const container = document.getElementById("usersTableBody");
+        if(container) container.innerHTML = filtered.map(u => `
+            <tr class="border-b hover:bg-gray-50">
+                <td class="py-3"><div><p class="font-medium">${u.name}</p><p class="text-xs text-gray-500">${u.phone} | ${u.email}</p></div></td>
+                <td>${u.role}</td>
+                <td><span class="px-2 py-0.5 rounded-full text-xs ${u.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">${u.status}</span></td>
+                <td>${u.verifiedSeller ? '<i class="fas fa-check-circle text-green-500"></i> Verified' : '<span class="text-gray-400 text-xs">Unverified</span>'}</td>
+                <td>${u.blacklisted ? '<span class="bg-red-100 text-red-700 px-2 py-0.5 rounded-full text-xs">BLACKLISTED</span>' : '<span class="text-gray-400">No</span>'}</td>
+                <td class="flex gap-1">
+                    ${u.status === 'ACTIVE' ? `<button class="admin-action-btn bg-amber-100 text-amber-700 suspend-btn" data-id="${u.id}"><i class="fas fa-ban"></i> Suspend</button>` : `<button class="admin-action-btn bg-green-100 text-green-700 activate-btn" data-id="${u.id}"><i class="fas fa-check"></i> Activate</button>`}
+                    ${!u.verifiedSeller && u.role === 'SELLER' ? `<button class="admin-action-btn bg-indigo-100 text-indigo-700 verify-btn" data-id="${u.id}">Verify Seller</button>` : ''}
+                    ${!u.blacklisted ? `<button class="admin-action-btn bg-red-100 text-red-700 blacklist-btn" data-id="${u.id}"><i class="fas fa-skull"></i> Blacklist</button>` : `<button class="admin-action-btn bg-gray-100 text-gray-500" disabled>Blacklisted</button>`}
+                </td>
+            </tr>
+        `).join('');
+        attachUserActionEvents();
+    }
+
+    function attachUserActionEvents() {
+        document.querySelectorAll('.suspend-btn').forEach(btn => btn.onclick = () => { let id = parseInt(btn.dataset.id); let user = users.find(u=>u.id===id); if(user) { user.status = "SUSPENDED"; addAuditLog("SUSPEND_USER", user.email, `Suspended ${user.name}`); renderUserManagement(); alert(`✅ User ${user.name} suspended.`); } });
+        document.querySelectorAll('.activate-btn').forEach(btn => btn.onclick = () => { let id = parseInt(btn.dataset.id); let user = users.find(u=>u.id===id); if(user) { user.status = "ACTIVE"; addAuditLog("ACTIVATE_USER", user.email, `Activated ${user.name}`); renderUserManagement(); alert(`✅ ${user.name} activated.`); } });
+        document.querySelectorAll('.verify-btn').forEach(btn => btn.onclick = () => { let id = parseInt(btn.dataset.id); let user = users.find(u=>u.id===id); if(user) { user.verifiedSeller = true; addAuditLog("VERIFY_SELLER", user.email, `KYC verified for ${user.name}`); renderUserManagement(); alert(`✅ Seller ${user.name} is now verified.`); } });
+        document.querySelectorAll('.blacklist-btn').forEach(btn => btn.onclick = () => { let id = parseInt(btn.dataset.id); let user = users.find(u=>u.id===id); if(user) { user.blacklisted = true; user.status = "SUSPENDED"; addAuditLog("BLACKLIST", user.email, `Blacklisted ${user.name} (phone: ${user.phone})`); renderUserManagement(); alert(`⚠️ ${user.name} blacklisted. Prevents future registrations.`); } });
+    }
+
+    function renderTransactionsMonitoring() {
+        const filter = document.getElementById("txStatusFilter")?.value || "all";
+        let filtered = filter === "all" ? transactions : transactions.filter(t => t.status === filter);
+        const tbody = document.getElementById("transactionsTableBody");
+        if(tbody) tbody.innerHTML = filtered.map(tx => `
+            <tr class="border-b"><td class="px-3 py-2 font-mono text-xs">${tx.id}</td><td>${tx.buyer}</td><td>${tx.seller}</td><td class="font-semibold">KES ${tx.amount.toLocaleString()}</td><td><span class="status-badge ${tx.status === 'FUNDS_HELD' ? 'bg-yellow-100' : tx.status==='COMPLETED' ? 'bg-green-100' : 'bg-red-100'} px-2 py-0.5 rounded-full">${tx.status}</span></td><td class="text-xs">${tx.created}</td>
+            <td class="flex gap-2">${tx.status === 'FUNDS_HELD' ? `<button class="bg-indigo-600 text-white text-xs px-2 py-1 rounded-md force-release-btn" data-id="${tx.id}"><i class="fas fa-rocket"></i> Force Release</button> <button class="bg-red-600 text-white text-xs px-2 py-1 rounded-md force-refund-btn" data-id="${tx.id}"><i class="fas fa-undo-alt"></i> Force Refund</button>` : tx.status === 'DISPUTED' ? `<span class="text-amber-600 text-xs">Under dispute</span>` : '-'}</td>
+            </tr>
+        `).join('');
+        document.querySelectorAll('.force-release-btn').forEach(btn => btn.onclick = () => { let txId = btn.dataset.id; let tx = transactions.find(t=>t.id===txId); if(tx && confirm(`Release KES ${tx.amount} to seller?`)) { tx.status = "COMPLETED"; addAuditLog("FORCE_RELEASE", "super@escrowx.com", `Released ${tx.id} to seller`); renderTransactionsMonitoring(); alert(`💰 Released ${tx.amount} to seller.`); } });
+        document.querySelectorAll('.force-refund-btn').forEach(btn => btn.onclick = () => { let txId = btn.dataset.id; let tx = transactions.find(t=>t.id===txId); if(tx && confirm(`REFUND KES ${tx.amount} to buyer?`)) { tx.status = "REFUNDED"; addAuditLog("FORCE_REFUND", "super@escrowx.com", `Refunded ${tx.id} to buyer`); renderTransactionsMonitoring(); alert(`↩️ Refunded ${tx.amount} to buyer.`); } });
+    }
+
+    function renderDisputeQueue() {
+        const container = document.getElementById("disputeListContainer");
+        container.innerHTML = disputes.map(d => `<div class="border rounded-xl p-4 hover:shadow-md cursor-pointer dispute-item transition" data-id="${d.id}"><div class="flex justify-between"><div><p class="font-semibold">#${d.id} - ${d.txId}</p><p class="text-xs text-gray-500">${d.raisedBy} vs ${d.against}</p><p class="text-sm mt-1">${d.reason.substring(0,80)}</p></div><div><span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-xs">${d.status}</span><p class="text-indigo-600 font-bold mt-1">KES ${d.amount.toLocaleString()}</p></div></div></div>`).join('');
+        document.querySelectorAll('.dispute-item').forEach(el => el.addEventListener('click', () => showDisputeMediation(el.dataset.id)));
+    }
+
+    function showDisputeMediation(disputeId) {
+        const dispute = disputes.find(d => d.id === disputeId);
+        if(!dispute) return;
+        const panel = document.getElementById("disputeDetailPanel");
+        panel.innerHTML = `<div class="space-y-3">
+            <p class="font-bold text-red-700">Dispute #${dispute.id}</p>
+            <p><span class="font-semibold">Reason:</span> ${dispute.reason}</p>
+            <p><span class="font-semibold">Amount in escrow:</span> KES ${dispute.amount.toLocaleString()}</p>
+            <div><span class="font-semibold">Evidence:</span><div class="flex gap-2 mt-1">${dispute.evidence.map(ev => `<div class="bg-gray-100 p-1 rounded text-center"><i class="fas fa-file-image text-2xl"></i><p class="text-[10px]">${ev}</p></div>`).join('')}</div></div>
+            <div class="border-t pt-3"><label class="font-medium">Admin Mediation Decision (outcome per spec):</label><div class="flex flex-wrap gap-2 mt-2"><button class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm resolve-outcome" data-outcome="refund" data-id="${dispute.id}"><i class="fas fa-money-bill-wave"></i> Refund Buyer</button><button class="bg-green-600 text-white px-4 py-2 rounded-lg text-sm resolve-outcome" data-outcome="release" data-id="${dispute.id}"><i class="fas fa-hand-holding-usd"></i> Release to Seller</button><button class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm resolve-outcome" data-outcome="partial" data-id="${dispute.id}"><i class="fas fa-balance-scale"></i> Partial Settlement (50/50)</button></div></div>
+            <p class="text-xs text-gray-400 mt-2">All decisions logged in audit trail.</p>
+        </div>`;
+        document.querySelectorAll('.resolve-outcome').forEach(btn => btn.onclick = () => {
+            let outcome = btn.dataset.outcome;
+            let d = disputes.find(ds => ds.id === btn.dataset.id);
+            if(d) {
+                let message = outcome === 'refund' ? `Refunded KES ${d.amount} to buyer` : (outcome === 'release' ? `Released KES ${d.amount} to seller` : `Partial 50% split: refund & release`);
+                addAuditLog("RESOLVE_DISPUTE", "super@escrowx.com", `${d.id} - ${message}`);
+                alert(`✅ Dispute resolved: ${message}. Funds adjusted.`);
+                const tx = transactions.find(t => t.id === d.txId);
+                if(tx) tx.status = outcome === 'refund' ? 'REFUNDED' : (outcome === 'release' ? 'COMPLETED' : 'COMPLETED');
+                disputes.splice(disputes.findIndex(ds=>ds.id===d.id),1);
+                renderDisputeQueue();
+                showDisputeMediation(null);
+                document.getElementById("disputeDetailPanel").innerHTML = `<p class="italic text-gray-400">Dispute resolved. Refresh or select another.</p>`;
+                renderTransactionsMonitoring();
+            }
+        });
+    }
+
+    function addAuditLog(action, target, details) {
+        auditLogs.unshift({ ts: new Date().toISOString().slice(0,19).replace('T',' '), admin: "super@escrowx.com", action, target, details });
+        renderAuditLogs();
+    }
+
+    function renderAuditLogs() {
+        const tbody = document.getElementById("auditLogsBody");
+        if(tbody) tbody.innerHTML = auditLogs.slice(0,20).map(log => `<tr class="border-b"><td class="py-2 text-xs">${log.ts}</td><td class="font-mono text-xs">${log.admin}</td><td class="font-bold text-indigo-700">${log.action}</td><td>${log.target}</td><td class="text-gray-600 text-xs">${log.details}</td></tr>`).join('');
+    }
+
+    let volumeChart, disputeChart;
+    function initAnalytics() {
+        const ctx = document.getElementById('volumeChart')?.getContext('2d');
+        if(ctx) volumeChart = new Chart(ctx, { type: 'bar', data: { labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'], datasets: [{ label: 'Volume (KES 000)', data: [520, 684, 760, 945], backgroundColor: '#4f46e5' }] } });
+        const ctx2 = document.getElementById('disputeChart')?.getContext('2d');
+        if(ctx2) disputeChart = new Chart(ctx2, { type: 'line', data: { labels: ['Wk22', 'Wk23', 'Wk24', 'Wk25', 'Wk26', 'This week'], datasets: [{ label: 'Disputes filed', data: [2,4,3,5,4,4], borderColor: '#dc2626', tension: 0.3, fill: false }] } });
+    }
+
+    function switchTab(tabId) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+        document.getElementById(`${tabId}Tab`)?.classList.remove('hidden');
+        document.querySelectorAll('.sidebar-link').forEach(l => { l.classList.remove('bg-indigo-50','text-indigo-700'); l.classList.add('text-gray-600'); if(l.dataset.tab === tabId) l.classList.add('bg-indigo-50','text-indigo-700'); });
+        document.getElementById('pageTitle').innerText = tabId.charAt(0).toUpperCase() + tabId.slice(1).replace(/([A-Z])/g, ' $1');
+        if(tabId === 'users') renderUserManagement();
+        if(tabId === 'transactions') renderTransactionsMonitoring();
+        if(tabId === 'disputes') renderDisputeQueue();
+        if(tabId === 'audit') renderAuditLogs();
+    }
+
+    document.querySelectorAll('.sidebar-link').forEach(l => l.addEventListener('click', (e) => { e.preventDefault(); switchTab(l.dataset.tab); }));
+    document.querySelectorAll('.view-all-link').forEach(l => l.addEventListener('click', (e) => { e.preventDefault(); switchTab(l.dataset.tab); }));
+    document.getElementById('userSearchInput')?.addEventListener('input', () => renderUserManagement());
+    document.getElementById('txStatusFilter')?.addEventListener('change', () => renderTransactionsMonitoring());
+    document.getElementById('refreshTxBtn')?.addEventListener('click', () => renderTransactionsMonitoring());
+
+    // initial load all
+    renderDashboardRecent();
+    renderUserManagement();
+    renderTransactionsMonitoring();
+    renderDisputeQueue();
+    renderAuditLogs();
+    initAnalytics();
+    switchTab('dashboard');
+</script>
+</body>
+</html>

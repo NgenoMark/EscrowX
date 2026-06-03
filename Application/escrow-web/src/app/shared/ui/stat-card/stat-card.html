@@ -1,0 +1,10 @@
+<article class="stat-card" [class.stat-card-danger]="tone === 'danger'">
+  <div>
+    <p>{{ label }}</p>
+    <strong>{{ value }}</strong>
+  </div>
+  <i class="fas {{ icon }}"></i>
+  @if (note) {
+    <span>{{ note }}</span>
+  }
+</article>

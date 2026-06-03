@@ -1,0 +1,30 @@
+/* To learn more about Typescript configuration file: https://www.typescriptlang.org/docs/handbook/tsconfig-json.html */
+/* To learn more about Angular compiler options: https://angular.dev/reference/configs/angular-compiler-options */
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./out-tsc/app",  // ← Output directory for compiled files
+    "rootDir": "./src",          // ← Explicit root directory for source files
+    "types": [],                    // ← Remove "node" unless using Node.js APIs
+    "target": "ES2022",             // ← Modern browsers support ES2022
+    "module": "ES2022",             // ← For modern module resolution
+    "moduleResolution": "bundler"   // ← Better for Angular CLI's bundler
+  },
+  "files": [
+    "src/main.ts"                   // ← Explicit entry point (helps with some edge cases)
+  ],
+  "include": [
+    "src/**/*.d.ts",                // ← TypeScript declaration files
+    "src/**/*.ts"                   // ← Your source files
+  ],
+  "exclude": [
+    "src/**/*.spec.ts",             // ← Exclude test files
+    "src/**/testing/**/*.ts"        // ← Also exclude testing utilities
+  ],
+  "angularCompilerOptions": {
+    "enableI18nLegacyMessageIdFormat": false,
+    "strictInjectionParameters": true,
+    "strictTemplates": true,
+    "strictStandalone": true        // ← Since you're using standalone components
+  }
+}

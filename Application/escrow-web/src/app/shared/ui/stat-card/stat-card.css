@@ -1,0 +1,49 @@
+.stat-card {
+  position: relative;
+  min-height: 9rem;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 0.85rem;
+  background: #ffffff;
+  padding: 1.15rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.05);
+}
+
+.stat-card p {
+  color: #64748b;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: #102033;
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.stat-card i {
+  position: absolute;
+  right: 1rem;
+  top: 1rem;
+  display: grid;
+  width: 2.35rem;
+  height: 2.35rem;
+  place-items: center;
+  border-radius: 0.7rem;
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.stat-card span {
+  display: block;
+  margin-top: 1.2rem;
+  color: #64748b;
+  font-size: 0.78rem;
+}
+
+.stat-card-danger i {
+  background: #fee2e2;
+  color: #dc2626;
+}
