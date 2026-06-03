@@ -18,6 +18,7 @@ public class UserMapperService {
             .email(entity.getEmail())
             .role(entity.getRole().name())
             .status(entity.getStatus().name())
+                .blacklistStatus(entity.getBlacklistStatus())
             .createdAt(entity.getCreatedAt())
             .updatedAt(entity.getUpdatedAt())
             .build();
@@ -30,6 +31,7 @@ public class UserMapperService {
             .email(user.getEmail())
             .role(user.getRole())
             .status(user.getStatus())
+                .blacklistStatus(user.getBlacklistStatus())
             .displayName(profile != null ? profile.getDisplayName() : null)
             .businessName(profile != null ? profile.getBusinessName() : null)
             .createdAt(user.getCreatedAt())

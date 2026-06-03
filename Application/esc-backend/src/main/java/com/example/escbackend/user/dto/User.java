@@ -1,5 +1,6 @@
 package com.example.escbackend.user.dto;
 
+import com.example.escbackend.common.constants.BlackListStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -20,6 +21,7 @@ public class User {
     private String phone;
     private String role;
     private String status;
+    private BlackListStatus blacklistStatus;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }

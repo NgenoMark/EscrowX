@@ -1,5 +1,6 @@
 package com.example.escbackend.user.repository;
 
+import com.example.escbackend.common.constants.BlackListStatus;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.constants.UserStatus;
 import com.example.escbackend.user.entity.UserEntity;
@@ -26,4 +27,8 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Page<UserEntity> findByRole(UserRole role, Pageable pageable);
 
     Page<UserEntity> findByStatus(UserStatus status, Pageable pageable);
+
+    boolean existsByEmailAndBlacklistStatusNot(String email, BlackListStatus blacklistStatus);
+
+    boolean existsByPhoneAndBlacklistStatusNot(String phone, BlackListStatus blacklistStatus);
 }

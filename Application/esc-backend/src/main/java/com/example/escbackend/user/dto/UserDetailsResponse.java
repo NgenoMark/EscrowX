@@ -17,6 +17,7 @@ public class UserDetailsResponse {
         private String email;
         private UserRole role;
         private UserStatus status;
+        private BlackListStatus blacklistStatus;
         private String displayName;
         private String businessName;
         private OffsetDateTime createdAt;

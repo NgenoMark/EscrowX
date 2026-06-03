@@ -2,14 +2,8 @@ package com.example.escbackend.user.entity;
 
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.constants.UserStatus;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Id;
-import jakarta.persistence.PrePersist;
-import jakarta.persistence.PreUpdate;
-import jakarta.persistence.Table;
+import com.example.escbackend.common.constants.BlackListStatus; // Assumed package for your new Enum
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -42,6 +36,15 @@ public class UserEntity {
     @Column(nullable = false, length = 30)
     private UserStatus status;
 
+    // Added to align with your migration strategy
+    @Enumerated(EnumType.STRING)
+    @Column(name = "blacklist_status", nullable = false, length = 40)
+    private BlackListStatus blacklistStatus = BlackListStatus.NOT_BLACKLISTED;
+
+    // Optional: Allows you to fetch full details directly from a user entity if it exists
+    @OneToOne(mappedBy = "user", fetch = FetchType.LAZY, cascade = CascadeType.ALL)
+    private UserBlacklistEntity blacklistDetails;
+
     @Column(name = "created_at", nullable = false)
     private OffsetDateTime createdAt;
 
@@ -53,6 +56,9 @@ public class UserEntity {
         OffsetDateTime now = OffsetDateTime.now();
         if (id == null) {
             id = UUID.randomUUID();
+        }
+        if (blacklistStatus == null) {
+            blacklistStatus = BlackListStatus.NOT_BLACKLISTED;
         }
         createdAt = now;
         updatedAt = now;

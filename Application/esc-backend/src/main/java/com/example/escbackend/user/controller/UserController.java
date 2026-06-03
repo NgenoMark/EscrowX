@@ -1,9 +1,6 @@
 package com.example.escbackend.user.controller;
 
-import com.example.escbackend.user.dto.UserDetailsResponse;
-import com.example.escbackend.user.dto.UserRoleStatusUpdateResponse;
-import com.example.escbackend.user.dto.UserRoleUpdateRequest;
-import com.example.escbackend.user.dto.UserStatusUpdateRequest;
+import com.example.escbackend.user.dto.*;
 import com.example.escbackend.user.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -64,5 +61,14 @@ public class UserController {
         @Valid @RequestBody UserStatusUpdateRequest request
     ) {
         return userService.updateStatus(id, actorUserId, request);
+    }
+
+    @PatchMapping("/{id}/blacklist")
+    public BlacklistUpdateResponse updateBlacklistStatus(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+            @Valid @RequestBody BlacklistUpdateRequest request
+    ) {
+        return userService.updateBlacklistStatus(id, actorUserId, request);
     }
 }

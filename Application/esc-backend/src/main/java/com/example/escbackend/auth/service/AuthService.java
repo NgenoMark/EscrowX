@@ -27,6 +27,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.escbackend.common.constants.BlackListStatus; // Assumed package for your new Enum
 
 @Service
 public class AuthService {
@@ -59,6 +60,13 @@ public class AuthService {
 
     @Transactional
     public RegisterResponse register(RegisterRequest request) {
+
+        if (userRepository.existsByPhoneAndBlacklistStatusNot(request.getPhone(), BlackListStatus.NOT_BLACKLISTED)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "This phone number has been blacklisted from creating new accounts.");
+        }
+        if (userRepository.existsByEmailAndBlacklistStatusNot(request.getEmail(), BlackListStatus.NOT_BLACKLISTED)){
+            throw new ApiException( HttpStatus.FORBIDDEN, "This email has been blacklisted from creating new accounts.");
+        }
         if (userRepository.existsByPhone(request.getPhone())){
             throw new ApiException(HttpStatus.CONFLICT , "Phone number already registered");
         }
@@ -114,6 +122,10 @@ public class AuthService {
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPasswordHash())) {
             throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+
+        if (user.getBlacklistStatus() != BlackListStatus.NOT_BLACKLISTED){
+            throw new ApiException(HttpStatus.FORBIDDEN, "This account has been blacklisted.");
         }
 
         if (user.getStatus() != UserStatus.ACTIVE) {

@@ -1,17 +1,17 @@
 package com.example.escbackend.user.service;
 
+import com.example.escbackend.common.constants.BlackListStatus;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.constants.UserStatus;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.infrastructure.audit.AuditLogEntity;
 import com.example.escbackend.infrastructure.audit.AuditLogRepository;
-import com.example.escbackend.user.dto.UserDetailsResponse;
-import com.example.escbackend.user.dto.UserRoleStatusUpdateResponse;
-import com.example.escbackend.user.dto.UserRoleUpdateRequest;
-import com.example.escbackend.user.dto.UserStatusUpdateRequest;
+import com.example.escbackend.user.dto.*;
+import com.example.escbackend.user.entity.UserBlacklistEntity;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.ProfileRepository;
 import com.example.escbackend.user.repository.UserRepository;
+import com.example.escbackend.user.repository.UserBlacklistRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -30,6 +30,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final UserMapperService mapper;
+    private final UserBlacklistRepository blacklistRepo; // <-- Added
     private final AdminAuthorizationService authz;
     private final AuditLogRepository auditRepo;
 
@@ -37,12 +38,14 @@ public class UserService {
         UserRepository userRepository,
         ProfileRepository profileRepository,
         UserMapperService mapper,
+        UserBlacklistRepository blacklistRepo,
         AdminAuthorizationService authz,
         AuditLogRepository auditRepo
     ) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
         this.mapper = mapper;
+        this.blacklistRepo = blacklistRepo;
         this.authz = authz;
         this.auditRepo = auditRepo;
     }
@@ -130,6 +133,64 @@ public class UserService {
             .updatedBy(actorUserId)
             .updatedAt(OffsetDateTime.now())
             .build();
+    }
+
+    @Transactional
+    public BlacklistUpdateResponse updateBlacklistStatus(UUID targetUserId, UUID actorUserId, BlacklistUpdateRequest request) {
+        // 1. Authorize that the actor executing this change is an Admin/SuperAdmin
+        authz.requireAdminOrSuperAdmin(actorUserId);
+
+        // 2. Retrieve both target user and admin executor entities
+        UserEntity targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Target user not found"));
+
+        UserEntity adminActor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Admin user performing this action not found"));
+
+        // 3. Update high-performance flags on the core UserEntity
+        targetUser.setBlacklistStatus(request.getBlacklistStatus());
+
+        // Operational rule: If banned or investigated, update core account status to reflecting state
+        if (request.getBlacklistStatus() == BlackListStatus.PERMANENTLY_BANNED ||
+                request.getBlacklistStatus() == BlackListStatus.TEMPORARILY_MUTED) {
+            targetUser.setStatus(UserStatus.BLACKLISTED);
+        } else if (request.getBlacklistStatus() == BlackListStatus.NOT_BLACKLISTED) {
+            targetUser.setStatus(UserStatus.ACTIVE);
+        }
+
+        userRepository.save(targetUser);
+
+        // 4. Manage detail log record inside the 'user_blacklists' details tracking table
+        UserBlacklistEntity blacklistDetails = blacklistRepo.findByUserId(targetUserId)
+                .orElseGet(() -> {
+                    UserBlacklistEntity newRecord = new UserBlacklistEntity();
+                    newRecord.setUser(targetUser);
+                    return newRecord;
+                });
+
+        blacklistDetails.setBlacklistType(request.getBlacklistType());
+        blacklistDetails.setReason(request.getReason());
+        blacklistDetails.setEvidenceSummary(request.getEvidenceSummary());
+        blacklistDetails.setBlacklistedBy(adminActor);
+        blacklistDetails.setExpiresAt(request.getExpiresAt());
+
+        blacklistRepo.save(blacklistDetails);
+
+        // 5. Audit log tracking entry
+        saveAudit(actorUserId, "UPDATE_BLACKLIST_STATUS", targetUserId, request.getReason());
+
+        // 6. Map and return response payload
+        return BlacklistUpdateResponse.builder()
+                .userId(targetUserId)
+                .userStatus(targetUser.getStatus())
+                .blacklistStatus(targetUser.getBlacklistStatus())
+                .blacklistRecordId(blacklistDetails.getId())
+                .blacklistType(blacklistDetails.getBlacklistType())
+                .reason(blacklistDetails.getReason())
+                .blacklistedBy(actorUserId)
+                .expiresAt(blacklistDetails.getExpiresAt())
+                .updatedAt(OffsetDateTime.now())
+                .build();
     }
 
     private void saveAudit(UUID actorId, String action, UUID entityId, String reason) {
