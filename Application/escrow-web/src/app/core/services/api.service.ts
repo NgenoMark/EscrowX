@@ -2,21 +2,17 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { Dispute } from '../models/dispute';
-import { Transaction } from '../models/transaction';
-import { User } from '../models/user';
 
 // ========== RESPONSE INTERFACES ==========
 
 /**
- * Standard API response wrapper.
- * Responsible for checking response.success before using data and extracting payload from response.data.
+  Responsible for checking response.success before using data and extracting payload from response.data.
  */
 export interface ApiResponse<T> {
-  success: boolean;   // Indicates if operation succeeded
-  message: string;    // User-friendly message (e.g., "User suspended successfully")
-  data: T;            // Actual payload (user, transaction, etc.)
-  timestamp: string;  // Server timestamp of response
+  success: boolean;   
+  message: string;    
+  data: T;            
+  timestamp: string; 
 }
 
 /**
@@ -24,48 +20,56 @@ export interface ApiResponse<T> {
  * Used for endpoints that return lists with pagination metadata.
  */
 export interface PageResponse<T> {
-  content: T[];         // Array of items for current page
-  totalElements: number;// Total count across all pages
-  totalPages: number;   // Total number of pages
-  size: number;         // Items per page
-  number: number;       // Current page index (0‑based)
-  first: boolean;       // True if this is the first page
-  last: boolean;        // True if this is the last page
+  content: T[];         
+  totalElements: number;
+  totalPages: number;   
+  size: number;         
+  number: number;      
+  first: boolean;       
+  last: boolean;     
 }
 
-export interface ApiEscrowTransaction {
+// ========== DOMAIN MODELS ==========
+
+export interface Transaction {
   id: string;
-  reference: string;
-  buyerId: string;
-  sellerId: string;
-  title: string;
-  productDescription?: string | null;
+  buyerId: number;
+  sellerId: number;
   amount: number;
-  initialDepositAmount?: number | null;
-  currency: string;
-  status: Transaction['status'];
-  deliveryDueAt?: string | null;
-  autoReleaseAt?: string | null;
+  status: string;
+  description: string;
   createdAt: string;
-  updatedAt?: string | null;
+  autoReleaseDate: string;
 }
 
-export interface ApiUserDetails {
-  id: string;
+export interface User {
+  id: String;
+  name: string;
   phone: string;
   email: string;
-  role: User['role'];
-  status: User['status'];
-  blacklistStatus?: User['blacklistStatus'];
-  displayName?: string | null;
-  businessName?: string | null;
-  avatarUrl?: string | null;
+  role: string;
+  status: string;
+  blacklistStatus: boolean;
+  businessName: string;
+  registrationDate: string;
+}
+
+export interface Dispute {
+  id: string;
+  transactionId: string;
+  raisedBy: string;
+  raisedByRole: string;
+  against: string;
+  reason: string;
+  description: string;
+  evidence: string[];
+  status: string;
+  amount: number;
   createdAt: string;
-  updatedAt?: string | null;
 }
 
 // ========== API SERVICE ==========
-
+// making the service available globally
 @Injectable({
   providedIn: 'root'
 })
@@ -91,14 +95,12 @@ export class ApiService {
    * @param params - Optional pagination (page, size) and search term
    * @returns Observable emitting PageResponse containing array of Users and pagination metadata
    */
-  getUsers(params?: { page?: number; size?: number; phone?: string; role?: string; status?: string }): Observable<PageResponse<ApiUserDetails>> {
+  getUsers(params?: { page?: number; size?: number; search?: string }): Observable<PageResponse<User>> {
     let httpParams = new HttpParams();
     if (params?.page !== undefined) httpParams = httpParams.set('page', params.page);
     if (params?.size) httpParams = httpParams.set('size', params.size);
-    if (params?.phone) httpParams = httpParams.set('phone', params.phone);
-    if (params?.role) httpParams = httpParams.set('role', params.role);
-    if (params?.status) httpParams = httpParams.set('status', params.status);
-    return this.http.get<PageResponse<ApiUserDetails>>(`${this.apiUrl}/users`, { params: httpParams });
+    if (params?.search) httpParams = httpParams.set('search', params.search);
+    return this.http.get<PageResponse<User>>(`${this.apiUrl}/users`, { params: httpParams });
   }
 
   /**
@@ -106,8 +108,8 @@ export class ApiService {
    * @param id - User ID
    * @returns Observable emitting ApiResponse containing the User
    */
-  getUserById(id: string): Observable<ApiUserDetails> {
-    return this.http.get<ApiUserDetails>(`${this.apiUrl}/users/${id}`);
+  getUserById(id: number): Observable<ApiResponse<User>> {
+    return this.http.get<ApiResponse<User>>(`${this.apiUrl}/users/${id}`);
   }
 
   /**
@@ -115,8 +117,8 @@ export class ApiService {
    * @param userId - ID of user to suspend
    * @returns Observable emitting ApiResponse with updated User
    */
-  suspendUser(userId: string, actorUserId?: string): Observable<User> {
-    return this.updateUserStatus(userId, 'SUSPENDED', actorUserId);
+  suspendUser(userId: number): Observable<ApiResponse<User>> {
+    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/suspend`, {});
   }
 
   /**
@@ -124,8 +126,8 @@ export class ApiService {
    * @param userId - ID of user to activate
    * @returns Observable emitting ApiResponse with updated User
    */
-  activateUser(userId: string, actorUserId?: string): Observable<User> {
-    return this.updateUserStatus(userId, 'ACTIVE', actorUserId);
+  activateUser(userId: number): Observable<ApiResponse<User>> {
+    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/activate`, {});
   }
 
   /**
@@ -152,8 +154,8 @@ export class ApiService {
    * @param userId - ID of user to blacklist
    * @returns Observable emitting ApiResponse with updated User
    */
-  blacklistUser(userId: string, actorUserId?: string): Observable<User> {
-    return this.updateUserStatus(userId, 'BLACKLISTED', actorUserId);
+  blacklistUser(userId: number): Observable<ApiResponse<User>> {
+    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/blacklist`, {});
   }
 
   /**
@@ -161,8 +163,8 @@ export class ApiService {
    * @param userId - ID of user
    * @returns Observable emitting ApiResponse with updated User
    */
-  removeBlacklist(userId: string, actorUserId?: string): Observable<User> {
-    return this.updateUserStatus(userId, 'PENDING_VERIFICATION', actorUserId);
+  removeBlacklist(userId: number): Observable<ApiResponse<User>> {
+    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/blacklist/remove`, {});
   }
 
   // ========== TRANSACTION MANAGEMENT ==========
@@ -172,16 +174,13 @@ export class ApiService {
    * @param params - Status filter, pagination (page, limit), search term
    * @returns Observable emitting ApiResponse containing array of Transactions
    */
-  getTransactions(params?: { role?: string; status?: string; userId?: string; dateFrom?: string; dateTo?: string; page?: number; size?: number }): Observable<PageResponse<ApiEscrowTransaction>> {
+  getTransactions(params?: { status?: string; page?: number; limit?: number; search?: string }): Observable<ApiResponse<Transaction[]>> {
     let httpParams = new HttpParams();
-    if (params?.role) httpParams = httpParams.set('role', params.role);
     if (params?.status) httpParams = httpParams.set('status', params.status);
-    if (params?.userId) httpParams = httpParams.set('userId', params.userId);
-    if (params?.dateFrom) httpParams = httpParams.set('dateFrom', params.dateFrom);
-    if (params?.dateTo) httpParams = httpParams.set('dateTo', params.dateTo);
-    if (params?.page !== undefined) httpParams = httpParams.set('page', params.page);
-    if (params?.size) httpParams = httpParams.set('size', params.size);
-    return this.http.get<PageResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions`, { params: httpParams });
+    if (params?.page) httpParams = httpParams.set('page', params.page);
+    if (params?.limit) httpParams = httpParams.set('limit', params.limit);
+    if (params?.search) httpParams = httpParams.set('search', params.search);
+    return this.http.get<ApiResponse<Transaction[]>>(`${this.apiUrl}/transactions`, { params: httpParams });
   }
 
   /**
@@ -189,8 +188,8 @@ export class ApiService {
    * @param id - Transaction ID
    * @returns Observable emitting ApiResponse containing the Transaction
    */
-  getTransactionById(id: string): Observable<ApiEscrowTransaction> {
-    return this.http.get<ApiEscrowTransaction>(`${this.apiUrl}/transactions/${id}`);
+  getTransactionById(id: string): Observable<ApiResponse<Transaction>> {
+    return this.http.get<ApiResponse<Transaction>>(`${this.apiUrl}/transactions/${id}`);
   }
 
   /**
@@ -198,8 +197,8 @@ export class ApiService {
    * @param transactionId - ID of transaction
    * @returns Observable emitting ApiResponse with updated Transaction
    */
-  forceReleaseFunds(transactionId: string): Observable<ApiEscrowTransaction> {
-    return this.http.post<ApiEscrowTransaction>(`${this.apiUrl}/transactions/${transactionId}/confirm-receipt`, {});
+  forceReleaseFunds(transactionId: string): Observable<ApiResponse<Transaction>> {
+    return this.http.post<ApiResponse<Transaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/force-release`, {});
   }
 
   /**
@@ -216,13 +215,8 @@ export class ApiService {
    * @param transactionId - ID of transaction
    * @returns Observable emitting ApiResponse with updated Transaction
    */
-  cancelTransaction(transactionId: string): Observable<ApiEscrowTransaction> {
-    return this.http.post<ApiEscrowTransaction>(`${this.apiUrl}/transactions/${transactionId}/cancel`, {});
-  }
-
-  updateUserStatus(userId: string, status: User['status'], actorUserId?: string): Observable<User> {
-    const headers = actorUserId ? new HttpHeaders({ 'X-Actor-User-Id': actorUserId }) : undefined;
-    return this.http.patch<User>(`${this.apiUrl}/users/${userId}/status`, { status }, { headers });
+  cancelTransaction(transactionId: string): Observable<ApiResponse<Transaction>> {
+    return this.http.post<ApiResponse<Transaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/cancel`, {});
   }
 
   // ========== DISPUTE MANAGEMENT ==========
