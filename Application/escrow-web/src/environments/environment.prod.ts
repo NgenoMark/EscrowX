@@ -1,6 +1,7 @@
 export const environment = {
   production: true,
-  apiUrl: 'https://your-domain.com/api',  // Your production backend URL
-  mpesaUrl: 'https://api.safaricom.co.ke',  // M-Pesa production
+  useMockData: false,
+  apiUrl: 'https://your-domain.com/api/v1',
+  mpesaUrl: 'https://api.safaricom.co.ke',
   version: '1.0.0'
 };
