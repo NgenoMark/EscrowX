@@ -94,6 +94,16 @@ public class EscrowService {
                 .toList();
     }
 
+
+    @Transactional
+    public EscrowResponse approveTransaction(UUID transactionId , UUID actorUserId){
+        EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertActorIsBuyer(transaction, actorUserId);
+        assertState(transaction, "CREATED");
+        transaction.setStatus("PENDING_PAYMENT");
+        return toResponse(escrowRepository.save(transaction));
+    }
+
     @Transactional
     public EscrowResponse acceptTransaction(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
@@ -113,11 +123,20 @@ public class EscrowService {
     }
 
     @Transactional
-    public EscrowResponse confirmDelivery(UUID transactionId, UUID actorUserId) {
+    public EscrowResponse sellerConfirmDelivery(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsSeller(transaction, actorUserId);
         assertState(transaction, "IN_DELIVERY");
-        transaction.setStatus("DELIVERED");
+        transaction.setStatus("SELLER_DELIVERED");
+        return toResponse(escrowRepository.save(transaction));
+    }
+    
+    @Transactional
+    public EscrowResponse buyerConfirmDelivery(UUID transactionId, UUID actorUserId){
+        EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertActorIsBuyer(transaction , actorUserId);
+        assertState(transaction , "SELLER_DELIVERED");
+        transaction.setStatus("BUYER_CONFIRMED_DELIVERED");
         return toResponse(escrowRepository.save(transaction));
     }
 
@@ -125,7 +144,7 @@ public class EscrowService {
     public EscrowResponse confirmReceipt(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsBuyer(transaction, actorUserId);
-        assertState(transaction, "DELIVERED");
+        assertState(transaction, "BUYER_CONFIRMED_DELIVERED");
         transaction.setStatus("RELEASE_PENDING");
         return toResponse(escrowRepository.save(transaction));
     }
