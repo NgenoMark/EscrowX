@@ -1,5 +1,6 @@
 package com.example.escbackend.user.service;
 
+import com.example.escbackend.user.dto.UpdateUserResponse;
 import com.example.escbackend.user.dto.User;
 import com.example.escbackend.user.dto.UserDetailsResponse;
 import com.example.escbackend.user.entity.ProfileEntity;
@@ -9,32 +10,66 @@ import org.springframework.stereotype.Service;
 @Service
 public class UserMapperService {
 
-    public User toSimple(User entity) { return entity; }
-
+    /**
+     * Maps a basic UserEntity to a standard User DTO.
+     */
     public User toSimple(UserEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+
         return User.builder()
-            .id(entity.getId())
-            .phone(entity.getPhone())
-            .email(entity.getEmail())
-            .role(entity.getRole().name())
-            .status(entity.getStatus().name())
+                .id(entity.getId())
+                .phone(entity.getPhone())
+                .email(entity.getEmail())
+                .role(entity.getRole() != null ? entity.getRole().name() : null)
+                .status(entity.getStatus() != null ? entity.getStatus().name() : null)
                 .blacklistStatus(entity.getBlacklistStatus())
-            .createdAt(entity.getCreatedAt())
-            .updatedAt(entity.getUpdatedAt())
-            .build();
+                .createdAt(entity.getCreatedAt())
+                .updatedAt(entity.getUpdatedAt())
+                .build();
     }
 
+    /**
+     * Maps a combined UserEntity and ProfileEntity into a complete UserDetailsResponse DTO.
+     * Includes null-safety checks to prevent NullPointerExceptions if a profile doesn't exist.
+     */
     public UserDetailsResponse toDetails(UserEntity user, ProfileEntity profile) {
+        if (user == null) {
+            return null;
+        }
+
         return UserDetailsResponse.builder()
-            .id(user.getId())
-            .phone(user.getPhone())
-            .email(user.getEmail())
-            .role(user.getRole())
-            .status(user.getStatus())
+                .id(user.getId())
+                .phone(user.getPhone())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .status(user.getStatus())
                 .blacklistStatus(user.getBlacklistStatus())
-            .displayName(profile != null ? profile.getDisplayName() : null)
-            .businessName(profile != null ? profile.getBusinessName() : null)
-            .createdAt(user.getCreatedAt())
-            .build();
+                .createdAt(user.getCreatedAt())
+                // Safe profile mapping with null-checks
+                .address(profile != null ? profile.getAddress() : null)
+                .displayName(profile != null ? profile.getDisplayName() : null)
+                .businessName(profile != null ? profile.getBusinessName() : null)
+                .build();
+    }
+
+
+    public UpdateUserResponse toUpdateUserResponse(UserEntity user, ProfileEntity profile){
+        if (user == null){
+            return null;
+        }
+
+        return UpdateUserResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .phone(user.getPhone())
+                .passwordHash(user.getPasswordHash())
+                .address(profile != null ? profile.getAddress() : null)
+                .displayName( profile != null ? profile.getAddress() : null)
+                .businessName(profile != null ? profile.getBusinessName() : null)
+                .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
+                .updatedAt(profile != null ? profile.getUpdatedAt() : user.getUpdatedAt())                .build();
+
     }
 }

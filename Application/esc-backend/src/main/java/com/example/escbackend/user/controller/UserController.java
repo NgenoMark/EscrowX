@@ -71,4 +71,12 @@ public class UserController {
     ) {
         return userService.updateBlacklistStatus(id, actorUserId, request);
     }
+
+    @PatchMapping("/{id}/update_profile")
+    public UpdateUserResponse updateUserProfile(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateUserRequest request
+    ){
+        return userService.updateUserDetails(id, request);
+    }
 }

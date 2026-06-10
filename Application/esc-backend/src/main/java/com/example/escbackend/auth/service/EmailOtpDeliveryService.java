@@ -32,6 +32,11 @@ public class EmailOtpDeliveryService implements OtpDeliveryService {
         sendOtp(email, "EscrowX password reset code", "Your EscrowX password reset code is: " + otp);
     }
 
+    @Override
+    public void sendUpdatePasswordAndPhoneOtp(String email, String otp){
+        sendOtp(email , "EscrowX update password and phone code" , "Your EscrowX update password and phone code is: " + otp);
+    }
+
     private void sendOtp(String to, String subject, String body) {
         try {
             SimpleMailMessage message = new SimpleMailMessage();
