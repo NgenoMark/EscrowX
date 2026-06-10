@@ -33,6 +33,9 @@ public class CreateEscrowTransactionRequest {
     @DecimalMin(value = "0.01")
     private BigDecimal amount;
 
+    @NotBlank
+    private String deliveryAddress;
+
     @DecimalMin(value = "0.01")
     private BigDecimal initialDepositAmount;
 

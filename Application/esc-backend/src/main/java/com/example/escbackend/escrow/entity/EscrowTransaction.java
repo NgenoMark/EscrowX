@@ -65,6 +65,10 @@ public class EscrowTransaction {
     @Column(name = "status", nullable = false, length = 30)
     private String status;
 
+    @NotNull
+    @Column(name = "delivery_address")
+    private String deliveryAddress;
+
     @Column(name = "delivery_due_at")
     private OffsetDateTime deliveryDueAt;
 

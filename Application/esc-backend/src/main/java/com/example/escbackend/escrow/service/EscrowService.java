@@ -5,9 +5,12 @@ import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
 import com.example.escbackend.escrow.dto.EscrowResponse;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository;
+import com.example.escbackend.user.entity.ProfileEntity;
 import com.example.escbackend.user.entity.UserEntity;
+import com.example.escbackend.user.repository.ProfileRepository;
 import com.example.escbackend.user.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
+import org.springframework.context.annotation.Profile;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,10 +30,15 @@ public class EscrowService {
 
     private final EscrowRepository escrowRepository;
     private final UserRepository userRepository;
+    private final ProfileRepository profileRepository;
 
-    public EscrowService(EscrowRepository escrowRepository, UserRepository userRepository) {
+    public EscrowService(
+            EscrowRepository escrowRepository,
+            UserRepository userRepository,
+            ProfileRepository profileRepository) {
         this.escrowRepository = escrowRepository;
         this.userRepository = userRepository;
+        this.profileRepository = profileRepository;
     }
 
     @Transactional
@@ -43,6 +51,8 @@ public class EscrowService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Buyer not found"));
         UserEntity seller = userRepository.findById(request.getSellerId())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Seller not found"));
+        ProfileEntity profile = profileRepository.findById(request.getBuyerId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Profile not found"));
 
         if (request.getInitialDepositAmount() != null && request.getInitialDepositAmount().compareTo(request.getAmount()) != 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Partial deposits are not supported yet. initialDepositAmount must equal amount");
@@ -54,6 +64,7 @@ public class EscrowService {
         transaction.setTitle(request.getTitle().trim());
         transaction.setProductDescription(request.getProductDescription().trim());
         transaction.setAmount(request.getAmount());
+        transaction.setDeliveryAddress(profile.getAddress());
         transaction.setInitialDepositAmount(request.getAmount());
         transaction.setCurrency(request.getCurrency() == null ? "KES" : request.getCurrency().trim().toUpperCase(Locale.ROOT));
         transaction.setStatus("CREATED");
@@ -241,6 +252,7 @@ public class EscrowService {
             .title(transaction.getTitle())
             .productDescription(transaction.getProductDescription())
             .amount(transaction.getAmount())
+                .deliveryAddress(transaction.getDeliveryAddress())
             .initialDepositAmount(transaction.getInitialDepositAmount())
             .currency(transaction.getCurrency())
             .status(transaction.getStatus())
