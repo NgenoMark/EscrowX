@@ -1,18 +1,18 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment';
+import { environment } from '../../../environments/environment.prod';
 
 // ========== RESPONSE INTERFACES ==========
 
 /**
-  Responsible for checking response.success before using data and extracting payload from response.data.
+ * Responsible for checking response.success before using data and extracting payload from response.data.
  */
 export interface ApiResponse<T> {
-  success: boolean;   
-  message: string;    
-  data: T;            
-  timestamp: string; 
+  success: boolean;
+  message: string;
+  data: T;
+  timestamp: string;
 }
 
 /**
@@ -20,16 +20,59 @@ export interface ApiResponse<T> {
  * Used for endpoints that return lists with pagination metadata.
  */
 export interface PageResponse<T> {
-  content: T[];         
+  content: T[];
   totalElements: number;
-  totalPages: number;   
-  size: number;         
-  number: number;      
-  first: boolean;       
-  last: boolean;     
+  totalPages: number;
+  size: number;
+  number: number;
+  first: boolean;
+  last: boolean;
 }
 
-// ========== DOMAIN MODELS ==========
+// ========== API-SPECIFIC DOMAIN MODELS ==========
+
+/**
+ * Escrow Transaction as returned by the API.
+ * This matches the backend's transaction response structure.
+ */
+export interface ApiEscrowTransaction {
+  id: string;
+  reference?: string;
+  buyerId: string;
+  sellerId: string;
+  amount: number;
+  initialDepositAmount?: number | null;
+  currency?: string;
+  status: string;
+  title?: string;
+  productDescription?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+  completedAt?: string | null;
+  deliveryDueAt?: string | null;
+  autoReleaseAt?: string | null;
+  disputeId?: string | null;
+}
+
+/**
+ * User details as returned by the API.
+ * This matches the backend's user response structure.
+ */
+export interface ApiUserDetails {
+  id: string;
+  phone: string;
+  email: string;
+  role: string;
+  status: string;
+  blacklistStatus?: string | null;
+  displayName?: string;
+  businessName?: string | null;
+  avatarUrl?: string | null;
+  createdAt: string;
+  updatedAt?: string | null;
+}
+
+// ========== LEGACY DOMAIN MODELS (for backward compatibility) ==========
 
 export interface Transaction {
   id: string;
@@ -69,7 +112,7 @@ export interface Dispute {
 }
 
 // ========== API SERVICE ==========
-// making the service available globally
+
 @Injectable({
   providedIn: 'root'
 })
@@ -84,8 +127,8 @@ export class ApiService {
    * @param credentials - Object containing email and password
    * @returns Observable emitting ApiResponse containing auth token and user data
    */
-  login(credentials: { email: string; password: string }): Observable<ApiResponse<{ token: string; user: User }>> {
-    return this.http.post<ApiResponse<{ token: string; user: User }>>(`${this.apiUrl}/auth/login`, credentials);
+  login(credentials: { email: string; password: string }): Observable<ApiResponse<{ token: string; user: ApiUserDetails }>> {
+    return this.http.post<ApiResponse<{ token: string; user: ApiUserDetails }>>(`${this.apiUrl}/auth/login`, credentials);
   }
 
   // ========== USER MANAGEMENT ==========
@@ -93,130 +136,130 @@ export class ApiService {
   /**
    * Get paginated list of users with optional search.
    * @param params - Optional pagination (page, size) and search term
-   * @returns Observable emitting PageResponse containing array of Users and pagination metadata
+   * @returns Observable emitting PageResponse containing array of ApiUserDetails and pagination metadata
    */
-  getUsers(params?: { page?: number; size?: number; search?: string }): Observable<PageResponse<User>> {
+  getUsers(params?: { page?: number; size?: number; search?: string }): Observable<PageResponse<ApiUserDetails>> {
     let httpParams = new HttpParams();
     if (params?.page !== undefined) httpParams = httpParams.set('page', params.page);
     if (params?.size) httpParams = httpParams.set('size', params.size);
     if (params?.search) httpParams = httpParams.set('search', params.search);
-    return this.http.get<PageResponse<User>>(`${this.apiUrl}/users`, { params: httpParams });
+    return this.http.get<PageResponse<ApiUserDetails>>(`${this.apiUrl}/users`, { params: httpParams });
   }
 
   /**
    * Get a single user by ID.
    * @param id - User ID
-   * @returns Observable emitting ApiResponse containing the User
+   * @returns Observable emitting ApiResponse containing the ApiUserDetails
    */
-  getUserById(id: number): Observable<ApiResponse<User>> {
-    return this.http.get<ApiResponse<User>>(`${this.apiUrl}/users/${id}`);
+  getUserById(id: string): Observable<ApiResponse<ApiUserDetails>> {
+    return this.http.get<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${id}`);
   }
 
   /**
    * Suspend a user (admin action).
    * @param userId - ID of user to suspend
-   * @returns Observable emitting ApiResponse with updated User
+   * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
-  suspendUser(userId: number): Observable<ApiResponse<User>> {
-    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/suspend`, {});
+  suspendUser(userId: string): Observable<ApiResponse<ApiUserDetails>> {
+    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/suspend`, {});
   }
 
   /**
    * Activate a suspended user.
    * @param userId - ID of user to activate
-   * @returns Observable emitting ApiResponse with updated User
+   * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
-  activateUser(userId: number): Observable<ApiResponse<User>> {
-    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/activate`, {});
+  activateUser(userId: string): Observable<ApiResponse<ApiUserDetails>> {
+    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/activate`, {});
   }
 
   /**
    * Approve KYC verification for a user.
    * @param userId - ID of user
-   * @returns Observable emitting ApiResponse with updated User
+   * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
-  approveKYC(userId: number): Observable<ApiResponse<User>> {
-    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/kyc/approve`, {});
+  approveKYC(userId: string): Observable<ApiResponse<ApiUserDetails>> {
+    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/kyc/approve`, {});
   }
 
   /**
    * Reject KYC verification with optional reason.
    * @param userId - ID of user
    * @param reason - Optional rejection reason
-   * @returns Observable emitting ApiResponse with updated User
+   * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
-  rejectKYC(userId: number, reason?: string): Observable<ApiResponse<User>> {
-    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/kyc/reject`, { reason });
+  rejectKYC(userId: string, reason?: string): Observable<ApiResponse<ApiUserDetails>> {
+    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/kyc/reject`, { reason });
   }
 
   /**
    * Blacklist a user (prevents platform access).
    * @param userId - ID of user to blacklist
-   * @returns Observable emitting ApiResponse with updated User
+   * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
-  blacklistUser(userId: number): Observable<ApiResponse<User>> {
-    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/blacklist`, {});
+  blacklistUser(userId: string): Observable<ApiResponse<ApiUserDetails>> {
+    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/blacklist`, {});
   }
 
   /**
    * Remove user from blacklist.
    * @param userId - ID of user
-   * @returns Observable emitting ApiResponse with updated User
+   * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
-  removeBlacklist(userId: number): Observable<ApiResponse<User>> {
-    return this.http.put<ApiResponse<User>>(`${this.apiUrl}/users/${userId}/blacklist/remove`, {});
+  removeBlacklist(userId: string): Observable<ApiResponse<ApiUserDetails>> {
+    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/blacklist/remove`, {});
   }
 
   // ========== TRANSACTION MANAGEMENT ==========
 
   /**
-   * Get list of transactions with optional filters and pagination.
-   * @param params - Status filter, pagination (page, limit), search term
-   * @returns Observable emitting ApiResponse containing array of Transactions
+   * Get paginated list of transactions with optional filters.
+   * @param params - Status filter, pagination (page, size), search term
+   * @returns Observable emitting PageResponse containing array of ApiEscrowTransaction
    */
-  getTransactions(params?: { status?: string; page?: number; limit?: number; search?: string }): Observable<ApiResponse<Transaction[]>> {
+  getTransactions(params?: { status?: string; page?: number; size?: number; search?: string }): Observable<PageResponse<ApiEscrowTransaction>> {
     let httpParams = new HttpParams();
     if (params?.status) httpParams = httpParams.set('status', params.status);
-    if (params?.page) httpParams = httpParams.set('page', params.page);
-    if (params?.limit) httpParams = httpParams.set('limit', params.limit);
+    if (params?.page !== undefined) httpParams = httpParams.set('page', params.page);
+    if (params?.size) httpParams = httpParams.set('size', params.size);
     if (params?.search) httpParams = httpParams.set('search', params.search);
-    return this.http.get<ApiResponse<Transaction[]>>(`${this.apiUrl}/transactions`, { params: httpParams });
+    return this.http.get<PageResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions`, { params: httpParams });
   }
 
   /**
    * Get a single transaction by ID.
    * @param id - Transaction ID
-   * @returns Observable emitting ApiResponse containing the Transaction
+   * @returns Observable emitting ApiResponse containing the ApiEscrowTransaction
    */
-  getTransactionById(id: string): Observable<ApiResponse<Transaction>> {
-    return this.http.get<ApiResponse<Transaction>>(`${this.apiUrl}/transactions/${id}`);
+  getTransactionById(id: string): Observable<ApiResponse<ApiEscrowTransaction>> {
+    return this.http.get<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions/${id}`);
   }
 
   /**
    * Admin: Force release funds held in escrow for a transaction.
    * @param transactionId - ID of transaction
-   * @returns Observable emitting ApiResponse with updated Transaction
+   * @returns Observable emitting ApiResponse with updated ApiEscrowTransaction
    */
-  forceReleaseFunds(transactionId: string): Observable<ApiResponse<Transaction>> {
-    return this.http.post<ApiResponse<Transaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/force-release`, {});
+  forceReleaseFunds(transactionId: string): Observable<ApiResponse<ApiEscrowTransaction>> {
+    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/force-release`, {});
   }
 
   /**
    * Admin: Force refund to buyer.
    * @param transactionId - ID of transaction
-   * @returns Observable emitting ApiResponse with updated Transaction
+   * @returns Observable emitting ApiResponse with updated ApiEscrowTransaction
    */
-  forceRefund(transactionId: string): Observable<ApiResponse<Transaction>> {
-    return this.http.post<ApiResponse<Transaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/force-refund`, {});
+  forceRefund(transactionId: string): Observable<ApiResponse<ApiEscrowTransaction>> {
+    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/force-refund`, {});
   }
 
   /**
    * Admin: Cancel a transaction.
    * @param transactionId - ID of transaction
-   * @returns Observable emitting ApiResponse with updated Transaction
+   * @returns Observable emitting ApiResponse with updated ApiEscrowTransaction
    */
-  cancelTransaction(transactionId: string): Observable<ApiResponse<Transaction>> {
-    return this.http.post<ApiResponse<Transaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/cancel`, {});
+  cancelTransaction(transactionId: string): Observable<ApiResponse<ApiEscrowTransaction>> {
+    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/cancel`, {});
   }
 
   // ========== DISPUTE MANAGEMENT ==========
@@ -226,12 +269,12 @@ export class ApiService {
    * @param params - Status, page, limit
    * @returns Observable emitting ApiResponse containing array of Disputes
    */
-  getDisputes(params?: { status?: string; page?: number; limit?: number }): Observable<ApiResponse<Dispute[]>> {
+  getDisputes(params?: { status?: string; page?: number; limit?: number }): Observable<ApiResponse<any[]>> {
     let httpParams = new HttpParams();
     if (params?.status) httpParams = httpParams.set('status', params.status);
     if (params?.page) httpParams = httpParams.set('page', params.page);
     if (params?.limit) httpParams = httpParams.set('limit', params.limit);
-    return this.http.get<ApiResponse<Dispute[]>>(`${this.apiUrl}/disputes`, { params: httpParams });
+    return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/disputes`, { params: httpParams });
   }
 
   /**
@@ -239,8 +282,8 @@ export class ApiService {
    * @param id - Dispute ID
    * @returns Observable emitting ApiResponse containing the Dispute
    */
-  getDisputeById(id: string): Observable<ApiResponse<Dispute>> {
-    return this.http.get<ApiResponse<Dispute>>(`${this.apiUrl}/disputes/${id}`);
+  getDisputeById(id: string): Observable<ApiResponse<any>> {
+    return this.http.get<ApiResponse<any>>(`${this.apiUrl}/disputes/${id}`);
   }
 
   /**
@@ -248,8 +291,8 @@ export class ApiService {
    * @param disputeId - ID of dispute
    * @returns Observable emitting ApiResponse with updated Dispute
    */
-  resolveDisputeRefund(disputeId: string): Observable<ApiResponse<Dispute>> {
-    return this.http.post<ApiResponse<Dispute>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/refund`, {});
+  resolveDisputeRefund(disputeId: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/refund`, {});
   }
 
   /**
@@ -257,8 +300,8 @@ export class ApiService {
    * @param disputeId - ID of dispute
    * @returns Observable emitting ApiResponse with updated Dispute
    */
-  resolveDisputeRelease(disputeId: string): Observable<ApiResponse<Dispute>> {
-    return this.http.post<ApiResponse<Dispute>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/release`, {});
+  resolveDisputeRelease(disputeId: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/release`, {});
   }
 
   /**
@@ -268,8 +311,8 @@ export class ApiService {
    * @param notes - Admin notes explaining decision
    * @returns Observable emitting ApiResponse with updated Dispute
    */
-  resolveDisputePartial(disputeId: string, partialAmount: number, notes: string): Observable<ApiResponse<Dispute>> {
-    return this.http.post<ApiResponse<Dispute>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/partial`, { partialAmount, notes });
+  resolveDisputePartial(disputeId: string, partialAmount: number, notes: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/partial`, { partialAmount, notes });
   }
 
   /**
@@ -278,8 +321,8 @@ export class ApiService {
    * @param status - New status (e.g., 'RESOLVED', 'ESCALATED')
    * @returns Observable emitting ApiResponse with updated Dispute
    */
-  updateDisputeStatus(disputeId: string, status: string): Observable<ApiResponse<Dispute>> {
-    return this.http.put<ApiResponse<Dispute>>(`${this.apiUrl}/admin/disputes/${disputeId}/status`, { status });
+  updateDisputeStatus(disputeId: string, status: string): Observable<ApiResponse<any>> {
+    return this.http.put<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/status`, { status });
   }
 
   /**
@@ -288,8 +331,8 @@ export class ApiService {
    * @param note - Note text
    * @returns Observable emitting ApiResponse with updated Dispute
    */
-  addAdminNote(disputeId: string, note: string): Observable<ApiResponse<Dispute>> {
-    return this.http.post<ApiResponse<Dispute>>(`${this.apiUrl}/admin/disputes/${disputeId}/notes`, { note });
+  addAdminNote(disputeId: string, note: string): Observable<ApiResponse<any>> {
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/notes`, { note });
   }
 
   // ========== ANALYTICS ==========

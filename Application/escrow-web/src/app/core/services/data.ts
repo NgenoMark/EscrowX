@@ -1,7 +1,7 @@
 import { Injectable, inject, signal } from '@angular/core';
 import { forkJoin } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { Transaction } from '../models/transaction';
+import { Transaction, EscrowTransactionStatus } from '../models/transaction';
 import { User } from '../models/user';
 import { Dispute } from '../models/dispute';
 import { ApiEscrowTransaction, ApiService, ApiUserDetails } from './api.service';
@@ -78,9 +78,9 @@ export class DataService {
       id: user.id,
       phone: user.phone,
       email: user.email,
-      role: user.role,
-      status: user.status,
-      blacklistStatus: user.blacklistStatus ?? 'NOT_BLACKLISTED',
+      role: user.role as 'BUYER' | 'SELLER' | 'ADMIN' | 'SUPER_ADMIN',
+      status: user.status as 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED',
+      blacklistStatus: (user.blacklistStatus as 'NOT_BLACKLISTED' | 'TEMPORARILY_MUTED' | 'PERMANENTLY_BANNED' | 'UNDER_INVESTIGATION') ?? 'NOT_BLACKLISTED',
       displayName: user.displayName || user.email || user.phone,
       businessName: user.businessName ?? null,
       avatarUrl: user.avatarUrl ?? null,
@@ -106,7 +106,7 @@ export class DataService {
       amount: Number(transaction.amount),
       initialDepositAmount: transaction.initialDepositAmount == null ? undefined : Number(transaction.initialDepositAmount),
       currency: transaction.currency,
-      status: transaction.status,
+      status: transaction.status as EscrowTransactionStatus,
       created: transaction.createdAt,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt ?? undefined,
@@ -214,42 +214,42 @@ export class DataService {
     // Mock disputes
     this.disputesSignal.set([
       {
-        id: "DSP-101", 
-        txId: "ESC-TX1003", 
-        raisedBy: "Peter Omondi", 
+        id: "DSP-101",
+        txId: "ESC-TX1003",
+        raisedBy: "Peter Omondi",
         raisedByRole: "BUYER",
-        against: "Faith Wanjiku", 
+        against: "Faith Wanjiku",
         reason: "Item never delivered after payment",
         description: "I paid KES 23,000 for a laptop on May 20th.",
-        evidence: ["screenshot_wa.png", "payment_receipt.jpg"], 
-        status: "PENDING", 
-        amount: 23000, 
+        evidence: ["screenshot_wa.png", "payment_receipt.jpg"],
+        status: "PENDING",
+        amount: 23000,
         createdAt: "2025-05-26"
       },
       {
-        id: "DSP-102", 
-        txId: "ESC-TX1006", 
-        raisedBy: "Brian Odhiambo", 
+        id: "DSP-102",
+        txId: "ESC-TX1006",
+        raisedBy: "Brian Odhiambo",
         raisedByRole: "BUYER",
-        against: "Peter Omondi", 
+        against: "Peter Omondi",
         reason: "Received counterfeit phone",
         description: "The phone I received is clearly counterfeit.",
-        evidence: ["counterfeit_photo.jpg"], 
-        status: "PENDING", 
-        amount: 9200, 
+        evidence: ["counterfeit_photo.jpg"],
+        status: "PENDING",
+        amount: 9200,
         createdAt: "2025-05-24"
       },
       {
-        id: "DSP-103", 
-        txId: "ESC-TX1001", 
-        raisedBy: "Mercy Achieng", 
+        id: "DSP-103",
+        txId: "ESC-TX1001",
+        raisedBy: "Mercy Achieng",
         raisedByRole: "SELLER",
-        against: "John Kamau", 
+        against: "John Kamau",
         reason: "Buyer confirmed then disputed",
         description: "The buyer confirmed receipt then opened a dispute.",
-        evidence: ["delivery_proof.png"], 
-        status: "UNDER_REVIEW", 
-        amount: 12500, 
+        evidence: ["delivery_proof.png"],
+        status: "UNDER_REVIEW",
+        amount: 12500,
         createdAt: "2025-05-28"
       }
     ]);

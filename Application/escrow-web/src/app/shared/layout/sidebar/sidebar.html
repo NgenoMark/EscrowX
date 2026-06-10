@@ -34,13 +34,15 @@
   </nav>
 
   <div class="sidebar-status" [class.sidebar-status-collapsed]="collapsed">
-    <div class="admin-avatar">AD</div>
+    <div class="admin-avatar">
+      {{ currentUser?.email?.charAt(0)?.toUpperCase() || 'A' }}
+    </div>
     @if (!collapsed) {
       <div class="admin-copy">
-        <p>Admin User</p>
-        <span>admin@escrowx.com</span>
+        <p>{{ userDisplayName }}</p>
+        <span>{{ userEmail }}</span>
       </div>
-      <button type="button" aria-label="Sign out">
+      <button type="button" aria-label="Sign out" (click)="logout()">
         <i class="fas fa-sign-out-alt"></i>
       </button>
     }
