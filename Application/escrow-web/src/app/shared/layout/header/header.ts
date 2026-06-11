@@ -122,11 +122,12 @@ export class HeaderComponent implements AfterViewInit {
         if (include('users')) {
           const users = this.dataService.users();
           for (const user of users) {
-            const haystack = `${user.name} ${user.phone} ${user.email} ${user.role} ${user.status} ${user.kycStatus}`.toLowerCase();
+            // Removed kycStatus reference - only use fields from User interface
+            const haystack = `${user.displayName} ${user.phone} ${user.email} ${user.role} ${user.status} ${user.blacklistStatus}`.toLowerCase();
             if (haystack.includes(query)) {
               results.push({
                 type: 'users',
-                title: user.name,
+                title: user.displayName,
                 detail: `${user.role} | ${user.status} | ${user.email}`,
                 route: '/users',
                 icon: 'fas fa-user-circle'

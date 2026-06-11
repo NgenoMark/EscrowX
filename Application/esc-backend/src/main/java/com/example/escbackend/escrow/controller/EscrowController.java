@@ -59,7 +59,17 @@ public class EscrowController {
         return escrowService.listTransactions(role, status, userId, dateFrom, dateTo, page, size);
     }
 
-    @PostMapping("/transactions/{id}/accept")
+
+    @PostMapping("/transaction/{id}/approve-transaction")
+    public EscrowResponse approveTransaction(
+            @PathVariable UUID id,
+            @RequestHeader("X_Actor_User_Id") UUID actorUserId
+    )
+    {
+        return escrowService.approveTransaction(id, actorUserId);
+    }
+
+    @PostMapping("/transactions/{id}/accept-transaction")
     public EscrowResponse acceptTransaction(
         @PathVariable UUID id,
         @RequestHeader("X-Actor-User-Id") UUID actorUserId
@@ -75,12 +85,21 @@ public class EscrowController {
         return escrowService.markInDelivery(id, actorUserId);
     }
 
-    @PostMapping("/transactions/{id}/confirm-delivery")
-    public EscrowResponse confirmDelivery(
+    @PostMapping("/transactions/{id}/seller-confirm-delivery")
+    public EscrowResponse sellerConfirmDelivery(
         @PathVariable UUID id,
         @RequestHeader("X-Actor-User-Id") UUID actorUserId
     ) {
-        return escrowService.confirmDelivery(id, actorUserId);
+        return escrowService.sellerConfirmDelivery(id, actorUserId);
+    }
+
+
+    @PostMapping("/transactions/{id}/buyer-confirm-delivery")
+    public EscrowResponse buyerConfirmDelivery(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ){
+        return escrowService.buyerConfirmDelivery(id, actorUserId);
     }
 
     @PostMapping("/transactions/{id}/confirm-receipt")

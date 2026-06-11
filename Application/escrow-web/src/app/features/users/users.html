@@ -1,242 +1,234 @@
 <div class="space-y-6">
-  <!-- Header with Stats Cards - Updated for OTP & KYC -->
-  <div class="grid grid-cols-1 md:grid-cols-6 gap-4">
-    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition">
-      <p class="text-xs text-gray-500">Total Users</p>
-      <p class="text-2xl font-bold text-gray-800">{{ totalUsers() }}</p>
-      <p class="text-xs text-green-600 mt-1">All registered users</p>
+  <!-- User Statistics Section -->
+  <div class="stats-grid">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-gray-800">Platform Metrics</h2>
     </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition">
-      <p class="text-xs text-gray-500">Active</p>
-      <p class="text-2xl font-bold text-green-600">{{ activeUsers() }}</p>
-      <p class="text-xs text-gray-500 mt-1">Currently active</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition">
-      <p class="text-xs text-gray-500">Suspended</p>
-      <p class="text-2xl font-bold text-red-600">{{ suspendedUsers() }}</p>
-      <p class="text-xs text-gray-500 mt-1">Temporarily blocked</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition">
-      <p class="text-xs text-gray-500">Phone Verified</p>
-      <p class="text-2xl font-bold text-indigo-600">{{ phoneVerifiedUsers() }}</p>
-      <p class="text-xs text-green-600 mt-1">✓ OTP verified</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition">
-      <p class="text-xs text-gray-500">KYC Approved</p>
-      <p class="text-2xl font-bold text-emerald-600">{{ kycApproved() }}</p>
-      <p class="text-xs text-gray-500 mt-1">Higher limits</p>
-    </div>
-    <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100 hover:shadow-md transition">
-      <p class="text-xs text-gray-500">Blacklisted</p>
-      <p class="text-2xl font-bold text-gray-600">{{ blacklistedCount() }}</p>
-      <p class="text-xs text-red-500 mt-1">Permanently blocked</p>
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+      <!-- Total Users -->
+      <div class="bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Total</span>
+          <span class="text-lg font-bold text-gray-800">{{ totalUsers() }}</span>
+        </div>
+        <p class="text-[11px] text-green-600 mt-1">All registered</p>
+      </div>
+      <!-- Active -->
+      <div class="bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Active</span>
+          <span class="text-lg font-bold text-green-600">{{ activeUsers() }}</span>
+        </div>
+      </div>
+      <!-- Suspended -->
+      <div class="bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Suspended</span>
+          <span class="text-lg font-bold text-red-600">{{ suspendedUsers() }}</span>
+        </div>
+      </div>
+      <!-- Phone Verified -->
+      <div class="bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Verified</span>
+          <span class="text-lg font-bold text-indigo-600">{{ phoneVerifiedUsers() }}</span>
+        </div>
+      </div>
+      <!-- Under Investigation -->
+      <div class="bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Review</span>
+          <span class="text-lg font-bold text-orange-600">{{ underInvestigationCount() }}</span>
+        </div>
+      </div>
+      <!-- Blacklisted -->
+      <div class="bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Banned</span>
+          <span class="text-lg font-bold text-gray-700">{{ blacklistedCount() }}</span>
+        </div>
+      </div>
     </div>
   </div>
 
   <!-- Main User Management Card -->
-  <div class="bg-white rounded-2xl shadow-sm border border-gray-100">
-    <!-- Search Bar -->
-    <div class="p-5 border-b border-gray-100">
-      <div class="flex flex-wrap gap-3 justify-between items-center">
-        <h3 class="text-lg font-bold text-gray-800">
-          <i class="fas fa-users mr-2 text-indigo-600"></i>
-          User Directory
-        </h3>
-        <div class="relative">
-          <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
-          <input 
-            type="text" 
-            placeholder="Search by name, phone, or email..." 
-            (input)="onSearch($event)"
-            [value]="searchTerm()"
-            class="pl-9 pr-10 py-2 border border-gray-200 rounded-xl text-sm w-80 focus:outline-none focus:ring-2 focus:ring-indigo-200 focus:border-transparent"
-          >
-          <button 
-            *ngIf="searchTerm()" 
-            (click)="clearSearch()"
-            class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition"
-          >
-            <i class="fas fa-times-circle"></i>
+  <div class="user-management-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    <!-- Search Header -->
+    <div class="search-header px-6 py-4 border-b border-gray-100">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h3 class="text-base font-semibold text-gray-800">User Directory</h3>
+          <p class="text-xs text-gray-500">Manage user accounts and access</p>
+        </div>
+        <div class="relative w-full sm:w-72">
+          <input type="text" placeholder="Search users..." (input)="onSearch($event)" [value]="searchTerm()"
+            class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-300">
+          <button *ngIf="searchTerm()" (click)="clearSearch()"
+            class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
+            ✕
           </button>
         </div>
       </div>
     </div>
 
-    <!-- Users Table -->
-    <div class="overflow-x-auto">
-      <table class="min-w-full">
+    <!-- Table Container -->
+    <div class="table-responsive-wrapper overflow-x-auto">
+      <!-- Desktop Table View -->
+      <table class="min-w-full hidden md:table">
         <thead class="bg-gray-50 border-b border-gray-200">
           <tr>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">User</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Contact</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Role</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Status</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">Verification</th>
-            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">KYC Status</th>
-            <th class="px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">Actions</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blacklist</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-gray-100">
-          <!-- Using @for - Angular 17+ syntax -->
           @for (user of filteredUsers(); track user.id) {
-            <tr class="hover:bg-gray-50 transition duration-150">
-              <td class="px-6 py-4">
-                <div class="flex items-center gap-3">
-                  <div class="h-10 w-10 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-                    {{ user.name.charAt(0) }}{{ user.name.split(' ')[1]?.charAt(0) || user.name.charAt(1) }}
-                  </div>
-                  <div>
-                    <p class="font-medium text-gray-800">{{ user.name }}</p>
-                    <p class="text-xs text-gray-400">ID: #{{ user.id }}</p>
-                  </div>
+          <tr class="hover:bg-gray-50 transition">
+            <td class="px-6 py-3">
+              <div class="flex items-center gap-3">
+                <div
+                  class="h-8 w-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-semibold">
+                  {{ user.displayName.charAt(0) }}{{ user.displayName.split(' ')[1]?.charAt(0) || user.displayName.charAt(1) }}
                 </div>
-              </td>
-              <td class="px-6 py-4">
-                <p class="text-sm text-gray-700">{{ user.phone }}</p>
-                <p class="text-xs text-gray-400">{{ user.email }}</p>
-              </td>
-              <td class="px-6 py-4">
-                <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getRoleBadgeClass(user.role)">
-                  <i class="fas" [class.fa-shopping-cart]="user.role === 'BUYER'" [class.fa-store]="user.role === 'SELLER'"></i>
-                  {{ user.role }}
-                </span>
-              </td>
-              <td class="px-6 py-4">
-                <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getStatusBadgeClass(user.status)">
-                  <i class="fas" [class.fa-circle]="user.status === 'ACTIVE'" [class.fa-ban]="user.status === 'SUSPENDED'"></i>
-                  {{ user.status }}
-                </span>
-              </td>
-              <!-- Verification Column (OTP based) -->
-              <td class="px-6 py-4">
-                <div class="space-y-1">
-                  @if (user.isPhoneVerified) {
-                    <span class="text-green-600 text-xs block"><i class="fas fa-check-circle"></i> Phone verified (OTP)</span>
-                  } @else {
-                    <span class="text-red-600 text-xs block"><i class="fas fa-times-circle"></i> Phone unverified</span>
-                  }
-                  @if (user.isEmailVerified) {
-                    <span class="text-green-600 text-xs block"><i class="fas fa-check-circle"></i> Email verified</span>
-                  } @else if (!user.isEmailVerified && user.isPhoneVerified) {
-                    <span class="text-amber-600 text-xs block"><i class="fas fa-clock"></i> Email pending</span>
+                <div>
+                  <p class="font-medium text-gray-800 text-sm">{{ user.displayName }}</p>
+                  <p class="text-xs text-gray-400">ID: {{ user.id }}</p>
+                  @if (user.businessName) {
+                  <p class="text-xs text-gray-400">{{ user.businessName }}</p>
                   }
                 </div>
-              </td>
-              <!-- KYC Status Column -->
-              <td class="px-6 py-4">
-                <span class="px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit" [class]="getKYCStatusClass(user.kycStatus)">
-                  <i class="fas" [class]="getKYCStatusIcon(user.kycStatus)"></i>
-                  {{ user.kycStatus }}
-                </span>
-                @if (user.kycStatus === 'APPROVED') {
-                  <p class="text-xs text-green-600 mt-1">Higher limits enabled</p>
-                } @else if (user.kycStatus === 'PENDING' && user.role === 'SELLER') {
-                  <p class="text-xs text-amber-600 mt-1">Awaiting documents</p>
-                }
-              </td>
-              <td class="px-6 py-4">
-                <div class="flex gap-2 justify-center flex-wrap">
-                  <!-- Suspend/Activate Button -->
-                  @if (user.status === 'ACTIVE' && !user.blacklisted) {
-                    <button 
-                      (click)="suspendUser(user)"
-                      class="px-3 py-1.5 bg-amber-100 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-200 transition flex items-center gap-1"
-                      title="Suspend User"
-                    >
-                      <i class="fas fa-ban"></i> Suspend
-                    </button>
-                  } @else if (user.status === 'SUSPENDED' && !user.blacklisted) {
-                    <button 
-                      (click)="activateUser(user)"
-                      class="px-3 py-1.5 bg-green-100 text-green-700 rounded-lg text-xs font-medium hover:bg-green-200 transition flex items-center gap-1"
-                      title="Activate User"
-                    >
-                      <i class="fas fa-check"></i> Activate
-                    </button>
-                  }
-
-                  <!-- Approve KYC Button (only for sellers with pending/submitted KYC and not blacklisted) -->
-                  @if (user.role === 'SELLER' && user.kycStatus !== 'APPROVED' && !user.blacklisted && user.kycStatus !== 'REJECTED') {
-                    <button 
-                      (click)="approveKYC(user)"
-                      class="px-3 py-1.5 bg-emerald-100 text-emerald-700 rounded-lg text-xs font-medium hover:bg-emerald-200 transition flex items-center gap-1"
-                      title="Approve KYC for higher transaction limits"
-                    >
-                      <i class="fas fa-id-card"></i> Approve KYC
-                    </button>
-                  }
-
-                  <!-- Reject KYC Button (for sellers with pending KYC) -->
-                  @if (user.role === 'SELLER' && (user.kycStatus === 'PENDING' || user.kycStatus === 'SUBMITTED') && !user.blacklisted) {
-                    <button 
-                      (click)="rejectKYC(user)"
-                      class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 transition flex items-center gap-1"
-                      title="Reject KYC application"
-                    >
-                      <i class="fas fa-times"></i> Reject KYC
-                    </button>
-                  }
-
-                  <!-- Blacklist Button (only if not already blacklisted) -->
-                  @if (!user.blacklisted) {
-                    <button 
-                      (click)="blacklistUser(user)"
-                      class="px-3 py-1.5 bg-red-100 text-red-700 rounded-lg text-xs font-medium hover:bg-red-200 transition flex items-center gap-1"
-                      title="Blacklist (permanent block)"
-                    >
-                      <i class="fas fa-skull"></i> Blacklist
-                    </button>
-                  }
-
-                  <!-- Remove from Blacklist Button (for blacklisted users - rare) -->
-                  @if (user.blacklisted) {
-                    <button 
-                      (click)="removeBlacklist(user)"
-                      class="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium hover:bg-gray-200 transition flex items-center gap-1"
-                      title="Remove from blacklist"
-                    >
-                      <i class="fas fa-undo"></i> Restore
-                    </button>
-                  }
-                </div>
-              </td>
-            </tr>
-          } @empty {
-            <tr>
-              <td colspan="7" class="px-6 py-12 text-center text-gray-500">
-                <i class="fas fa-search text-4xl mb-3 block text-gray-300"></i>
-                <p class="text-lg">No users found</p>
-                <p class="text-sm mt-1">No results matching "{{ searchTerm() }}"</p>
-                <button 
-                  (click)="clearSearch()" 
-                  class="mt-3 text-indigo-600 text-sm hover:underline flex items-center gap-1 mx-auto"
-                >
-                  <i class="fas fa-eraser"></i> Clear search
+              </div>
+            </td>
+            <td class="px-6 py-3">
+              <p class="text-sm text-gray-700">{{ user.phone }}</p>
+              <p class="text-xs text-gray-400">{{ user.email }}</p>
+            </td>
+            <td class="px-6 py-3">
+              <span class="inline-flex px-2 py-0.5 text-xs font-medium text-gray-700">
+                {{ user.role }}
+              </span>
+            </td>
+            <td class="px-6 py-3">
+              <span class="inline-flex px-2 py-0.5 text-xs font-medium"
+                [class.bg-green-100]="user.status === 'ACTIVE'" [class.bg-red-100]="user.status === 'SUSPENDED'"
+                [class.bg-yellow-100]="user.status === 'PENDING_VERIFICATION'"
+                [class.bg-gray-100]="user.status === 'BLACKLISTED'">
+                {{ user.status }}
+              </span>
+            </td>
+            <td class="px-6 py-3">
+              <span class="inline-flex px-2 py-0.5  text-xs font-medium bg-gray-100 text-gray-700">
+                {{ getBlacklistStatusText(user.blacklistStatus) }}
+              </span>
+            </td>
+            <td class="px-6 py-3">
+              <p class="text-sm text-gray-700">{{ user.createdAt | date:'MMM d, yyyy' }}</p>
+            </td>
+            <td class="px-6 py-3">
+              <div class="flex gap-1.5 justify-center">
+                @if (canSuspend(user)) {
+                <button (click)="suspendUser(user)"
+                  class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                  Suspend
                 </button>
-               </td>
-             </tr>
+                }
+                @if (canActivate(user)) {
+                <button (click)="activateUser(user)"
+                  class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                  Activate
+                </button>
+                }
+                @if (!isBlacklisted(user)) {
+                <button (click)="blacklistUser(user)"
+                  class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                  Blacklist
+                </button>
+                }
+                @if (isBlacklisted(user)) {
+                <button (click)="removeBlacklist(user)"
+                  class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                  Restore
+                </button>
+                }
+              </div>
+            </td>
+          </tr>
+          } @empty {
+          <tr>
+            <td colspan="7" class="px-6 py-10 text-center text-gray-500">No users found</td>
+          </tr>
           }
         </tbody>
       </table>
+
+      <!-- Mobile Card View -->
+      <div class="mobile-cards-container md:hidden divide-y divide-gray-100">
+        @for (user of filteredUsers(); track user.id) {
+        <div class="p-4 space-y-2">
+          <div class="flex justify-between items-start">
+            <div class="flex items-center gap-2">
+              <div
+                class="h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-sm font-semibold">
+                {{ user.displayName.charAt(0) }}{{ user.displayName.split(' ')[1]?.charAt(0) || user.displayName.charAt(1) }}
+              </div>
+              <div>
+                <p class="font-medium text-gray-800">{{ user.displayName }}</p>
+                <p class="text-xs text-gray-400">{{ user.role }}</p>
+              </div>
+            </div>
+            <span class="inline-flex px-2 py-0.5 text-xs font-medium" [class.bg-green-100]="user.status === 'ACTIVE'"
+              [class.bg-red-100]="user.status === 'SUSPENDED'"
+              [class.bg-yellow-100]="user.status === 'PENDING_VERIFICATION'"
+              [class.bg-gray-100]="user.status === 'BLACKLISTED'" [class.text-green-700]="user.status === 'ACTIVE'"
+              [class.text-red-700]="user.status === 'SUSPENDED'"
+              [class.text-yellow-700]="user.status === 'PENDING_VERIFICATION'"
+              [class.text-gray-700]="user.status === 'BLACKLISTED'">
+              {{ user.status }}
+            </span>
+          </div>
+          <div class="grid grid-cols-2 gap-1 text-sm">
+            <div><span class="text-xs text-gray-400">Phone</span>
+              <p class="text-gray-700">{{ user.phone }}</p>
+            </div>
+            <div><span class="text-xs text-gray-400">Email</span>
+              <p class="text-gray-700 truncate">{{ user.email }}</p>
+            </div>
+            <div><span class="text-xs text-gray-400">Blacklist</span>
+              <p class="text-gray-700">{{ getBlacklistStatusText(user.blacklistStatus) }}</p>
+            </div>
+            <div><span class="text-xs text-gray-400">Created</span>
+              <p class="text-gray-700">{{ user.createdAt | date:'MMM d, yyyy' }}</p>
+            </div>
+          </div>
+          <div class="flex gap-2 pt-2">
+            @if (canSuspend(user)) { <button (click)="suspendUser(user)"
+              class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Suspend</button>
+            }
+            @if (canActivate(user)) { <button (click)="activateUser(user)"
+              class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Activate</button>
+            }
+            @if (!isBlacklisted(user)) { <button (click)="blacklistUser(user)"
+              class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Blacklist</button>
+            }
+            @if (isBlacklisted(user)) { <button (click)="removeBlacklist(user)"
+              class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Restore</button>
+            }
+          </div>
+        </div>
+        } @empty {
+        <div class="p-6 text-center text-gray-500">No users found</div>
+        }
+      </div>
     </div>
 
-    <!-- Footer Note with Admin Guidelines (Updated) -->
-    <div class="px-6 py-4 bg-gray-50 border-t border-gray-100 rounded-b-2xl">
-      <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-3">
-        <p class="text-xs text-gray-500">
-          <i class="fas fa-info-circle mr-1 text-indigo-500"></i>
-          <strong>Admin Actions Guide:</strong>
-        </p>
-        <div class="flex flex-wrap gap-4 text-xs">
-          <span class="text-amber-700"><i class="fas fa-ban"></i> Suspend - Temporarily block access</span>
-          <span class="text-green-700"><i class="fas fa-check"></i> Activate - Restore access</span>
-          <span class="text-emerald-700"><i class="fas fa-id-card"></i> Approve KYC - Enable higher limits</span>
-          <span class="text-red-700"><i class="fas fa-skull"></i> Blacklist - Permanent ban (irreversible)</span>
-        </div>
-      </div>
-      <div class="mt-2 text-xs text-gray-400 border-t pt-2">
-        <i class="fas fa-mobile-alt mr-1"></i> Note: Phone & Email verification happen automatically after OTP confirmation during registration.
-      </div>
+    <!-- Footer -->
+    <div class="card-footer px-6 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 flex justify-between">
+      <span>Audit logged</span>
     </div>
   </div>
 </div>

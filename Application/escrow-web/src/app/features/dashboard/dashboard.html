@@ -2,25 +2,25 @@
   <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
     <app-stat-card
       label="Total Volume"
-      [value]="(totalVolume | number) + ' KES'"
+      [value]="(totalVolume() | number) + ' KES'"
       note="+12.3% vs last month"
       icon="fa-credit-card"
     ></app-stat-card>
     <app-stat-card
       label="Platform Fees"
-      [value]="(platformFees | number) + ' KES'"
+      [value]="(platformFees() | number) + ' KES'"
       note="2.5% collected fee"
       icon="fa-chart-line"
     ></app-stat-card>
     <app-stat-card
       label="Active Escrows"
-      [value]="activeEscrows"
+      [value]="activeEscrows()"
       note="Funds currently protected"
       icon="fa-lock"
     ></app-stat-card>
     <app-stat-card
       label="Open Disputes"
-      [value]="openDisputes"
+      [value]="openDisputes()"
       note="Require admin review"
       icon="fa-gavel"
       tone="danger"

@@ -7,6 +7,7 @@ import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.infrastructure.audit.AuditLogEntity;
 import com.example.escbackend.infrastructure.audit.AuditLogRepository;
 import com.example.escbackend.user.dto.*;
+import com.example.escbackend.user.entity.ProfileEntity;
 import com.example.escbackend.user.entity.UserBlacklistEntity;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.ProfileRepository;
@@ -16,6 +17,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +35,7 @@ public class UserService {
     private final UserBlacklistRepository blacklistRepo; // <-- Added
     private final AdminAuthorizationService authz;
     private final AuditLogRepository auditRepo;
+    private final PasswordEncoder passwordEncoder;
 
     public UserService(
         UserRepository userRepository,
@@ -40,7 +43,8 @@ public class UserService {
         UserMapperService mapper,
         UserBlacklistRepository blacklistRepo,
         AdminAuthorizationService authz,
-        AuditLogRepository auditRepo
+        AuditLogRepository auditRepo,
+        PasswordEncoder passwordEncoder
     ) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
@@ -48,6 +52,7 @@ public class UserService {
         this.blacklistRepo = blacklistRepo;
         this.authz = authz;
         this.auditRepo = auditRepo;
+        this.passwordEncoder = passwordEncoder;
     }
 
     public UserDetailsResponse getById(UUID id) {
@@ -133,6 +138,47 @@ public class UserService {
             .updatedBy(actorUserId)
             .updatedAt(OffsetDateTime.now())
             .build();
+    }
+
+
+    @Transactional
+    public UpdateUserResponse updateUserDetails(UUID actorUserId , UpdateUserRequest request){
+        UserEntity user = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "The user is not found"));
+
+        ProfileEntity profile = profileRepository.findById(actorUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "The user profile has not been located"));
+
+        
+        if (request.getEmail() != null){
+            user.setEmail(request.getEmail());
+        }
+
+        if (request.getPhone () != null){
+            user.setPhone(request.getPhone());
+        }
+
+        if (request.getPasswordHash() != null){
+            user.setPasswordHash(passwordEncoder.encode(request.getPasswordHash()));
+        }
+
+        if (request.getDisplayName() != null){
+            profile.setDisplayName(request.getDisplayName());
+        }
+
+        if (request.getBusinessName() != null){
+            profile.setBusinessName(request.getBusinessName());
+        }
+
+        if (request.getAvatarUrl() != null){
+            profile.setAvatarUrl(request.getAvatarUrl());
+        }
+
+        if (request.getAddress() != null){
+            profile.setAddress(request.getAddress());
+        }
+
+        return mapper.toUpdateUserResponse(user , profile);
     }
 
     @Transactional
