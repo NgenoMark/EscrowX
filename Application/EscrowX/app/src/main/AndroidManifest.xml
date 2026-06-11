@@ -2,13 +2,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Permissions (MUST be outside application tag) -->
+    <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
 
-    <!-- Camera hardware feature (optional) -->
+    <!-- Camera hardware feature -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
@@ -41,7 +41,7 @@
         <activity
             android:name=".auth.LoginActivity"
             android:exported="true"
-            android:screenOrientation="portrait"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -53,72 +53,130 @@
         <activity
             android:name=".auth.SignUpActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".auth.VerificationActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".auth.ResetPasswordActivity"
             android:exported="false"
-            android:screenOrientation="portrait"
+            android:screenOrientation="unspecified"
             android:windowSoftInputMode="adjustResize" />
 
         <!-- DASHBOARD ACTIVITIES -->
         <activity
             android:name=".dash.BuyerDashboardActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.CreateEscrowActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.ProfileActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.DisputeCenterActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.RaiseDisputeActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.TransactionsActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.SettingsActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.PaymentActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
+        <activity
+            android:name=".dash.BuyerTransactionDetailActivity"
+            android:exported="false" />
+
 
         <!-- Change Password Activities -->
         <activity
             android:name=".auth.ChangePasswordVerificationActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
 
         <activity
             android:name=".auth.CreateNewPasswordActivity"
             android:exported="false"
-            android:screenOrientation="portrait" />
+            android:screenOrientation="unspecified" />
+
+        <!-- SELLER ACTIVITIES -->
+        <activity
+            android:name=".seller.SellerDashboardActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".seller.CreatePaymentLinkActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".seller.LinkGeneratedActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".seller.IncomingEscrowsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".seller.RejectRequestActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".seller.RequestAcceptedActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".seller.RequestDeclinedActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".dash.TransactionDetailsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+        <activity
+            android:name=".seller.SellerCreateEscrowActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+        <activity
+            android:name=".seller.SellerActiveEscrowsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".seller.SellerTransactionDetailActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
 
     </application>
 

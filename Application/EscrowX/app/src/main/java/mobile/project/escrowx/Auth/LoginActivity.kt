@@ -13,8 +13,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-// FIXED: Path pointing to the correct dashboard subpackage directory
 import mobile.project.escrowx.dash.BuyerDashboardActivity
+import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.R
 import retrofit2.Response
@@ -60,23 +60,31 @@ class LoginActivity : ComponentActivity() {
                         withContext(Dispatchers.Main) {
                             val loginData = response.body()
                             if (response.isSuccessful && loginData != null) {
-                                // Persist authentication session state parameters cleanly
+                                // Extract userId and role from the nested user object
+                                val userId = loginData.user.id
+                                val userRole = loginData.user.role
+
+                                // Persist authentication session with new fields
                                 SessionManager(this@LoginActivity).saveSession(
                                     accessToken = loginData.accessToken,
                                     refreshToken = loginData.refreshToken,
-                                    email = loginData.user.email
+                                    email = loginData.user.email,
+                                    userId = userId,
+                                    role = userRole
                                 )
-                                val userRole = loginData.user.role
 
                                 if (userRole.equals("BUYER", ignoreCase = true)) {
-                                    // FIXED: Intent now tracks the clean class token explicitly
                                     val intent = Intent(this@LoginActivity, BuyerDashboardActivity::class.java).apply {
                                         flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                     }
                                     startActivity(intent)
                                     finish()
                                 } else if (userRole.equals("SELLER", ignoreCase = true)) {
-                                    Toast.makeText(this@LoginActivity, "Welcome Seller! Dashboard coming soon.", Toast.LENGTH_LONG).show()
+                                    val intent = Intent(this@LoginActivity, SellerDashboardActivity::class.java).apply {
+                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    }
+                                    startActivity(intent)
+                                    finish()
                                 } else {
                                     Toast.makeText(this@LoginActivity, "Welcome $userRole!", Toast.LENGTH_LONG).show()
                                 }

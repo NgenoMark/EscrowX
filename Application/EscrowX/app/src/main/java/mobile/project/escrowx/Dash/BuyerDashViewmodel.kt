@@ -8,11 +8,13 @@ import kotlinx.coroutines.launch
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
 
+// Remove any import of DashboardResponse - use the one in this package
+
 class BuyerDashViewmodel : ViewModel() {
     private val _userName = MutableStateFlow("User")
     val userName = _userName.asStateFlow()
 
-    // State to hold your dashboard data
+    // Use the DashboardResponse from this package (mobile.project.escrowx.dash)
     private val _dashboardData = MutableStateFlow<DashboardResponse?>(null)
     val dashboardData = _dashboardData.asStateFlow()
 
@@ -28,7 +30,6 @@ class BuyerDashViewmodel : ViewModel() {
         }
     }
 
-    // New function to fetch your data from the API
     fun fetchDashboardData(token: String) {
         viewModelScope.launch {
             _isLoading.value = true

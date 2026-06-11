@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,25 +27,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.EscrowResponse
+import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
-
-// Theme colors matching BuyerDashboard
-val EscrowXBackground = Color(0xFFF9F9FF)  // Light purple/white background
-val EscrowXPrimary = Color(0xFF00236F)     // Dark blue
-val EscrowXSurface = Color(0xFFFFFFFF)      // White
-
-enum class TransactionFilter {
-    ALL,
-    COMPLETE,
-    INCOMPLETE
-}
+import mobile.project.escrowx.seller.SellerDashboardActivity
+import mobile.project.escrowx.seller.SellerTransactionDetailActivity
 
 class TransactionsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val role = intent.getStringExtra("ROLE") ?: "BUYER"
         setContent {
             MaterialTheme {
-                TransactionsScreen()
+                TransactionsScreen(role = role)
             }
         }
     }
@@ -52,111 +46,136 @@ class TransactionsActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TransactionsScreen() {
+fun TransactionsScreen(role: String) {
     val context = LocalContext.current
+    val session = SessionManager(context)
+    val scope = rememberCoroutineScope()
 
     var allTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
     var filteredTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
+    var error by remember { mutableStateOf<String?>(null) }
     var selectedFilter by remember { mutableStateOf(TransactionFilter.ALL) }
     var selectedBottomTab by remember { mutableIntStateOf(1) }
 
-    LaunchedEffect(Unit) {
-        // Only 3 mock transactions
-        val mockTransactions = listOf(
+    // Dummy data for BUYER
+    fun getDummyBuyerTransactions(): List<EscrowResponse> {
+        return listOf(
             EscrowResponse(
-                id = "1",
-                reference = "ESC-ABC123",
-                buyerId = "buyer1",
-                sellerId = "seller1",
-                title = "iPhone 15 Pro",
-                amount = "125,000",
-                currency = "KES",
-                status = "COMPLETED",
-                createdAt = "2024-01-15T10:30:00",
-                updatedAt = "2024-01-20"
+                id = "1", reference = "ESC-BUY-001", buyerId = "buyer1", sellerId = "seller1",
+                title = "iPhone 15 Pro Max", amount = "165000", currency = "KES",
+                status = "IN_DELIVERY", createdAt = "2024-06-05T10:30:00", updatedAt = "2024-06-07T14:00:00"
             ),
             EscrowResponse(
-                id = "2",
-                reference = "ESC-DEF456",
-                buyerId = "buyer1",
-                sellerId = "seller2",
-                title = "Samsung 65\" TV",
-                amount = "85,000",
-                currency = "KES",
-                status = "IN_DELIVERY",
-                createdAt = "2024-01-10T14:15:00",
-                updatedAt = "2024-01-18"
+                id = "2", reference = "ESC-BUY-002", buyerId = "buyer1", sellerId = "seller2",
+                title = "MacBook Air M2", amount = "125000", currency = "KES",
+                status = "COMPLETED", createdAt = "2024-05-20T09:00:00", updatedAt = "2024-05-28T16:30:00"
             ),
             EscrowResponse(
-                id = "3",
-                reference = "ESC-GHI789",
-                buyerId = "buyer1",
-                sellerId = "seller3",
-                title = "MacBook Pro M3",
-                amount = "250,000",
-                currency = "KES",
-                status = "FUNDS_HELD",
-                createdAt = "2024-01-05T09:45:00",
-                updatedAt = "2024-01-08"
+                id = "3", reference = "ESC-BUY-003", buyerId = "buyer1", sellerId = "seller3",
+                title = "Sony WH-1000XM5", amount = "42500", currency = "KES",
+                status = "FUNDS_HELD", createdAt = "2024-06-08T08:15:00", updatedAt = "2024-06-08T08:15:00"
+            ),
+            EscrowResponse(
+                id = "4", reference = "ESC-BUY-004", buyerId = "buyer1", sellerId = "seller4",
+                title = "Samsung 4K Monitor", amount = "75000", currency = "KES",
+                status = "DELIVERED", createdAt = "2024-06-01T11:00:00", updatedAt = "2024-06-09T09:30:00"
             )
         )
+    }
 
-        allTransactions = mockTransactions
-        isLoading = false
+    // Dummy data for SELLER
+    fun getDummySellerTransactions(): List<EscrowResponse> {
+        return listOf(
+            EscrowResponse(
+                id = "101", reference = "ESC-SELL-001", buyerId = "buyerA", sellerId = "seller1",
+                title = "Sold: iPhone 15 Pro Max", amount = "165000", currency = "KES",
+                status = "IN_DELIVERY", createdAt = "2024-06-05T10:30:00", updatedAt = "2024-06-07T14:00:00"
+            ),
+            EscrowResponse(
+                id = "102", reference = "ESC-SELL-002", buyerId = "buyerB", sellerId = "seller1",
+                title = "Sold: MacBook Air M2", amount = "125000", currency = "KES",
+                status = "COMPLETED", createdAt = "2024-05-20T09:00:00", updatedAt = "2024-05-28T16:30:00"
+            ),
+            EscrowResponse(
+                id = "103", reference = "ESC-SELL-003", buyerId = "buyerC", sellerId = "seller1",
+                title = "Sold: Sony Headphones", amount = "42500", currency = "KES",
+                status = "FUNDS_HELD", createdAt = "2024-06-08T08:15:00", updatedAt = "2024-06-08T08:15:00"
+            ),
+            EscrowResponse(
+                id = "104", reference = "ESC-SELL-004", buyerId = "buyerD", sellerId = "seller1",
+                title = "Sold: Samsung Monitor", amount = "75000", currency = "KES",
+                status = "DELIVERED", createdAt = "2024-06-01T11:00:00", updatedAt = "2024-06-09T09:30:00"
+            )
+        )
+    }
+
+    LaunchedEffect(role) {
+        scope.launch {
+            val token = session.getAccessToken()
+            val userId = session.getUserId()
+            if (token.isNullOrBlank() || userId.isNullOrBlank()) {
+                allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
+                isLoading = false
+                return@launch
+            }
+
+            try {
+                val api = RetrofitClient.authenticated(token)
+                val response = api.listTransactions(
+                    role = role.uppercase(),
+                    status = null,
+                    userId = userId,
+                    dateFrom = null,
+                    dateTo = null,
+                    page = 0,
+                    size = 50
+                )
+                if (response.isSuccessful && response.body() != null) {
+                    val transactions = response.body()?.content ?: emptyList()
+                    if (transactions.isNotEmpty()) {
+                        allTransactions = transactions
+                    } else {
+                        allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
+                    }
+                } else {
+                    allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
+                }
+            } catch (e: Exception) {
+                allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
+            } finally {
+                isLoading = false
+            }
+        }
     }
 
     LaunchedEffect(allTransactions, selectedFilter) {
         filteredTransactions = when (selectedFilter) {
             TransactionFilter.ALL -> allTransactions
-            TransactionFilter.COMPLETE -> allTransactions.filter {
-                it.status.equals("COMPLETED", ignoreCase = true)
-            }
-            TransactionFilter.INCOMPLETE -> allTransactions.filter {
-                !it.status.equals("COMPLETED", ignoreCase = true)
-            }
+            TransactionFilter.COMPLETE -> allTransactions.filter { it.status.equals("COMPLETED", ignoreCase = true) }
+            TransactionFilter.INCOMPLETE -> allTransactions.filter { !it.status.equals("COMPLETED", ignoreCase = true) }
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "My Transactions",
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = EscrowXPrimary
-                    )
-                },
+                title = { Text("My Transactions", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F)) },
                 navigationIcon = {
                     IconButton(onClick = {
-                        context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
+                        if (role == "BUYER") context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
+                        else context.startActivity(Intent(context, SellerDashboardActivity::class.java))
                         (context as? TransactionsActivity)?.finish()
                     }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = EscrowXPrimary
-                        )
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
-                    titleContentColor = EscrowXPrimary
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier.height(80.dp),
-                containerColor = Color.White
-            ) {
-                val items = listOf(
-                    "Home" to Icons.Default.Home,
-                    "Transactions" to Icons.Default.AccountBalanceWallet,
-                    "Profile" to Icons.Default.Person
-                )
+            NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color.White) {
+                val items = listOf("Home" to Icons.Default.Home, "Transactions" to Icons.Default.AccountBalanceWallet, "Profile" to Icons.Default.Person)
                 items.forEachIndexed { index, (label, icon) ->
                     NavigationBarItem(
                         selected = selectedBottomTab == index,
@@ -164,118 +183,51 @@ fun TransactionsScreen() {
                             selectedBottomTab = index
                             when (index) {
                                 0 -> {
-                                    context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
-                                    (context as? TransactionsActivity)?.finish()
+                                    if (role == "BUYER") context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
+                                    else context.startActivity(Intent(context, SellerDashboardActivity::class.java))
                                 }
-                                1 -> { }
-                                2 -> {
-                                    context.startActivity(Intent(context, ProfileActivity::class.java))
-                                }
+                                1 -> { /* already here */ }
+                                2 -> context.startActivity(Intent(context, ProfileActivity::class.java))
                             }
                         },
-                        icon = {
-                            Icon(
-                                icon,
-                                contentDescription = label,
-                                tint = if (selectedBottomTab == index) EscrowXPrimary else Color(0xFF9E9E9E)
-                            )
-                        },
-                        label = {
-                            Text(
-                                label,
-                                color = if (selectedBottomTab == index) EscrowXPrimary else Color(0xFF9E9E9E)
-                            )
-                        }
+                        icon = { Icon(icon, contentDescription = label, tint = if (selectedBottomTab == index) Color(0xFF00236F) else Color.Gray) },
+                        label = { Text(label, color = if (selectedBottomTab == index) Color(0xFF00236F) else Color.Gray, fontSize = 11.sp) }
                     )
                 }
             }
         }
     ) { paddingValues ->
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .background(EscrowXBackground)
+            modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color(0xFFF9F9FF))
         ) {
-            // Filter Chips
+            // Filter chips
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Surface(
-                    modifier = Modifier.clickable { selectedFilter = TransactionFilter.ALL },
-                    shape = RoundedCornerShape(32.dp),
-                    color = if (selectedFilter == TransactionFilter.ALL) EscrowXPrimary else Color.White,
-                    border = if (selectedFilter != TransactionFilter.ALL)
-                        BorderStroke(1.dp, EscrowXPrimary)
-                    else null
-                ) {
-                    Text(
-                        text = "All",
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                        color = if (selectedFilter == TransactionFilter.ALL) Color.White else EscrowXPrimary,
-                        fontWeight = if (selectedFilter == TransactionFilter.ALL) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 14.sp
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier.clickable { selectedFilter = TransactionFilter.COMPLETE },
-                    shape = RoundedCornerShape(32.dp),
-                    color = if (selectedFilter == TransactionFilter.COMPLETE) EscrowXPrimary else Color.White,
-                    border = if (selectedFilter != TransactionFilter.COMPLETE)
-                        BorderStroke(1.dp, EscrowXPrimary)
-                    else null
-                ) {
-                    Text(
-                        text = "Complete",
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                        color = if (selectedFilter == TransactionFilter.COMPLETE) Color.White else EscrowXPrimary,
-                        fontWeight = if (selectedFilter == TransactionFilter.COMPLETE) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 14.sp
-                    )
-                }
-
-                Surface(
-                    modifier = Modifier.clickable { selectedFilter = TransactionFilter.INCOMPLETE },
-                    shape = RoundedCornerShape(32.dp),
-                    color = if (selectedFilter == TransactionFilter.INCOMPLETE) EscrowXPrimary else Color.White,
-                    border = if (selectedFilter != TransactionFilter.INCOMPLETE)
-                        BorderStroke(1.dp, EscrowXPrimary)
-                    else null
-                ) {
-                    Text(
-                        text = "Incomplete",
-                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 10.dp),
-                        color = if (selectedFilter == TransactionFilter.INCOMPLETE) Color.White else EscrowXPrimary,
-                        fontWeight = if (selectedFilter == TransactionFilter.INCOMPLETE) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 14.sp
-                    )
-                }
+                FilterChipButton("All", selectedFilter == TransactionFilter.ALL) { selectedFilter = TransactionFilter.ALL }
+                FilterChipButton("Complete", selectedFilter == TransactionFilter.COMPLETE) { selectedFilter = TransactionFilter.COMPLETE }
+                FilterChipButton("Incomplete", selectedFilter == TransactionFilter.INCOMPLETE) { selectedFilter = TransactionFilter.INCOMPLETE }
             }
 
-            // Transaction Count
             Text(
-                text = "${filteredTransactions.size} transaction${if (filteredTransactions.size != 1) "s" else ""}",
+                "${filteredTransactions.size} transaction${if (filteredTransactions.size != 1) "s" else ""}",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 fontSize = 12.sp,
-                color = Color(0xFF9E9E9E)
+                color = Color.Gray
             )
 
-            // Transactions List
             when {
                 isLoading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = EscrowXPrimary)
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFF00236F))
                     }
                 }
                 filteredTransactions.isEmpty() -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.Receipt, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(Modifier.height(16.dp))
                             Text("No transactions found", color = Color.Gray)
                         }
                     }
@@ -289,16 +241,53 @@ fun TransactionsScreen() {
                         items(filteredTransactions) { transaction ->
                             TransactionCard(
                                 transaction = transaction,
+                                role = role,
                                 onViewDetails = {
-                                    Toast.makeText(context, "View Details: ${transaction.title}", Toast.LENGTH_SHORT).show()
+                                    if (role == "BUYER") {
+                                        val intent = Intent(context, BuyerTransactionDetailActivity::class.java).apply {
+                                            putExtra("TRANSACTION_ID", transaction.id)
+                                            putExtra("PRODUCT_NAME", transaction.title)
+                                            putExtra("SELLER_NAME", "Seller")
+                                            putExtra("AMOUNT", transaction.amount)
+                                            putExtra("ORDER_ID", transaction.reference)
+                                            putExtra("DATE", transaction.createdAt.take(10))
+                                            putExtra("SHIPPING_ADDRESS", "Nairobi, Kenya")
+                                            putExtra("STATUS", transaction.status)
+                                        }
+                                        context.startActivity(intent)
+                                    } else {
+                                        val currentStep = when (transaction.status.uppercase()) {
+                                            "FUNDS_HELD" -> 1
+                                            "IN_DELIVERY" -> 2
+                                            "DELIVERED" -> 3
+                                            "COMPLETED" -> 4
+                                            else -> 1
+                                        }
+                                        val intent = Intent(context, SellerTransactionDetailActivity::class.java).apply {
+                                            putExtra("TRANSACTION_ID", transaction.id)
+                                            putExtra("PRODUCT_NAME", transaction.title)
+                                            putExtra("BUYER_NAME", "Buyer")
+                                            putExtra("BUYER_INITIALS", "BY")
+                                            putExtra("AMOUNT", transaction.amount)
+                                            putExtra("ORDER_ID", transaction.reference)
+                                            putExtra("DATE", transaction.createdAt.take(10))
+                                            putExtra("SHIPPING_ADDRESS", "Nairobi, Kenya")
+                                            putExtra("CURRENT_STEP", currentStep)
+                                        }
+                                        context.startActivity(intent)
+                                    }
                                 },
                                 onRaiseDispute = {
-                                    // Navigate to RaiseDisputeActivity
-                                    val intent = Intent(context, RaiseDisputeActivity::class.java)
-                                    intent.putExtra("TRANSACTION_ID", transaction.id)
-                                    intent.putExtra("TRANSACTION_TITLE", transaction.title)
-                                    intent.putExtra("TRANSACTION_AMOUNT", transaction.amount)
-                                    context.startActivity(intent)
+                                    if (role == "BUYER") {
+                                        val intent = Intent(context, RaiseDisputeActivity::class.java).apply {
+                                            putExtra("TRANSACTION_ID", transaction.id)
+                                            putExtra("TRANSACTION_TITLE", transaction.title)
+                                            putExtra("TRANSACTION_AMOUNT", transaction.amount)
+                                        }
+                                        context.startActivity(intent)
+                                    } else {
+                                        Toast.makeText(context, "Sellers can raise disputes via support", Toast.LENGTH_SHORT).show()
+                                    }
                                 }
                             )
                         }
@@ -310,39 +299,30 @@ fun TransactionsScreen() {
 }
 
 @Composable
+fun FilterChipButton(text: String, active: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(99.dp),
+        color = if (active) Color(0xFF00236F) else Color.White,
+        border = BorderStroke(1.dp, if (active) Color.Transparent else Color(0xFFC5C5D3)),
+        modifier = Modifier.wrapContentSize()
+    ) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            color = if (active) Color.White else Color.Black,
+            fontSize = 13.sp
+        )
+    }
+}
+
+@Composable
 fun TransactionCard(
     transaction: EscrowResponse,
+    role: String,
     onViewDetails: () -> Unit,
     onRaiseDispute: () -> Unit
 ) {
-    // Format date
-    val formattedDate = try {
-        val parts = transaction.createdAt.split("T")
-        val dateParts = parts[0].split("-")
-        val timeParts = parts[1].split(":")
-        val month = when (dateParts[1].toInt()) {
-            1 -> "Jan"
-            2 -> "Feb"
-            3 -> "Mar"
-            4 -> "Apr"
-            5 -> "May"
-            6 -> "Jun"
-            7 -> "Jul"
-            8 -> "Aug"
-            9 -> "Sep"
-            10 -> "Oct"
-            11 -> "Nov"
-            12 -> "Dec"
-            else -> "Jan"
-        }
-        val day = dateParts[2].toInt()
-        val year = dateParts[0]
-        "$month $day, $year • ${timeParts[0]}:${timeParts[1]}"
-    } catch (e: Exception) {
-        transaction.createdAt
-    }
-
-    // Determine status properties
     val statusColor = when {
         transaction.status.equals("COMPLETED", ignoreCase = true) -> Color(0xFF10B981)
         transaction.status.equals("IN_DELIVERY", ignoreCase = true) -> Color(0xFFF59E0B)
@@ -352,22 +332,12 @@ fun TransactionCard(
         else -> Color(0xFF6B7280)
     }
 
-    val statusDisplay = when {
-        transaction.status.equals("COMPLETED", ignoreCase = true) -> "COMPLETED"
-        transaction.status.equals("IN_DELIVERY", ignoreCase = true) -> "IN DELIVERY"
-        transaction.status.equals("FUNDS_HELD", ignoreCase = true) -> "FUNDS HELD"
-        transaction.status.equals("CREATED", ignoreCase = true) -> "CREATED"
-        transaction.status.equals("CANCELLED", ignoreCase = true) -> "CANCELLED"
-        else -> transaction.status
-    }
-
-    val statusMessage = when {
-        transaction.status.equals("COMPLETED", ignoreCase = true) -> "Transaction completed successfully"
-        transaction.status.equals("IN_DELIVERY", ignoreCase = true) -> "Item is on the way"
-        transaction.status.equals("FUNDS_HELD", ignoreCase = true) -> "Waiting for seller confirmation"
-        transaction.status.equals("CREATED", ignoreCase = true) -> "Transaction created, awaiting payment"
-        transaction.status.equals("CANCELLED", ignoreCase = true) -> "Transaction was cancelled"
-        else -> "Processing..."
+    val formattedDate = try {
+        val parts = transaction.createdAt.split("T")
+        val dateParts = parts[0].split("-")
+        "${dateParts[2]}/${dateParts[1]}/${dateParts[0]}"
+    } catch (_: Exception) {
+        transaction.createdAt
     }
 
     Card(
@@ -377,123 +347,56 @@ fun TransactionCard(
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            // Row 1: Status and Date
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .background(statusColor, RoundedCornerShape(2.dp))
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = statusDisplay,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = statusColor
-                    )
+                    Box(modifier = Modifier.size(8.dp).background(statusColor, RoundedCornerShape(2.dp)))
+                    Spacer(Modifier.width(8.dp))
+                    Text(transaction.status, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = statusColor)
                 }
-
-                Text(
-                    text = formattedDate,
-                    fontSize = 12.sp,
-                    color = Color(0xFF9E9E9E)
-                )
+                Text(formattedDate, fontSize = 12.sp, color = Color.Gray)
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Row 2: Transaction Title and Amount
+            Spacer(Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = transaction.title,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
-                )
-
-                Text(
-                    text = "KES ${transaction.amount}",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = EscrowXPrimary
-                )
+                Text(transaction.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.Black)
+                Text("KES ${transaction.amount}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Row 3: Status Message
-            Text(
-                text = statusMessage,
-                fontSize = 13.sp,
-                color = Color(0xFF6B7280)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Divider
+            Spacer(Modifier.height(16.dp))
             HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEEEEE))
-
-            // Row 4: Action Icons (View Details and Raise Dispute)
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 12.dp),
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // View Details Icon (Blue)
                 Row(
-                    modifier = Modifier
-                        .clickable { onViewDetails() }
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    modifier = Modifier.clickable { onViewDetails() }.padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Default.Visibility,
-                        contentDescription = "View Details",
-                        modifier = Modifier.size(20.dp),
-                        tint = EscrowXPrimary
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Details",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = EscrowXPrimary
-                    )
+                    Icon(Icons.Default.Visibility, null, modifier = Modifier.size(20.dp), tint = Color(0xFF00236F))
+                    Spacer(Modifier.width(4.dp))
+                    Text("Details", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF00236F))
                 }
-
-                // Raise Dispute Icon (Red)
-                Row(
-                    modifier = Modifier
-                        .clickable { onRaiseDispute() }
-                        .padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.ReportProblem,
-                        contentDescription = "Raise Dispute",
-                        modifier = Modifier.size(20.dp),
-                        tint = Color(0xFFEF4444)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Dispute",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFFEF4444)
-                    )
+                // ✅ Buyer can dispute even if transaction is COMPLETED (only cancelled is excluded)
+                if (role == "BUYER" && !transaction.status.equals("CANCELLED", ignoreCase = true)) {
+                    Row(
+                        modifier = Modifier.clickable { onRaiseDispute() }.padding(horizontal = 12.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.ReportProblem, null, modifier = Modifier.size(20.dp), tint = Color(0xFFEF4444))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Dispute", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFEF4444))
+                    }
                 }
             }
         }
     }
 }
+
+enum class TransactionFilter { ALL, COMPLETE, INCOMPLETE }

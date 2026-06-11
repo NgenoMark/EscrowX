@@ -1,12 +1,13 @@
 package mobile.project.escrowx.dash
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
-import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.auth.SessionManager
@@ -77,7 +78,8 @@ fun RaiseDisputeScreen(
     var description by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val attachedFiles = remember { mutableStateListOf<Uri>() }
-    var currentPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var currentPhotoPath by remember { mutableStateOf("") }
+    var showImagePickerDialog by remember { mutableStateOf(false) }
 
     var expanded by remember { mutableStateOf(false) }
     val reasons = listOf(
@@ -94,6 +96,15 @@ fun RaiseDisputeScreen(
             (!isOtherSelected || otherReasonText.isNotBlank()) &&
             description.isNotBlank()
 
+    // Camera permission launcher
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (!isGranted) {
+            Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun createImageFile(): File {
         val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
         val imageFileName = "JPEG_${timeStamp}_"
@@ -104,17 +115,21 @@ fun RaiseDisputeScreen(
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) {
-            currentPhotoUri?.let { uri ->
-                attachedFiles.add(uri)
-                Toast.makeText(context, "Photo added", Toast.LENGTH_SHORT).show()
-            }
+        if (success && currentPhotoPath.isNotEmpty()) {
+            val file = File(currentPhotoPath)
+            val uri = FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+            attachedFiles.add(uri)
+            Toast.makeText(context, "Photo added", Toast.LENGTH_SHORT).show()
         }
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(5)
-    ) { uris ->
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
         attachedFiles.addAll(uris)
         if (uris.isNotEmpty()) {
             Toast.makeText(context, "${uris.size} image(s) added", Toast.LENGTH_SHORT).show()
@@ -122,18 +137,76 @@ fun RaiseDisputeScreen(
     }
 
     fun onCameraClick() {
-        try {
-            val photoFile = createImageFile()
-            val uri = FileProvider.getUriForFile(
+        if (ContextCompat.checkSelfPermission(
                 context,
-                "${context.packageName}.fileprovider",
-                photoFile
-            )
-            currentPhotoUri = uri
-            cameraLauncher.launch(uri)
-        } catch (e: IOException) {
-            Toast.makeText(context, "Error creating image file", Toast.LENGTH_SHORT).show()
+                Manifest.permission.CAMERA
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            try {
+                val photoFile = createImageFile()
+                currentPhotoPath = photoFile.absolutePath
+                val uri = FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    photoFile
+                )
+                cameraLauncher.launch(uri)
+            } catch (e: IOException) {
+                Toast.makeText(context, "Error creating image file", Toast.LENGTH_SHORT).show()
+            }
+        } else {
+            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
+        showImagePickerDialog = false
+    }
+
+    fun onGalleryClick() {
+        galleryLauncher.launch("image/*")
+        showImagePickerDialog = false
+    }
+
+    fun onAddAttachmentClick() {
+        showImagePickerDialog = true
+    }
+
+    fun removeAttachment(uri: Uri) {
+        attachedFiles.remove(uri)
+        Toast.makeText(context, "Attachment removed", Toast.LENGTH_SHORT).show()
+    }
+
+    // Image Picker Dialog
+    if (showImagePickerDialog) {
+        AlertDialog(
+            onDismissRequest = { showImagePickerDialog = false },
+            title = { Text("Add Attachment") },
+            text = { Text("Choose image from gallery or take a photo") },
+            confirmButton = {
+                Column {
+                    TextButton(
+                        onClick = { onGalleryClick() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.PhotoLibrary, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Gallery")
+                    }
+                    TextButton(
+                        onClick = { onCameraClick() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.CameraAlt, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Camera")
+                    }
+                    TextButton(
+                        onClick = { showImagePickerDialog = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Cancel", color = Color.Red)
+                    }
+                }
+            }
+        )
     }
 
     fun submitDispute() {
@@ -147,6 +220,7 @@ fun RaiseDisputeScreen(
         }
 
         isLoading = true
+        val finalReason = if (isOtherSelected) otherReasonText else selectedReason
 
         scope.launch {
             try {
@@ -157,12 +231,13 @@ fun RaiseDisputeScreen(
                     return@launch
                 }
 
+                // TODO: Implement actual API call to submit dispute with attachments
                 kotlinx.coroutines.delay(1500)
 
                 Toast.makeText(context, "Dispute submitted successfully", Toast.LENGTH_LONG).show()
                 (context as? RaiseDisputeActivity)?.finish()
-            } catch (_: Exception) {
-                Toast.makeText(context, "Error submitting dispute", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
                 isLoading = false
             }
@@ -380,6 +455,7 @@ fun RaiseDisputeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Evidence Attachments Section
             Text(
                 text = "Evidence Attachments",
                 fontSize = 14.sp,
@@ -389,39 +465,25 @@ fun RaiseDisputeScreen(
             )
 
             Text(
-                text = "${attachedFiles.size} file(s) selected (Max 5)",
+                text = "${attachedFiles.size} file(s) selected",
                 fontSize = 12.sp,
                 color = Color.Gray,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            Row(
+            // Add Attachment Button
+            OutlinedButton(
+                onClick = { onAddAttachmentClick() },
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = RaiseDisputePrimary)
             ) {
-                OutlinedButton(
-                    onClick = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaiseDisputePrimary)
-                ) {
-                    Icon(Icons.Default.Image, contentDescription = "Gallery", modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Gallery")
-                }
-
-                OutlinedButton(
-                    onClick = { onCameraClick() },
-                    modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = RaiseDisputePrimary)
-                ) {
-                    Icon(Icons.Default.CameraAlt, contentDescription = "Camera", modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Camera")
-                }
+                Icon(Icons.Default.Add, contentDescription = "Add", modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Add Attachment")
             }
 
+            // Show attached files list
             if (attachedFiles.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Card(
@@ -441,7 +503,7 @@ fun RaiseDisputeScreen(
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(
-                                        Icons.AutoMirrored.Filled.InsertDriveFile,
+                                        Icons.Default.InsertDriveFile,
                                         contentDescription = "File",
                                         modifier = Modifier.size(16.dp),
                                         tint = RaiseDisputePrimary
@@ -454,7 +516,7 @@ fun RaiseDisputeScreen(
                                         modifier = Modifier.weight(1f)
                                     )
                                 }
-                                IconButton(onClick = { attachedFiles.remove(uri) }) {
+                                IconButton(onClick = { removeAttachment(uri) }) {
                                     Icon(
                                         Icons.Default.Close,
                                         contentDescription = "Remove",
@@ -470,6 +532,7 @@ fun RaiseDisputeScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
+            // Submit Button
             Button(
                 onClick = { submitDispute() },
                 modifier = Modifier

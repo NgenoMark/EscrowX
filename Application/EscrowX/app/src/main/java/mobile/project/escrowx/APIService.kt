@@ -2,15 +2,18 @@ package mobile.project.escrowx
 
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.Response
 import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import mobile.project.escrowx.auth.*
-import mobile.project.escrowx.dash.*
+import mobile.project.escrowx.dash.DashboardResponse
+import java.util.concurrent.TimeUnit
 
 interface AuthApiService {
 
+    // AUTH ENDPOINTS
     @POST("api/v1/auth/register")
     suspend fun registerUser(@Body request: RegisterRequest): Response<RegisterResponse>
 
@@ -26,23 +29,38 @@ interface AuthApiService {
     @POST("api/v1/auth/password-reset/confirm")
     suspend fun confirmPasswordReset(@Body request: PasswordResetConfirmRequest): Response<PasswordResetConfirmResponse>
 
+    // USER ENDPOINTS
     @GET("api/v1/users/by-email/{email}")
     suspend fun getUserByEmail(@Path("email") email: String): Response<UserDetailsResponse>
 
+    @GET("api/v1/users/by-phone/{phone}")
+    suspend fun getUserByPhone(@Path("phone") phone: String): Response<UserDetailsResponse>
+
+    @GET("api/v1/users/{id}")
+    suspend fun getUserById(@Path("id") id: String): Response<UserDetailsResponse>
+
+    // NEW: Update user profile
+    @PUT("api/v1/users/{id}/update_profile")
+    suspend fun updateProfile(
+        @Path("id") userId: String,
+        @Body request: UpdateProfileRequest
+    ): Response<UserDetailsResponse>
+
+    // DASHBOARD ENDPOINTS
     @GET("api/v1/dashboard/summary")
     suspend fun getDashboardData(): Response<DashboardResponse>
 
-    // Escrow endpoints
+    // TRANSACTION/ESCROW ENDPOINTS
     @POST("api/v1/transactions")
     suspend fun createEscrow(@Body request: CreateEscrowRequest): Response<EscrowResponse>
-    @GET("api/v1/users/by-phone/{phone}")
-    suspend fun getUserByPhone(@Path("phone") phone: String): Response<UserDetailsResponse>
 
     @GET("api/v1/transactions")
     suspend fun listTransactions(
         @Query("role") role: String? = null,
         @Query("status") status: String? = null,
         @Query("userId") userId: String? = null,
+        @Query("dateFrom") dateFrom: String? = null,
+        @Query("dateTo") dateTo: String? = null,
         @Query("page") page: Int = 0,
         @Query("size") size: Int = 20
     ): Response<PageResponse<EscrowResponse>>
@@ -61,18 +79,46 @@ interface AuthApiService {
         @Path("id") id: String,
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/mark-in-delivery")
+    suspend fun markInDelivery(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/confirm-delivery")
+    suspend fun confirmDelivery(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/confirm-receipt")
+    suspend fun confirmReceipt(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
 }
 
 object RetrofitClient {
-    private const val BASE_URL = "http://10.20.31.89:8081/"
+    private const val BASE_URL = "https://mullets-handset-pampered.ngrok-free.dev"
 
-    val instance: AuthApiService by lazy {
-        Retrofit.Builder()
-            .baseUrl(BASE_URL)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(AuthApiService::class.java)
+    private val loggingInterceptor: HttpLoggingInterceptor = HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BODY
     }
+
+    private val client: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(30, TimeUnit.SECONDS)
+        .addInterceptor(loggingInterceptor)
+        .build()
+
+    val instance: AuthApiService = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .client(client)
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+        .create(AuthApiService::class.java)
 
     fun authenticated(token: String): AuthApiService {
         val authInterceptor = Interceptor { chain ->
@@ -81,19 +127,23 @@ object RetrofitClient {
                 .build()
             chain.proceed(request)
         }
-        val client = OkHttpClient.Builder()
+        val authClient: OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
             .addInterceptor(authInterceptor)
+            .addInterceptor(loggingInterceptor)
             .build()
         return Retrofit.Builder()
             .baseUrl(BASE_URL)
-            .client(client)
+            .client(authClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(AuthApiService::class.java)
     }
 }
 
-// Additional data classes
+// Data Classes
 data class CreateEscrowRequest(
     val buyerId: String,
     val sellerId: String,
@@ -145,4 +195,12 @@ data class SortInfo(
     val empty: Boolean,
     val sorted: Boolean,
     val unsorted: Boolean
+)
+
+data class UpdateProfileRequest(
+    val displayName: String? = null,
+    val phone: String? = null,
+    val businessName: String? = null,
+    val deliveryAddress: String? = null,
+    val shopLocation: String? = null
 )

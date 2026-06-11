@@ -1,11 +1,10 @@
 package mobile.project.escrowx.dash
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -42,15 +41,16 @@ import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
+import mobile.project.escrowx.UpdateProfileRequest
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.ChangePasswordVerificationActivity
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.seller.SellerDashboardActivity
 import java.io.File
-import java.io.IOException
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
 
 class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -80,21 +80,158 @@ fun ProfileScreenContent() {
     var displayName by remember { mutableStateOf("") }
     var businessName by remember { mutableStateOf("") }
     var deliveryAddress by remember { mutableStateOf("") }
+    var shopLocation by remember { mutableStateOf("") }
 
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
-
     var isSaving by remember { mutableStateOf(false) }
     var saveButtonText by remember { mutableStateOf("Save Changes") }
     var isSaveSuccess by remember { mutableStateOf(false) }
 
     var showImagePickerDialog by remember { mutableStateOf(false) }
 
+    val userRole = session.getUserRole() ?: "BUYER"
+    val isSeller = userRole.equals("SELLER", ignoreCase = true)
+
+    // Payment numbers (only for buyers)
+    var paymentNumbers by remember { mutableStateOf<List<String>>(emptyList()) }
+    var showAddPaymentNumberDialog by remember { mutableStateOf(false) }
+    var editingIndex by remember { mutableStateOf<Int?>(null) }
+    var newPaymentNumber by remember { mutableStateOf("") }
+
+    fun loadPaymentNumbers() {
+        val prefs = context.getSharedPreferences("escrowx_payment", Context.MODE_PRIVATE)
+        val numbers = prefs.getStringSet("payment_numbers", emptySet())?.toList() ?: emptyList()
+        paymentNumbers = numbers
+    }
+
+    fun savePaymentNumbers(numbers: List<String>) {
+        val prefs = context.getSharedPreferences("escrowx_payment", Context.MODE_PRIVATE)
+        prefs.edit().putStringSet("payment_numbers", numbers.toSet()).apply()
+        paymentNumbers = numbers
+    }
+
+    fun addPaymentNumber(number: String) {
+        if (number.isBlank()) return
+        if (paymentNumbers.size >= 2) {
+            Toast.makeText(context, "You can add up to 2 payment numbers", Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (paymentNumbers.contains(number)) {
+            Toast.makeText(context, "Number already exists", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val newList = paymentNumbers.toMutableList().apply { add(number) }
+        savePaymentNumbers(newList)
+    }
+
+    fun updatePaymentNumber(index: Int, newNumber: String) {
+        if (newNumber.isBlank()) return
+        val newList = paymentNumbers.toMutableList().apply { set(index, newNumber) }
+        savePaymentNumbers(newList)
+    }
+
+    fun deletePaymentNumber(index: Int) {
+        val newList = paymentNumbers.toMutableList().apply { removeAt(index) }
+        savePaymentNumbers(newList)
+    }
+
+    LaunchedEffect(Unit) {
+        loadPaymentNumbers()
+        scope.launch {
+            val token = session.getAccessToken()
+            val userEmail = session.getEmail()
+            if (!token.isNullOrBlank() && !userEmail.isNullOrBlank()) {
+                try {
+                    val response = RetrofitClient.authenticated(token).getUserByEmail(userEmail)
+                    if (response.isSuccessful && response.body() != null) {
+                        userProfile = response.body()
+                        displayName = userProfile?.displayName ?: ""
+                        fullName = userProfile?.displayName ?: userProfile?.email?.substringBefore("@") ?: ""
+                        email = userProfile?.email ?: ""
+                        phoneNumber = userProfile?.phone ?: ""
+                        businessName = userProfile?.businessName ?: ""
+                        // Note: backend does not return deliveryAddress/shopLocation yet – will be added later
+                        deliveryAddress = userProfile?.deliveryAddress ?: "Westlands Commercial Centre, Ring Road, Nairobi, Kenya"
+                        shopLocation = userProfile?.shopLocation ?: "Westlands Commercial Centre, Ground Floor, Nairobi"
+                    } else {
+                        errorMessage = "Failed to load profile: ${response.code()}"
+                    }
+                } catch (e: Exception) {
+                    errorMessage = "Network error: ${e.message}"
+                } finally {
+                    isLoading = false
+                }
+            } else {
+                isLoading = false
+            }
+        }
+    }
+
+    fun saveChanges() {
+        if (fullName.isBlank()) {
+            Toast.makeText(context, "Please enter your full name", Toast.LENGTH_SHORT).show()
+            return
+        }
+        isSaving = true
+        saveButtonText = "Updating..."
+
+        scope.launch {
+            try {
+                val token = session.getAccessToken()
+                val userId = session.getUserId()
+                if (token.isNullOrBlank() || userId.isNullOrBlank()) {
+                    Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_SHORT).show()
+                    isSaving = false
+                    saveButtonText = "Save Changes"
+                    return@launch
+                }
+
+                val request = UpdateProfileRequest(
+                    displayName = fullName.takeIf { it.isNotBlank() },
+                    phone = phoneNumber.takeIf { it.isNotBlank() },
+                    businessName = businessName.takeIf { it.isNotBlank() },
+                    deliveryAddress = if (isSeller) null else deliveryAddress.takeIf { it.isNotBlank() },
+                    shopLocation = if (isSeller) shopLocation.takeIf { it.isNotBlank() } else null
+                )
+
+                val response = RetrofitClient.authenticated(token).updateProfile(userId, request)
+                if (response.isSuccessful && response.body() != null) {
+                    val updatedProfile = response.body()!!
+                    userProfile = updatedProfile
+                    displayName = updatedProfile.displayName ?: ""
+                    fullName = updatedProfile.displayName ?: updatedProfile.email?.substringBefore("@") ?: ""
+                    phoneNumber = updatedProfile.phone ?: ""
+                    businessName = updatedProfile.businessName ?: ""
+                    if (isSeller) {
+                        shopLocation = updatedProfile.shopLocation ?: ""
+                    } else {
+                        deliveryAddress = updatedProfile.deliveryAddress ?: ""
+                    }
+
+                    saveButtonText = "Saved Successfully"
+                    isSaveSuccess = true
+                    Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_LONG).show()
+                    delay(2000)
+                } else {
+                    val errorMsg = response.errorBody()?.string() ?: "Update failed"
+                    Toast.makeText(context, "Error: $errorMsg", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Network error: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isSaving = false
+                saveButtonText = "Save Changes"
+                delay(500)
+                isSaveSuccess = false
+            }
+        }
+    }
+
+    // Camera and gallery launchers
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
-        if (!isGranted) {
-            Toast.makeText(context, "Camera permission is required to take photos", Toast.LENGTH_SHORT).show()
-        }
+        if (!isGranted) Toast.makeText(context, "Camera permission required", Toast.LENGTH_SHORT).show()
     }
 
     fun createImageFile(): File {
@@ -107,16 +244,7 @@ fun ProfileScreenContent() {
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) {
-            val photoFile = createImageFile()
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                photoFile
-            )
-            profileImageUri = uri
-            Toast.makeText(context, "Photo updated", Toast.LENGTH_SHORT).show()
-        }
+        if (success) Toast.makeText(context, "Photo taken (save not implemented)", Toast.LENGTH_SHORT).show()
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
@@ -128,104 +256,20 @@ fun ProfileScreenContent() {
         }
     }
 
-    fun onEditImageClick() {
-        showImagePickerDialog = true
-    }
-
+    fun onEditImageClick() { showImagePickerDialog = true }
     fun onCameraClick() {
-        if (ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             val photoFile = createImageFile()
-            val uri = FileProvider.getUriForFile(
-                context,
-                "${context.packageName}.fileprovider",
-                photoFile
-            )
+            val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
             cameraLauncher.launch(uri)
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
         showImagePickerDialog = false
     }
-
     fun onGalleryClick() {
         galleryLauncher.launch("image/*")
         showImagePickerDialog = false
-    }
-
-    // Load user profile
-    LaunchedEffect(Unit) {
-        scope.launch {
-            val token = session.getAccessToken()
-            val userEmail = session.getEmail()
-
-            if (token.isNullOrBlank() || userEmail.isNullOrBlank()) {
-                errorMessage = "Please login again"
-                isLoading = false
-                return@launch
-            }
-
-            try {
-                val response = RetrofitClient.authenticated(token).getUserByEmail(userEmail)
-
-                if (response.isSuccessful && response.body() != null) {
-                    userProfile = response.body()
-                    displayName = userProfile?.displayName ?: ""
-                    fullName = userProfile?.displayName?.ifBlank { userProfile?.email?.substringBefore("@") ?: "" } ?: ""
-                    email = userProfile?.email ?: ""
-                    phoneNumber = userProfile?.phone ?: ""
-                    businessName = userProfile?.businessName ?: ""
-                    deliveryAddress = "Westlands Commercial Centre, Ring Road, Nairobi, Kenya"
-                } else {
-                    errorMessage = "Failed to load profile: ${response.code()}"
-                }
-            } catch (_: Exception) {
-                errorMessage = "Network error. Please try again."
-            } finally {
-                isLoading = false
-            }
-        }
-    }
-
-    fun saveChanges() {
-        if (fullName.isBlank()) {
-            Toast.makeText(context, "Please enter your full name", Toast.LENGTH_SHORT).show()
-            return
-        }
-
-        isSaving = true
-        saveButtonText = "Updating..."
-
-        scope.launch {
-            try {
-                val token = session.getAccessToken()
-                if (token.isNullOrBlank()) {
-                    Toast.makeText(context, "Session expired", Toast.LENGTH_SHORT).show()
-                    isSaving = false
-                    saveButtonText = "Save Changes"
-                    return@launch
-                }
-
-                delay(1200)
-                saveButtonText = "Saved Successfully"
-                isSaveSuccess = true
-                Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_SHORT).show()
-
-                delay(2000)
-                saveButtonText = "Save Changes"
-                isSaveSuccess = false
-                isSaving = false
-
-            } catch (_: Exception) {
-                Toast.makeText(context, "Error updating profile", Toast.LENGTH_SHORT).show()
-                isSaving = false
-                saveButtonText = "Save Changes"
-                isSaveSuccess = false
-            }
-        }
     }
 
     if (showImagePickerDialog) {
@@ -235,26 +279,17 @@ fun ProfileScreenContent() {
             text = { Text("Select image from gallery or take a photo") },
             confirmButton = {
                 Column {
-                    TextButton(
-                        onClick = { onGalleryClick() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.PhotoLibrary, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = { onGalleryClick() }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.PhotoLibrary, null)
+                        Spacer(Modifier.width(8.dp))
                         Text("Gallery")
                     }
-                    TextButton(
-                        onClick = { onCameraClick() },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = { onCameraClick() }, modifier = Modifier.fillMaxWidth()) {
+                        Icon(Icons.Default.CameraAlt, null)
+                        Spacer(Modifier.width(8.dp))
                         Text("Camera")
                     }
-                    TextButton(
-                        onClick = { showImagePickerDialog = false },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                    TextButton(onClick = { showImagePickerDialog = false }, modifier = Modifier.fillMaxWidth()) {
                         Text("Cancel", color = Color.Red)
                     }
                 }
@@ -265,32 +300,16 @@ fun ProfileScreenContent() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        "Profile",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF151C27)
-                    )
-                },
+                title = { Text("Profile", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF151C27)) },
                 navigationIcon = {
-                    IconButton(onClick = {
-                        context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
-                        (context as? ProfileActivity)?.finish()
-                    }) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = Color(0xFF00236F)
-                        )
+                    IconButton(onClick = { (context as? ProfileActivity)?.finish() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF9F9FF)
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF))
             )
         },
-        bottomBar = { ProfileBottomNavigationBar() }
+        bottomBar = { ProfileBottomNavigationBar(isSeller = isSeller) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -301,45 +320,16 @@ fun ProfileScreenContent() {
         ) {
             when {
                 isLoading -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         CircularProgressIndicator(color = Color(0xFF00236F))
                     }
                 }
                 errorMessage != null -> {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(errorMessage!!, color = Color.Red)
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Button(onClick = {
-                                isLoading = true
-                                errorMessage = null
-                                val userEmail = session.getEmail()
-                                if (!userEmail.isNullOrBlank()) {
-                                    scope.launch {
-                                        try {
-                                            val token = session.getAccessToken()
-                                            if (!token.isNullOrBlank()) {
-                                                val response = RetrofitClient.authenticated(token).getUserByEmail(userEmail)
-                                                if (response.isSuccessful && response.body() != null) {
-                                                    userProfile = response.body()
-                                                    displayName = userProfile?.displayName ?: ""
-                                                    fullName = userProfile?.displayName?.ifBlank { userProfile?.email?.substringBefore("@") ?: "" } ?: ""
-                                                    email = userProfile?.email ?: ""
-                                                    phoneNumber = userProfile?.phone ?: ""
-                                                    businessName = userProfile?.businessName ?: ""
-                                                    errorMessage = null
-                                                } else {
-                                                    errorMessage = "Failed to load profile"
-                                                }
-                                            }
-                                        } catch (_: Exception) {
-                                            errorMessage = "Network error. Please try again."
-                                        } finally {
-                                            isLoading = false
-                                        }
-                                    }
-                                }
-                            }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))) {
+                            Spacer(Modifier.height(16.dp))
+                            Button(onClick = { /* retry logic can be implemented */ }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))) {
                                 Text("Retry")
                             }
                         }
@@ -353,19 +343,9 @@ fun ProfileScreenContent() {
                         profileImageUri = profileImageUri,
                         onEditClick = { onEditImageClick() }
                     )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    AccountInfoCard(
-                        email = email,
-                        phoneNumber = phoneNumber,
-                        role = userProfile?.role ?: "BUYER",
-                        status = userProfile?.status ?: "ACTIVE",
-                        createdAt = userProfile?.createdAt ?: ""
-                    )
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
+                    Spacer(Modifier.height(24.dp))
+                    AccountInfoCard(email, phoneNumber, userProfile?.role ?: "BUYER", userProfile?.status ?: "ACTIVE", userProfile?.createdAt ?: "")
+                    Spacer(Modifier.height(24.dp))
                     ProfileFormFields(
                         fullName = fullName,
                         onFullNameChange = { fullName = it },
@@ -373,49 +353,142 @@ fun ProfileScreenContent() {
                         onPhoneNumberChange = { phoneNumber = it },
                         businessName = businessName,
                         onBusinessNameChange = { businessName = it },
-                        deliveryAddress = deliveryAddress,
-                        onDeliveryAddressChange = { deliveryAddress = it }
+                        locationValue = if (isSeller) shopLocation else deliveryAddress,
+                        onLocationChange = if (isSeller) { newValue -> shopLocation = newValue } else { newValue -> deliveryAddress = newValue },
+                        userRole = userProfile?.role ?: "BUYER",
+                        isSeller = isSeller
                     )
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                    if (!isSeller) {
+                        Spacer(Modifier.height(16.dp))
+                        PaymentNumbersSection(
+                            paymentNumbers = paymentNumbers,
+                            onAddClick = { showAddPaymentNumberDialog = true },
+                            onEditClick = { index, currentNumber ->
+                                editingIndex = index
+                                newPaymentNumber = currentNumber
+                                showAddPaymentNumberDialog = true
+                            },
+                            onDeleteClick = { index -> deletePaymentNumber(index) }
+                        )
+                    }
 
+                    Spacer(Modifier.height(24.dp))
                     SecuritySettings()
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    ProfileSaveButton(
-                        isSaving = isSaving,
-                        buttonText = saveButtonText,
-                        isSuccess = isSaveSuccess,
-                        onClick = { saveChanges() }
-                    )
-
-                    Spacer(modifier = Modifier.height(32.dp))
+                    Spacer(Modifier.height(24.dp))
+                    ProfileSaveButton(isSaving, saveButtonText, isSaveSuccess) { saveChanges() }
+                    Spacer(Modifier.height(32.dp))
                 }
             }
+        }
+    }
+
+    if (showAddPaymentNumberDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddPaymentNumberDialog = false; newPaymentNumber = ""; editingIndex = null },
+            title = { Text(if (editingIndex != null) "Edit Payment Number" else "Add Payment Number") },
+            text = {
+                OutlinedTextField(
+                    value = newPaymentNumber,
+                    onValueChange = { newPaymentNumber = it },
+                    label = { Text("M-Pesa Number (e.g., 254712345678)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        if (newPaymentNumber.isNotBlank()) {
+                            if (editingIndex != null) {
+                                updatePaymentNumber(editingIndex!!, newPaymentNumber)
+                            } else {
+                                addPaymentNumber(newPaymentNumber)
+                            }
+                        }
+                        showAddPaymentNumberDialog = false
+                        newPaymentNumber = ""
+                        editingIndex = null
+                    }
+                ) { Text("Save") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddPaymentNumberDialog = false
+                    newPaymentNumber = ""
+                    editingIndex = null
+                }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+@Composable
+fun PaymentNumbersSection(
+    paymentNumbers: List<String>,
+    onAddClick: () -> Unit,
+    onEditClick: (Int, String) -> Unit,
+    onDeleteClick: (Int) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Payment Numbers (M-Pesa)", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+                IconButton(onClick = onAddClick) {
+                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF00236F))
+                }
+            }
+            if (paymentNumbers.isEmpty()) {
+                Text("No payment numbers added. Add one to use during checkout.", fontSize = 13.sp, color = Color.Gray)
+            } else {
+                paymentNumbers.forEachIndexed { index, number ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(number, fontSize = 14.sp, color = Color.Black)
+                        Row {
+                            IconButton(onClick = { onEditClick(index, number) }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF00236F), modifier = Modifier.size(20.dp))
+                            }
+                            IconButton(onClick = { onDeleteClick(index) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFBA1A1A), modifier = Modifier.size(20.dp))
+                            }
+                        }
+                    }
+                    if (index < paymentNumbers.lastIndex) HorizontalDivider()
+                }
+            }
+            Text("These numbers will be available when paying with M-Pesa.", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
 
 @Composable
-fun ProfileHero(
-    displayName: String,
-    fullName: String,
-    role: String,
-    profileImageUri: Uri?,
-    onEditClick: () -> Unit
-) {
+fun ProfileHero(displayName: String, fullName: String, role: String, profileImageUri: Uri?, onEditClick: () -> Unit) {
     val nameToShow = if (displayName.isNotBlank()) displayName else fullName.ifBlank { "User" }
+    val isSeller = role.equals("SELLER", ignoreCase = true)
+    val badgeText = if (isSeller) "Verified Seller" else "Verified Buyer"
+    val badgeColor = if (isSeller) Color(0xFFE7EEFE) else Color(0xFF6CF8BB)
+    val textColor = if (isSeller) Color(0xFF00236F) else Color(0xFF005236)
 
     Column(
         modifier = Modifier.fillMaxWidth().background(Color.White).padding(vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(modifier = Modifier.size(120.dp), contentAlignment = Alignment.BottomEnd) {
+        Box(modifier = Modifier.size(96.dp), contentAlignment = Alignment.BottomEnd) {
             Surface(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape),
+                modifier = Modifier.size(96.dp).clip(CircleShape),
                 color = Color(0xFFDCE2F3),
                 border = BorderStroke(2.dp, Color(0xFFB6C4FF))
             ) {
@@ -429,118 +502,31 @@ fun ProfileHero(
                     )
                 } else {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = "Profile",
-                            modifier = Modifier.size(60.dp),
-                            tint = Color(0xFF00236F)
-                        )
+                        Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(48.dp), tint = Color(0xFF00236F))
                     }
                 }
             }
-
             Surface(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clickable { onEditClick() },
+                modifier = Modifier.size(32.dp).clickable { onEditClick() },
                 shape = CircleShape,
                 color = Color(0xFF00236F),
                 shadowElevation = 4.dp
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = "Edit Photo",
-                        modifier = Modifier.size(20.dp),
-                        tint = Color.White
-                    )
+                    Icon(Icons.Default.CameraAlt, contentDescription = "Camera", modifier = Modifier.size(18.dp), tint = Color.White)
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(text = nameToShow, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
-        Spacer(modifier = Modifier.height(4.dp))
-
+        Spacer(Modifier.height(12.dp))
+        Text(nameToShow, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
+        Spacer(Modifier.height(4.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .background(if (role == "BUYER") Color(0xFF6CF8BB) else Color(0xFFE7EEFE), RoundedCornerShape(999.dp))
-                .padding(horizontal = 12.dp, vertical = 4.dp)
+            modifier = Modifier.background(badgeColor, RoundedCornerShape(999.dp)).padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
-            Icon(Icons.Default.Verified, contentDescription = "Verified", modifier = Modifier.size(16.dp), tint = if (role == "BUYER") Color(0xFF005236) else Color(0xFF00236F))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(text = if (role == "BUYER") "Verified Buyer" else "Verified Seller", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = if (role == "BUYER") Color(0xFF005236) else Color(0xFF00236F))
-        }
-    }
-}
-
-@Composable
-fun rememberImagePainter(uri: Uri): Painter {
-    val context = LocalContext.current
-    val bitmap = remember(uri) {
-        try {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                BitmapFactory.decodeStream(stream)
-            }
-        } catch (_: Exception) {
-            null
-        }
-    }
-    return remember(bitmap) {
-        if (bitmap != null) {
-            BitmapPainter(bitmap.asImageBitmap())
-        } else {
-            ColorPainter(Color.Gray)
-        }
-    }
-}
-
-@Composable
-fun AccountInfoCard(email: String, phoneNumber: String, role: String, status: String, createdAt: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE7EEFE))
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text("Account Information", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text("Email", fontSize = 11.sp, color = Color(0xFF444651))
-                    Text(email.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                }
-                Column {
-                    Text("Role", fontSize = 11.sp, color = Color(0xFF444651))
-                    Text(role, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                }
-                Column {
-                    Text("Status", fontSize = 11.sp, color = Color(0xFF444651))
-                    Text(
-                        status,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (status == "ACTIVE") Color(0xFF10B981) else Color(0xFFF59E0B)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-            Row {
-                Column {
-                    Text("Phone", fontSize = 11.sp, color = Color(0xFF444651))
-                    Text(phoneNumber.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row {
-                Column {
-                    Text("Member Since", fontSize = 11.sp, color = Color(0xFF444651))
-                    Text(formatDateString(createdAt), fontSize = 12.sp, color = Color(0xFF444651))
-                }
-            }
+            Icon(Icons.Default.Verified, contentDescription = "Verified", modifier = Modifier.size(16.dp), tint = textColor)
+            Spacer(Modifier.width(4.dp))
+            Text(badgeText, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = textColor)
         }
     }
 }
@@ -553,8 +539,10 @@ fun ProfileFormFields(
     onPhoneNumberChange: (String) -> Unit,
     businessName: String,
     onBusinessNameChange: (String) -> Unit,
-    deliveryAddress: String,
-    onDeliveryAddressChange: (String) -> Unit
+    locationValue: String,
+    onLocationChange: (String) -> Unit,
+    userRole: String,
+    isSeller: Boolean
 ) {
     Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
         OutlinedTextField(
@@ -572,18 +560,20 @@ fun ProfileFormFields(
             shape = RoundedCornerShape(8.dp),
             trailingIcon = { Icon(Icons.Default.Call, null, tint = Color(0xFF444651)) }
         )
+        if (userRole.equals("SELLER", ignoreCase = true)) {
+            OutlinedTextField(
+                value = businessName,
+                onValueChange = onBusinessNameChange,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Business Name") },
+                shape = RoundedCornerShape(8.dp)
+            )
+        }
         OutlinedTextField(
-            value = businessName,
-            onValueChange = onBusinessNameChange,
+            value = locationValue,
+            onValueChange = onLocationChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Business Name (Optional)") },
-            shape = RoundedCornerShape(8.dp)
-        )
-        OutlinedTextField(
-            value = deliveryAddress,
-            onValueChange = onDeliveryAddressChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Default Delivery Address") },
+            label = { Text(if (isSeller) "Shop Location" else "Delivery Address") },
             minLines = 3,
             shape = RoundedCornerShape(8.dp)
         )
@@ -591,63 +581,64 @@ fun ProfileFormFields(
 }
 
 @Composable
+fun AccountInfoCard(email: String, phoneNumber: String, role: String, status: String, createdAt: String) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFE7EEFE))
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Account Information", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+            Spacer(Modifier.height(12.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column { Text("Email", fontSize = 11.sp, color = Color(0xFF444651)); Text(email.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+                Column { Text("Role", fontSize = 11.sp, color = Color(0xFF444651)); Text(role, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+                Column {
+                    Text("Status", fontSize = 11.sp, color = Color(0xFF444651))
+                    Text(status, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (status == "ACTIVE") Color(0xFF10B981) else Color(0xFFF59E0B))
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            Row { Column { Text("Phone", fontSize = 11.sp, color = Color(0xFF444651)); Text(phoneNumber.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium) } }
+            Spacer(Modifier.height(8.dp))
+            Row { Column { Text("Member Since", fontSize = 11.sp, color = Color(0xFF444651)); Text(formatDateString(createdAt), fontSize = 12.sp, color = Color(0xFF444651)) } }
+        }
+    }
+}
+
+@Composable
 fun SecuritySettings() {
     val context = LocalContext.current
     val session = SessionManager(context)
-
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         Text("SECURITY & PRIVACY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF444651))
-        Spacer(modifier = Modifier.height(8.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(8.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White)
-        ) {
+        Spacer(Modifier.height(8.dp))
+        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
             Column {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            val userEmail = session.getEmail()
-                            if (!userEmail.isNullOrBlank()) {
-                                val intent = Intent(context, ChangePasswordVerificationActivity::class.java)
-                                intent.putExtra("EMAIL", userEmail)
-                                context.startActivity(intent)
-                            } else {
-                                Toast.makeText(context, "Please login again", Toast.LENGTH_SHORT).show()
-                            }
+                    modifier = Modifier.fillMaxWidth().clickable {
+                        val userEmail = session.getEmail()
+                        if (!userEmail.isNullOrBlank()) {
+                            val intent = Intent(context, ChangePasswordVerificationActivity::class.java)
+                            intent.putExtra("EMAIL", userEmail)
+                            context.startActivity(intent)
+                        } else {
+                            Toast.makeText(context, "Please login again", Toast.LENGTH_SHORT).show()
                         }
-                        .padding(16.dp),
+                    }.padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row {
-                        Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("Change Password", fontSize = 14.sp)
-                    }
+                    Row { Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651)); Spacer(Modifier.width(12.dp)); Text("Change Password", fontSize = 14.sp) }
                     Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF757682))
                 }
                 HorizontalDivider(color = Color(0xFFC5C5D3))
-
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            Toast.makeText(context, "2FA coming soon", Toast.LENGTH_SHORT).show()
-                        }
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().clickable { Toast.makeText(context, "2FA coming soon", Toast.LENGTH_SHORT).show() }.padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row {
-                        Icon(Icons.Default.Security, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("Two-Factor Authentication", fontSize = 14.sp)
-                            Text("Enabled", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF006C49))
-                        }
-                    }
+                    Row { Icon(Icons.Default.Security, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651)); Spacer(Modifier.width(12.dp)); Column { Text("Two-Factor Authentication", fontSize = 14.sp); Text("Enabled", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF006C49)) } }
                     Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF757682))
                 }
             }
@@ -666,23 +657,26 @@ fun ProfileSaveButton(isSaving: Boolean, buttonText: String, isSuccess: Boolean,
     ) {
         if (isSaving) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(Modifier.width(8.dp))
             Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         } else {
             Icon(if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Save, null, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(Modifier.width(8.dp))
             Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
 @Composable
-fun ProfileBottomNavigationBar() {
+fun ProfileBottomNavigationBar(isSeller: Boolean) {
     val context = LocalContext.current
     NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color(0xFFF9F9FF)) {
         NavigationBarItem(
             selected = false,
-            onClick = { context.startActivity(Intent(context, BuyerDashboardActivity::class.java)) },
+            onClick = {
+                if (isSeller) context.startActivity(Intent(context, SellerDashboardActivity::class.java))
+                else context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
+            },
             icon = { Icon(Icons.Default.Home, null, modifier = Modifier.size(24.dp)) },
             label = { Text("Home", fontSize = 11.sp) }
         )
@@ -698,6 +692,21 @@ fun ProfileBottomNavigationBar() {
             icon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(24.dp)) },
             label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         )
+    }
+}
+
+@Composable
+fun rememberImagePainter(uri: Uri): Painter {
+    val context = LocalContext.current
+    val bitmap = remember(uri) {
+        try {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+                android.graphics.BitmapFactory.decodeStream(stream)
+            }
+        } catch (_: Exception) { null }
+    }
+    return remember(bitmap) {
+        if (bitmap != null) BitmapPainter(bitmap.asImageBitmap()) else ColorPainter(Color.Gray)
     }
 }
 

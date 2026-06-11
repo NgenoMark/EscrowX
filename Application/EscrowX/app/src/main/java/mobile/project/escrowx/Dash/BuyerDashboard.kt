@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.LoginActivity
@@ -85,7 +86,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                 drawerContainerColor = Color.White,
                 drawerShape = RoundedCornerShape(16.dp)
             ) {
-                // Drawer Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -122,7 +122,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     }
                 }
 
-                // Settings
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("Settings", fontWeight = FontWeight.Medium) },
@@ -140,7 +139,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     )
                 )
 
-                // App Info
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Info, contentDescription = "App Info") },
                     label = { Text("App Info", fontWeight = FontWeight.Medium) },
@@ -162,16 +160,10 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     )
                 )
 
-                // Spacer to push content to top and logout to bottom
                 Spacer(modifier = Modifier.weight(1f))
 
-                // Divider before Logout
-                HorizontalDivider(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    color = Color.LightGray
-                )
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color.LightGray)
 
-                // LOGOUT BUTTON AT BOTTOM
                 NavigationDrawerItem(
                     icon = {
                         Icon(
@@ -190,7 +182,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        // Clear session and navigate to login
                         session.clearSession()
                         Toast.makeText(context, "Logged out successfully", Toast.LENGTH_SHORT).show()
                         context.startActivity(Intent(context, LoginActivity::class.java))
@@ -205,12 +196,9 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     )
                 )
 
-                // Footer with version
                 Text(
                     text = "EscrowX v1.0",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
                     fontSize = 12.sp,
                     color = Color.Gray,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -284,7 +272,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     }
                 }
                 2 -> {
-                    // Profile tab - handled by navigation above
                     Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
                         Text("Opening Profile...")
                     }
@@ -298,14 +285,54 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
 private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displayName: String) {
     val disputesCount = 3
 
+    val incomingRequests = listOf(
+        IncomingRequestItem(
+            id = "1",
+            sellerName = "Tech Haven KE",
+            itemTitle = "Payment for Wireless Mouse",
+            amount = "8,200"
+        ),
+        IncomingRequestItem(
+            id = "2",
+            sellerName = "Phone Mart Kenya",
+            itemTitle = "iPhone 15 Pro",
+            amount = "125,000"
+        )
+    )
+
+    // Mock active escrows with full details for tracking
+    val activeEscrows = listOf(
+        mapOf(
+            "id" to "txn_123",
+            "productName" to "iPhone 15 Pro",
+            "sellerName" to "Jumia Electronics",
+            "amount" to "125,000",
+            "orderId" to "ESC-ABC123",
+            "date" to "24 Oct, 2023",
+            "shippingAddress" to "Westlands Hub, Ground Floor Wing A, Nairobi, Kenya",
+            "status" to "IN_DELIVERY"
+        ),
+        mapOf(
+            "id" to "txn_456",
+            "productName" to "Samsung Galaxy S24",
+            "sellerName" to "Samsung Store",
+            "amount" to "85,000",
+            "orderId" to "ESC-DEF456",
+            "date" to "20 Oct, 2023",
+            "shippingAddress" to "Imaara Mall, Nairobi, Kenya",
+            "status" to "FUNDS_HELD"
+        )
+    )
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
             .background(Color(0xFFF9F9FF))
-            .padding(16.dp)
             .verticalScroll(rememberScrollState())
+            .padding(16.dp)
     ) {
+        // Welcome header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -319,6 +346,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(20.dp))
 
+        // New Escrow button
         Button(
             onClick = { context.startActivity(Intent(context, CreateEscrowActivity::class.java)) },
             modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -332,6 +360,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Disputes card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
@@ -355,13 +384,57 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Incoming Requests Section
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Incoming Requests", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
+            TextButton(onClick = {
+                context.startActivity(Intent(context, IncomingRequestsActivity::class.java))
+            }) {
+                Text("View All", color = Color(0xFF00236F), fontSize = 12.sp)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "View All", modifier = Modifier.size(16.dp), tint = Color(0xFF00236F))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+            items(incomingRequests) { request ->
+                IncomingRequestCard(
+                    request = request,
+                    onAccept = {
+                        val intent = Intent(context, TransactionDetailsActivity::class.java).apply {
+                            putExtra("TRANSACTION_ID", request.id)
+                            putExtra("SELLER_NAME", request.sellerName)
+                            putExtra("BUSINESS_NAME", request.sellerName)
+                            putExtra("ITEM_TITLE", request.itemTitle)
+                            putExtra("AMOUNT", request.amount)
+                            putExtra("INSPECTION_DAYS", 3)
+                        }
+                        context.startActivity(intent)
+                    },
+                    onDecline = {
+                        Toast.makeText(context, "Request declined: ${request.itemTitle}", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Active Escrows Section
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text("Active Escrows", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-            TextButton(onClick = { }) {
+            TextButton(onClick = {
+                Toast.makeText(context, "Swipe to see more escrows", Toast.LENGTH_SHORT).show()
+            }) {
                 Text("View All", color = Color(0xFF00236F))
                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "View All", modifier = Modifier.size(16.dp), tint = Color(0xFF00236F))
             }
@@ -369,63 +442,179 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            items(2) { index ->
-                if (index == 0) {
-                    ActiveEscrowCard(
-                        topStatus = "PENDING DELIVERY",
-                        topStatusColor = Color(0xFFFEF3C7),
-                        topStatusTextColor = Color(0xFFD97706),
-                        amountText = "KES 12,500",
-                        bottomStatus = "IN INSPECTION",
-                        bottomStatusColor = Color(0xFFE7EEFE),
-                        bottomStatusTextColor = Color(0xFF00236F),
-                        partyName = "Jumia Electronics",
-                        partyIcon = Icons.Default.Store,
-                        timeLeftText = "2 days left"
-                    )
-                } else {
-                    ActiveEscrowCard(
-                        topStatus = "PENDING PAYMENT",
-                        topStatusColor = Color(0xFFFEE2E2),
-                        topStatusTextColor = Color(0xFFDC2626),
-                        amountText = "KES 35,000",
-                        bottomStatus = "AWAITING",
-                        bottomStatusColor = Color(0xFFFEF3C7),
-                        bottomStatusTextColor = Color(0xFFD97706),
-                        partyName = "Samsung Store",
-                        partyIcon = Icons.Default.ShoppingCart,
-                        timeLeftText = "5 days left"
-                    )
-                }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+            items(activeEscrows) { escrow ->
+                val status = escrow["status"] ?: "FUNDS_HELD"
+                val topStatus = if (status == "IN_DELIVERY") "PENDING DELIVERY" else "PENDING PAYMENT"
+                val topStatusColor = if (status == "IN_DELIVERY") Color(0xFFFEF3C7) else Color(0xFFFEE2E2)
+                val topStatusTextColor = if (status == "IN_DELIVERY") Color(0xFFD97706) else Color(0xFFDC2626)
+                val bottomStatus = if (status == "IN_DELIVERY") "IN INSPECTION" else "AWAITING"
+                val bottomStatusColor = if (status == "IN_DELIVERY") Color(0xFFE7EEFE) else Color(0xFFFEF3C7)
+                val bottomStatusTextColor = if (status == "IN_DELIVERY") Color(0xFF00236F) else Color(0xFFD97706)
+                val timeLeft = if (status == "IN_DELIVERY") "2 days left" else "5 days left"
+
+                ActiveEscrowCard(
+                    topStatus = topStatus,
+                    topStatusColor = topStatusColor,
+                    topStatusTextColor = topStatusTextColor,
+                    amountText = "KES ${escrow["amount"]}",
+                    bottomStatus = bottomStatus,
+                    bottomStatusColor = bottomStatusColor,
+                    bottomStatusTextColor = bottomStatusTextColor,
+                    partyName = escrow["sellerName"] ?: "Unknown",
+                    partyIcon = Icons.Default.Store,
+                    timeLeftText = timeLeft,
+                    onTrackClick = {
+                        val intent = Intent(context, BuyerTransactionDetailActivity::class.java).apply {
+                            putExtra("TRANSACTION_ID", escrow["id"])
+                            putExtra("PRODUCT_NAME", escrow["productName"])
+                            putExtra("SELLER_NAME", escrow["sellerName"])
+                            putExtra("AMOUNT", escrow["amount"])
+                            putExtra("ORDER_ID", escrow["orderId"])
+                            putExtra("DATE", escrow["date"])
+                            putExtra("SHIPPING_ADDRESS", escrow["shippingAddress"])
+                            putExtra("STATUS", status)
+                        }
+                        context.startActivity(intent)
+                    }
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Recent Transactions
         Text("Recent Transactions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-
         Spacer(modifier = Modifier.height(12.dp))
 
-        TransactionListItem(
-            title = "iPhone 15 Pro",
-            subtitle = "Seller: Phone Mart Kenya",
-            amount = "KES 125,000",
-            date = "Oct 24, 2023",
-            status = "COMPLETED",
-            icon = Icons.Default.Store,
-            iconColor = Color(0xFF00236F)
-        )
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            TransactionListItem(
+                title = "Funds Released",
+                subtitle = "M-Pesa Store #452",
+                amount = "KES 2,400",
+                date = "Oct 12",
+                status = "COMPLETED",
+                icon = Icons.Default.Store,
+                iconColor = Color(0xFF00236F)
+            )
+            TransactionListItem(
+                title = "Dispute Opened",
+                subtitle = "Apple AirPods Gen 3",
+                amount = "KES 18,000",
+                date = "Oct 10",
+                status = "UNDER REVIEW",
+                icon = Icons.Default.Gavel,
+                iconColor = Color(0xFFDC2626)
+            )
+            TransactionListItem(
+                title = "Escrow Created",
+                subtitle = "Jumia Electronics",
+                amount = "KES 12,500",
+                date = "Oct 09",
+                status = "ACTIVE",
+                icon = Icons.Default.AccountBalanceWallet,
+                iconColor = Color(0xFF00236F)
+            )
+        }
 
-        TransactionListItem(
-            title = "Samsung 65\" TV",
-            subtitle = "Seller: Electronics Hub",
-            amount = "KES 85,000",
-            date = "Oct 22, 2023",
-            status = "IN DELIVERY",
-            icon = Icons.Default.Tv,
-            iconColor = Color(0xFF00236F)
-        )
+        Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun IncomingRequestCard(
+    request: IncomingRequestItem,
+    onAccept: () -> Unit,
+    onDecline: () -> Unit
+) {
+    Card(
+        modifier = Modifier.width(280.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "PENDING YOUR ACTION",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFF59E0B),
+                    letterSpacing = 0.5.sp
+                )
+                Text(
+                    "KES ${request.amount}",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00236F)
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFE7EEFE)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.Store,
+                        contentDescription = "Store",
+                        tint = Color(0xFF00236F),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Column {
+                    Text(
+                        request.sellerName,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF151C27)
+                    )
+                    Text(
+                        request.itemTitle,
+                        fontSize = 12.sp,
+                        color = Color(0xFF444651)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDecline,
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFBA1A1A)
+                    ),
+                    border = BorderStroke(1.dp, Color(0xFFBA1A1A))
+                ) {
+                    Text("Decline", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+                Button(
+                    onClick = onAccept,
+                    modifier = Modifier.weight(1f).height(40.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF00236F),
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Accept", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
     }
 }
 
@@ -440,7 +629,8 @@ fun ActiveEscrowCard(
     bottomStatusTextColor: Color,
     partyName: String,
     partyIcon: ImageVector,
-    timeLeftText: String
+    timeLeftText: String,
+    onTrackClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.width(280.dp),
@@ -455,46 +645,93 @@ fun ActiveEscrowCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(shape = RoundedCornerShape(4.dp), color = topStatusColor) {
-                    Text(text = topStatus, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = topStatusTextColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    Text(
+                        text = topStatus,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = topStatusTextColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
-                Text(text = amountText, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+                Text(
+                    text = amountText,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00236F)
+                )
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-
-            Surface(shape = RoundedCornerShape(4.dp), color = bottomStatusColor, modifier = Modifier.align(Alignment.Start)) {
-                Text(text = bottomStatus, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = bottomStatusTextColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+            Surface(
+                shape = RoundedCornerShape(4.dp),
+                color = bottomStatusColor,
+                modifier = Modifier.align(Alignment.Start)
+            ) {
+                Text(
+                    text = bottomStatus,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = bottomStatusTextColor,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(32.dp).clip(CircleShape).background(Color(0xFFF0F0F0)), contentAlignment = Alignment.Center) {
-                    Icon(imageVector = partyIcon, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color(0xFF00236F))
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFF0F0F0)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = partyIcon,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color(0xFF00236F)
+                    )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = partyName, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.Black)
+                Text(
+                    text = partyName,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.Black
+                )
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-
             HorizontalDivider(color = Color(0xFFEEEEEE))
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Timer, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.Gray)
+                    Icon(
+                        Icons.Default.Timer,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = Color.Gray
+                    )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(text = timeLeftText, fontSize = 11.sp, color = Color.Gray)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clickable { }) {
-                    Text(text = "Track", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF00236F))
-                    Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "Track", modifier = Modifier.size(14.dp), tint = Color(0xFF00236F))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.clickable { onTrackClick() }
+                ) {
+                    Text(
+                        text = "Track",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF00236F)
+                    )
+                    Icon(
+                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                        contentDescription = "Track",
+                        modifier = Modifier.size(14.dp),
+                        tint = Color(0xFF00236F)
+                    )
                 }
             }
         }
@@ -514,38 +751,90 @@ fun TransactionListItem(
     val statusColor = when {
         status.equals("COMPLETED", ignoreCase = true) -> Color(0xFF10B981)
         status.equals("IN DELIVERY", ignoreCase = true) -> Color(0xFFF59E0B)
+        status.equals("FUNDS HELD", ignoreCase = true) -> Color(0xFF3B82F6)
+        status.equals("UNDER REVIEW", ignoreCase = true) -> Color(0xFFDC2626)
         else -> Color(0xFF00236F)
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Box(modifier = Modifier.size(44.dp).clip(CircleShape).background(Color(0xFFF0F0F0)), contentAlignment = Alignment.Center) {
-                Icon(imageVector = icon, contentDescription = null, tint = iconColor, modifier = Modifier.size(22.dp))
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFFF0F0F0)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(22.dp)
+                )
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text(text = subtitle, fontSize = 11.sp, color = Color.Gray)
+                Text(
+                    text = title,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+                Text(
+                    text = subtitle,
+                    fontSize = 11.sp,
+                    color = Color.Gray
+                )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(text = amount, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+                Text(
+                    text = amount,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00236F)
+                )
                 Spacer(modifier = Modifier.height(2.dp))
-                Surface(shape = RoundedCornerShape(4.dp), color = statusColor.copy(alpha = 0.1f)) {
-                    Text(text = status, fontSize = 9.sp, fontWeight = FontWeight.Medium, color = statusColor, modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = statusColor.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        text = status,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
-                Text(text = date, fontSize = 10.sp, color = Color.Gray)
+                Text(
+                    text = date,
+                    fontSize = 10.sp,
+                    color = Color.Gray
+                )
             }
         }
     }
 }
+
+data class IncomingRequestItem(
+    val id: String,
+    val sellerName: String,
+    val itemTitle: String,
+    val amount: String,
+    val status: String = "PENDING_YOUR_ACTION"
+)
 
 @Preview(showBackground = true, widthDp = 428, heightDp = 920)
 @Composable
