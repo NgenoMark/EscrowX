@@ -3,6 +3,7 @@ package mobile.project.escrowx.dash
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -75,26 +76,13 @@ class DisputeCenterActivity : ComponentActivity() {
                             .padding(padding)
                             .background(Color(0xFFF9F9FF))
                     ) {
-                        // Filter chips – using renamed function
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(16.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            DisputeFilterChip(
-                                text = "All",
-                                active = currentFilter == DisputeFilter.ALL,
-                                onClick = { currentFilter = DisputeFilter.ALL }
-                            )
-                            DisputeFilterChip(
-                                text = "Resolved",
-                                active = currentFilter == DisputeFilter.COMPLETE,
-                                onClick = { currentFilter = DisputeFilter.COMPLETE }
-                            )
-                            DisputeFilterChip(
-                                text = "Active",
-                                active = currentFilter == DisputeFilter.INCOMPLETE,
-                                onClick = { currentFilter = DisputeFilter.INCOMPLETE }
-                            )
+                            DisputeFilterChip("All", currentFilter == DisputeFilter.ALL) { currentFilter = DisputeFilter.ALL }
+                            DisputeFilterChip("Resolved", currentFilter == DisputeFilter.COMPLETE) { currentFilter = DisputeFilter.COMPLETE }
+                            DisputeFilterChip("Active", currentFilter == DisputeFilter.INCOMPLETE) { currentFilter = DisputeFilter.INCOMPLETE }
                         }
 
                         when {
@@ -134,12 +122,8 @@ class DisputeCenterActivity : ComponentActivity() {
                                         DisputeCard(
                                             dispute = dispute,
                                             onClick = {
-                                                val intent = Intent(context, RaiseDisputeActivity::class.java).apply {
-                                                    putExtra("TRANSACTION_ID", dispute.txnId)
-                                                    putExtra("TRANSACTION_TITLE", dispute.title)
-                                                    putExtra("TRANSACTION_AMOUNT", dispute.amount)
-                                                }
-                                                context.startActivity(intent)
+                                                // TODO: Create a DisputeDetailActivity to view full details
+                                                Toast.makeText(context, "View dispute details coming soon", Toast.LENGTH_SHORT).show()
                                             }
                                         )
                                     }
@@ -153,7 +137,6 @@ class DisputeCenterActivity : ComponentActivity() {
     }
 }
 
-// Renamed to avoid conflict with FilterChipButton in TransactionsActivity
 @Composable
 private fun DisputeFilterChip(text: String, active: Boolean, onClick: () -> Unit) {
     Surface(
@@ -175,13 +158,13 @@ private fun DisputeFilterChip(text: String, active: Boolean, onClick: () -> Unit
 @Composable
 fun DisputeCard(dispute: DisputeItem, onClick: () -> Unit) {
     val statusColor = when (dispute.status) {
-        DisputeStatus.UNDER_INVESTIGATION -> Color(0xFFF59E0B)
-        DisputeStatus.AWAITING_EVIDENCE -> Color(0xFF3B82F6)
+        DisputeStatus.OPEN -> Color(0xFFF59E0B)
+        DisputeStatus.UNDER_INVESTIGATION -> Color(0xFF3B82F6)
         DisputeStatus.RESOLVED -> Color(0xFF10B981)
     }
     val statusText = when (dispute.status) {
+        DisputeStatus.OPEN -> "Open"
         DisputeStatus.UNDER_INVESTIGATION -> "Under Investigation"
-        DisputeStatus.AWAITING_EVIDENCE -> "Awaiting Evidence"
         DisputeStatus.RESOLVED -> "Resolved"
     }
 
@@ -197,30 +180,34 @@ fun DisputeCard(dispute: DisputeItem, onClick: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = dispute.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                Text(
+                    text = dispute.category.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() },
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
                 Surface(
                     shape = RoundedCornerShape(4.dp),
                     color = statusColor.copy(alpha = 0.1f),
                     border = BorderStroke(1.dp, statusColor)
                 ) {
-                    Text(text = statusText, fontSize = 10.sp, fontWeight = FontWeight.Medium, color = statusColor, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+                    Text(
+                        text = statusText,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = statusColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Text(text = "Transaction: ${dispute.txnId}", fontSize = 12.sp, color = Color.Gray)
-            Spacer(Modifier.height(8.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(text = dispute.amount, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-                if (dispute.isRefund) {
-                    Surface(shape = RoundedCornerShape(4.dp), color = Color(0xFF10B981).copy(alpha = 0.1f)) {
-                        Text(text = "Refund Issued", fontSize = 10.sp, fontWeight = FontWeight.Medium, color = Color(0xFF10B981), modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
-                    }
-                }
+            Text(text = "Transaction: ${dispute.transactionId}", fontSize = 12.sp, color = Color.Gray)
+            if (!dispute.description.isNullOrBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(text = dispute.description, fontSize = 12.sp, color = Color.DarkGray, maxLines = 2)
             }
+            Spacer(Modifier.height(8.dp))
+            Text(text = dispute.createdAt.take(10), fontSize = 10.sp, color = Color.Gray)
         }
     }
 }

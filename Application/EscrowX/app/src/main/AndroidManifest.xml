@@ -165,10 +165,6 @@
             android:exported="false"
             android:screenOrientation="unspecified" />
         <activity
-            android:name=".seller.SellerCreateEscrowActivity"
-            android:exported="false"
-            android:screenOrientation="unspecified" />
-        <activity
             android:name=".seller.SellerActiveEscrowsActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />

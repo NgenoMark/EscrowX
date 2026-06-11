@@ -2,20 +2,23 @@ package mobile.project.escrowx.dash
 
 enum class DisputeFilter {
     ALL,
-    COMPLETE,
-    INCOMPLETE
+    COMPLETE,   // resolved disputes
+    INCOMPLETE  // open or under investigation
 }
 
 enum class DisputeStatus {
+    OPEN,
     UNDER_INVESTIGATION,
-    AWAITING_EVIDENCE,
     RESOLVED
 }
 
 data class DisputeItem(
-    val txnId: String,
-    val title: String,
-    val amount: String,
+    val id: String,
+    val transactionId: String,
+    val raisedById: String,
+    val category: String,       // e.g., "NON_DELIVERY", "ITEM_NOT_AS_DESCRIBED"
     val status: DisputeStatus,
-    val isRefund: Boolean = false
+    val description: String? = null,
+    val createdAt: String,
+    val updatedAt: String? = null
 )

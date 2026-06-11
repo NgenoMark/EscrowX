@@ -58,7 +58,7 @@ fun TransactionsScreen(role: String) {
     var selectedFilter by remember { mutableStateOf(TransactionFilter.ALL) }
     var selectedBottomTab by remember { mutableIntStateOf(1) }
 
-    // Dummy data for BUYER
+    // Dummy data for BUYER (fallback)
     fun getDummyBuyerTransactions(): List<EscrowResponse> {
         return listOf(
             EscrowResponse(
@@ -84,7 +84,7 @@ fun TransactionsScreen(role: String) {
         )
     }
 
-    // Dummy data for SELLER
+    // Dummy data for SELLER (fallback)
     fun getDummySellerTransactions(): List<EscrowResponse> {
         return listOf(
             EscrowResponse(
@@ -122,15 +122,11 @@ fun TransactionsScreen(role: String) {
 
             try {
                 val api = RetrofitClient.authenticated(token)
-                val response = api.listTransactions(
-                    role = role.uppercase(),
-                    status = null,
-                    userId = userId,
-                    dateFrom = null,
-                    dateTo = null,
-                    page = 0,
-                    size = 50
-                )
+                val response = when (role.uppercase()) {
+                    "BUYER" -> api.getTransactionsByBuyer(userId, null, 0, 50)
+                    "SELLER" -> api.getTransactionsBySeller(userId, null, 0, 50)
+                    else -> error("Unknown role: $role")
+                }
                 if (response.isSuccessful && response.body() != null) {
                     val transactions = response.body()?.content ?: emptyList()
                     if (transactions.isNotEmpty()) {
@@ -278,16 +274,12 @@ fun TransactionsScreen(role: String) {
                                     }
                                 },
                                 onRaiseDispute = {
-                                    if (role == "BUYER") {
-                                        val intent = Intent(context, RaiseDisputeActivity::class.java).apply {
-                                            putExtra("TRANSACTION_ID", transaction.id)
-                                            putExtra("TRANSACTION_TITLE", transaction.title)
-                                            putExtra("TRANSACTION_AMOUNT", transaction.amount)
-                                        }
-                                        context.startActivity(intent)
-                                    } else {
-                                        Toast.makeText(context, "Sellers can raise disputes via support", Toast.LENGTH_SHORT).show()
+                                    val intent = Intent(context, RaiseDisputeActivity::class.java).apply {
+                                        putExtra("TRANSACTION_ID", transaction.id)
+                                        putExtra("TRANSACTION_TITLE", transaction.title)
+                                        putExtra("TRANSACTION_AMOUNT", transaction.amount)
                                     }
+                                    context.startActivity(intent)
                                 }
                             )
                         }
@@ -383,8 +375,8 @@ fun TransactionCard(
                     Spacer(Modifier.width(4.dp))
                     Text("Details", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF00236F))
                 }
-                // ✅ Buyer can dispute even if transaction is COMPLETED (only cancelled is excluded)
-                if (role == "BUYER" && !transaction.status.equals("CANCELLED", ignoreCase = true)) {
+                // Show dispute button for any user as long as transaction is not cancelled
+                if (!transaction.status.equals("CANCELLED", ignoreCase = true)) {
                     Row(
                         modifier = Modifier.clickable { onRaiseDispute() }.padding(horizontal = 12.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically

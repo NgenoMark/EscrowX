@@ -1,6 +1,5 @@
 package mobile.project.escrowx.dash
 
-import android.app.DatePickerDialog
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -34,17 +33,18 @@ import mobile.project.escrowx.CreateEscrowRequest
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.seller.SellerDashboardActivity
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.Locale
 
 class CreateEscrowActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val role = intent.getStringExtra("ROLE") ?: "BUYER"
         setContent {
             MaterialTheme {
-                CreateEscrowScreen()
+                UnifiedCreateEscrowScreen(role = role)
             }
         }
     }
@@ -52,44 +52,44 @@ class CreateEscrowActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CreateEscrowScreen() {
+fun UnifiedCreateEscrowScreen(role: String) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
 
+    val isBuyer = role.equals("BUYER", ignoreCase = true)
+    // New label: for buyer, "Escrow User Contact", for seller, "Buyer Contact"
+    val searchLabel = if (isBuyer) "Escrow User Contact" else "Buyer Contact"
+    val addressLabel = "User's Delivery Address" // same for both
+
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
+    var selectedUserAddress by remember { mutableStateOf("") }
 
     var itemName by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
-    var sellerSearch by remember { mutableStateOf("") }
+    var searchQuery by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var deliveryAddress by remember { mutableStateOf("") }
 
-    // New fields
-    var inspectionDueDate by remember { mutableStateOf<Calendar?>(null) }
-    var deliveryOption by remember { mutableStateOf("Courier") }
-    var deliveryOptionExpanded by remember { mutableStateOf(false) }
-    val deliveryOptions = listOf("Courier", "In-Person", "Digital", "Pickup")
+    var showDatePicker by remember { mutableStateOf(false) }
+    var selectedDeliveryDate by remember { mutableStateOf<Long?>(null) }
+    val dateFormatter = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+    val displayDate = selectedDeliveryDate?.let { dateFormatter.format(Date(it)) } ?: ""
 
     var searchResults by remember { mutableStateOf<List<UserDetailsResponse>>(emptyList()) }
-    var selectedSeller by remember { mutableStateOf<UserDetailsResponse?>(null) }
+    var selectedUser by remember { mutableStateOf<UserDetailsResponse?>(null) }
     var isSearching by remember { mutableStateOf(false) }
     var searchError by remember { mutableStateOf<String?>(null) }
 
     var isProcessing by remember { mutableStateOf(false) }
     var isSuccess by remember { mutableStateOf(false) }
-    var buttonText by remember { mutableStateOf("Proceed to Payment") }
+    var buttonText by remember { mutableStateOf(if (isBuyer) "Proceed to Payment" else "Initialize Escrow") }
 
     val parsedAmount = amount.toDoubleOrNull() ?: 0.0
     val escrowFee = parsedAmount * 0.015
     val totalAmount = parsedAmount + escrowFee
 
-    // Date formatting
-    val dateFormatter = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
-    val formattedDate = inspectionDueDate?.let { dateFormatter.format(it.time) } ?: ""
-
-    // Load buyer profile
+    // Load logged‑in user profile (only needed for user ID and maybe role)
     LaunchedEffect(Unit) {
         scope.launch {
             val token = session.getAccessToken()
@@ -99,7 +99,6 @@ fun CreateEscrowScreen() {
                     val response = RetrofitClient.authenticated(token).getUserByEmail(userEmail)
                     if (response.isSuccessful && response.body() != null) {
                         userProfile = response.body()
-                        deliveryAddress = userProfile?.deliveryAddress ?: ""
                     }
                 } catch (_: Exception) { }
             }
@@ -107,29 +106,14 @@ fun CreateEscrowScreen() {
         }
     }
 
-    // Date picker dialog
-    fun showDatePicker(onDateSelected: (Calendar) -> Unit) {
-        val calendar = Calendar.getInstance()
-        DatePickerDialog(
-            context,
-            { _, year, month, dayOfMonth ->
-                val selected = Calendar.getInstance()
-                selected.set(year, month, dayOfMonth)
-                onDateSelected(selected)
-            },
-            calendar.get(Calendar.YEAR),
-            calendar.get(Calendar.MONTH),
-            calendar.get(Calendar.DAY_OF_MONTH)
-        ).show()
-    }
-
-    // Debounced search for seller
+    // Debounced search for the other party
     var searchJob: Job? by remember { mutableStateOf(null) }
 
     fun performSearch(query: String) {
         if (query.isBlank()) {
             searchResults = emptyList()
-            selectedSeller = null
+            selectedUser = null
+            selectedUserAddress = ""
             searchError = null
             return
         }
@@ -166,9 +150,11 @@ fun CreateEscrowScreen() {
                 }
                 if (foundUser != null) {
                     searchResults = listOf(foundUser)
+                    // Always show the selected user's address
+                    selectedUserAddress = foundUser.address ?: "No delivery address on file"
                 } else {
                     searchResults = emptyList()
-                    searchError = "No seller found matching: $query"
+                    searchError = "No user found matching: $query"
                 }
             } catch (e: Exception) {
                 searchError = "Network error: ${e.message}"
@@ -178,26 +164,28 @@ fun CreateEscrowScreen() {
         }
     }
 
-    LaunchedEffect(sellerSearch) {
+    LaunchedEffect(searchQuery) {
         searchJob?.cancel()
-        if (sellerSearch.isNotBlank() && selectedSeller?.email != sellerSearch && selectedSeller?.phone != sellerSearch) {
+        if (searchQuery.isNotBlank() && selectedUser?.email != searchQuery && selectedUser?.phone != searchQuery) {
             searchJob = scope.launch {
                 delay(500)
-                performSearch(sellerSearch)
+                performSearch(searchQuery)
             }
-        } else if (sellerSearch.isBlank()) {
+        } else if (searchQuery.isBlank()) {
             searchResults = emptyList()
-            selectedSeller = null
+            selectedUser = null
+            selectedUserAddress = ""
             searchError = null
         }
     }
 
-    fun selectSeller(seller: UserDetailsResponse) {
-        selectedSeller = seller
-        sellerSearch = seller.email
+    fun selectUser(user: UserDetailsResponse) {
+        selectedUser = user
+        searchQuery = user.email
         searchResults = emptyList()
         searchError = null
-        Toast.makeText(context, "Seller selected: ${seller.displayName ?: seller.email}", Toast.LENGTH_SHORT).show()
+        selectedUserAddress = user.address ?: "No delivery address on file"
+        Toast.makeText(context, "User selected: ${user.displayName ?: user.email}", Toast.LENGTH_SHORT).show()
     }
 
     fun formatCurrency(value: Double): String {
@@ -215,76 +203,123 @@ fun CreateEscrowScreen() {
             Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
             return
         }
-        if (selectedSeller == null) {
-            Toast.makeText(context, "Please select a valid seller", Toast.LENGTH_SHORT).show()
+        if (selectedUser == null) {
+            Toast.makeText(context, "Please select a valid user", Toast.LENGTH_SHORT).show()
             return
         }
-        if (deliveryAddress.isBlank()) {
-            Toast.makeText(context, "Please enter delivery address", Toast.LENGTH_SHORT).show()
+        if (selectedDeliveryDate == null) {
+            Toast.makeText(context, "Please select a delivery date", Toast.LENGTH_SHORT).show()
             return
         }
-        if (inspectionDueDate == null) {
-            Toast.makeText(context, "Please select an inspection due date", Toast.LENGTH_SHORT).show()
+        if (selectedUserAddress.isBlank() || selectedUserAddress == "No delivery address on file") {
+            Toast.makeText(context, "Selected user has no delivery address. Please ask them to update their profile.", Toast.LENGTH_LONG).show()
             return
         }
 
         isProcessing = true
-        buttonText = "Creating Escrow..."
+        buttonText = if (isBuyer) "Creating Escrow..." else "Initializing Escrow..."
 
         scope.launch {
             try {
                 val token = session.getAccessToken()
-                val buyerId = userProfile?.id ?: ""
-                if (token.isNullOrBlank() || buyerId.isBlank()) {
+                val loggedUserId = userProfile?.id ?: ""
+                if (token.isNullOrBlank() || loggedUserId.isBlank()) {
                     Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_LONG).show()
                     isProcessing = false
-                    buttonText = "Proceed to Payment"
+                    buttonText = if (isBuyer) "Proceed to Payment" else "Initialize Escrow"
                     return@launch
                 }
 
-                // Format date for API (ISO 8601)
-                val deliveryDueAt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.getDefault()).format(inspectionDueDate!!.time)
+                val calendar = Calendar.getInstance().apply { timeInMillis = selectedDeliveryDate!! }
+                val year = calendar.get(Calendar.YEAR)
+                val month = calendar.get(Calendar.MONTH) + 1
+                val day = calendar.get(Calendar.DAY_OF_MONTH)
+                val deliveryDueAt = String.format("%04d-%02d-%02dT00:00:00+03:00", year, month, day)
+
+                // Determine buyerId and sellerId based on role
+                val buyerId: String
+                val sellerId: String
+                if (isBuyer) {
+                    // Buyer creates escrow: buyer = logged user, seller = selected user
+                    buyerId = loggedUserId
+                    sellerId = selectedUser!!.id
+                } else {
+                    // Seller creates escrow: seller = logged user, buyer = selected user
+                    buyerId = selectedUser!!.id
+                    sellerId = loggedUserId
+                }
 
                 val request = CreateEscrowRequest(
                     buyerId = buyerId,
-                    sellerId = selectedSeller!!.id,
+                    sellerId = sellerId,
                     title = itemName,
-                    amount = parsedAmount.toString(),
+                    amount = String.format("%.2f", parsedAmount),
                     currency = "KES",
                     deliveryDueAt = deliveryDueAt
-                    // TODO: Add deliveryOption to CreateEscrowRequest when backend supports it
                 )
 
                 val response = RetrofitClient.authenticated(token).createEscrow(request)
-                if (response.isSuccessful) {
+                if (response.isSuccessful && response.body() != null) {
+                    val escrow = response.body()!!
                     isSuccess = true
                     buttonText = "Success!"
-                    Toast.makeText(context, "Escrow created successfully!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Escrow ${if (isBuyer) "created" else "initialized"} successfully!", Toast.LENGTH_LONG).show()
 
-                    val intent = Intent(context, PaymentActivity::class.java).apply {
-                        putExtra("ITEM_NAME", itemName)
-                        putExtra("AMOUNT", totalAmount)
-                        putExtra("TRANSACTION_AMOUNT", parsedAmount)
-                        putExtra("ESCROW_FEE", escrowFee)
-                        putExtra("SELLER_NAME", selectedSeller?.displayName ?: selectedSeller?.email)
-                        putExtra("DELIVERY_ADDRESS", deliveryAddress)
-                        putExtra("DELIVERY_OPTION", deliveryOption)
-                        putExtra("INSPECTION_DUE_DATE", deliveryDueAt)
+                    if (isBuyer) {
+                        val intent = Intent(context, PaymentActivity::class.java).apply {
+                            putExtra("ITEM_NAME", itemName)
+                            putExtra("TRANSACTION_AMOUNT", parsedAmount)
+                            putExtra("ESCROW_FEE", escrowFee)
+                            putExtra("SELLER_NAME", selectedUser?.displayName ?: selectedUser?.email)
+                            putExtra("TRANSACTION_ID", escrow.id)
+                            putExtra("DELIVERY_DATE", displayDate)
+                            putExtra("DELIVERY_METHOD", "Courier")
+                            putExtra("DELIVERY_ADDRESS", selectedUserAddress)
+                        }
+                        context.startActivity(intent)
+                    } else {
+                        context.startActivity(Intent(context, SellerDashboardActivity::class.java))
                     }
-                    context.startActivity(intent)
                     (context as? CreateEscrowActivity)?.finish()
                 } else {
-                    Toast.makeText(context, "Failed to create escrow: ${response.code()}", Toast.LENGTH_LONG).show()
+                    val errorBody = response.errorBody()?.string()
+                    println("Escrow creation failed: ${response.code()} - $errorBody")
+                    Toast.makeText(context, "Failed to ${if (isBuyer) "create" else "initialize"} escrow: ${response.code()}", Toast.LENGTH_LONG).show()
                     isProcessing = false
-                    buttonText = "Proceed to Payment"
+                    buttonText = if (isBuyer) "Proceed to Payment" else "Initialize Escrow"
                     isSuccess = false
                 }
             } catch (e: Exception) {
                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
                 isProcessing = false
-                buttonText = "Proceed to Payment"
+                buttonText = if (isBuyer) "Proceed to Payment" else "Initialize Escrow"
                 isSuccess = false
             }
+        }
+    }
+
+    // Date picker dialog
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedDeliveryDate = datePickerState.selectedDateMillis
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("OK")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
         }
     }
 
@@ -300,7 +335,25 @@ fun CreateEscrowScreen() {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF), titleContentColor = Color(0xFF151C27))
             )
         },
-        bottomBar = { CreateEscrowBottomNavigation() }
+        bottomBar = {
+            NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color(0xFFF9F9FF), tonalElevation = 0.dp) {
+                val items = listOf("Home" to Icons.Default.Home, "Transactions" to Icons.Default.AccountBalanceWallet, "Profile" to Icons.Default.Person)
+                items.forEach { (label, icon) ->
+                    NavigationBarItem(
+                        selected = false,
+                        onClick = {
+                            if (isBuyer) {
+                                context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
+                            } else {
+                                context.startActivity(Intent(context, SellerDashboardActivity::class.java))
+                            }
+                        },
+                        icon = { Icon(icon, contentDescription = label, tint = Color(0xFF00236F)) },
+                        label = { Text(label, fontSize = 11.sp) }
+                    )
+                }
+            }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -334,13 +387,13 @@ fun CreateEscrowScreen() {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Seller Search Card
+                // Search Card
                 Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Seller Contact", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
+                        Text(searchLabel, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
                         OutlinedTextField(
-                            value = sellerSearch,
-                            onValueChange = { sellerSearch = it; selectedSeller = null; searchError = null },
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it; selectedUser = null; selectedUserAddress = ""; searchError = null },
                             modifier = Modifier.fillMaxWidth(),
                             placeholder = { Text("Search by email or phone") },
                             shape = RoundedCornerShape(8.dp),
@@ -354,140 +407,117 @@ fun CreateEscrowScreen() {
                                 }
                             },
                             trailingIcon = {
-                                if (selectedSeller != null) {
+                                if (selectedUser != null) {
                                     Icon(Icons.Default.CheckCircle, contentDescription = "Verified", tint = Color(0xFF10B981))
                                 } else null
                             }
                         )
-                        if (searchError != null && selectedSeller == null) {
+                        if (searchError != null && selectedUser == null) {
                             Text(searchError!!, fontSize = 11.sp, color = Color.Red, modifier = Modifier.padding(start = 4.dp))
                         }
-                        if (searchResults.isNotEmpty() && selectedSeller == null) {
+                        if (searchResults.isNotEmpty() && selectedUser == null) {
                             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(4.dp)) {
                                 Column {
-                                    searchResults.forEach { seller ->
-                                        Row(modifier = Modifier.fillMaxWidth().clickable { selectSeller(seller) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    searchResults.forEach { user ->
+                                        Row(modifier = Modifier.fillMaxWidth().clickable { selectUser(user) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.Person, null, tint = Color(0xFF00236F), modifier = Modifier.size(20.dp))
-                                            Spacer(modifier = Modifier.width(12.dp))
+                                            Spacer(Modifier.width(12.dp))
                                             Column {
-                                                Text(seller.displayName ?: "User", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                                Text(seller.email, fontSize = 11.sp, color = Color(0xFF444651))
+                                                Text(user.displayName ?: "User", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                                                Text(user.email, fontSize = 11.sp, color = Color(0xFF444651))
                                             }
                                         }
-                                        if (seller != searchResults.last()) HorizontalDivider(color = Color(0xFFEEEEEE))
+                                        if (user != searchResults.last()) HorizontalDivider(color = Color(0xFFEEEEEE))
                                     }
                                 }
                             }
                         }
-                        if (selectedSeller != null) {
+                        if (selectedUser != null) {
                             Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE7EEFE))) {
                                 Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Column {
-                                        Text(text = selectedSeller?.displayName ?: selectedSeller?.email ?: "", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-                                        Text(text = "Email: ${selectedSeller?.email ?: ""}", fontSize = 11.sp, color = Color(0xFF444651))
-                                        Text(text = "Phone: ${selectedSeller?.phone ?: ""}", fontSize = 11.sp, color = Color(0xFF444651))
+                                        Text(text = selectedUser?.displayName ?: selectedUser?.email ?: "", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+                                        Text(text = "Email: ${selectedUser?.email ?: ""}", fontSize = 11.sp, color = Color(0xFF444651))
+                                        Text(text = "Phone: ${selectedUser?.phone ?: ""}", fontSize = 11.sp, color = Color(0xFF444651))
                                     }
                                     Icon(Icons.Default.Verified, contentDescription = "Verified", tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
                                 }
                             }
                         }
-                        Text(if (selectedSeller != null) "✓ Seller verified! Proceed to create escrow." else "Enter seller email or phone number to search and verify.", fontSize = 12.sp, color = if (selectedSeller != null) Color(0xFF10B981) else Color(0xFF444651))
+                        Text(if (selectedUser != null) "✓ User verified! Proceed." else "Enter email or phone number to search and verify.", fontSize = 12.sp, color = if (selectedUser != null) Color(0xFF10B981) else Color(0xFF444651))
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Delivery Address Card
+                // Delivery Date Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(2.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Delivery Address", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text("Delivery Date *", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
+                        Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
-                            value = deliveryAddress,
-                            onValueChange = { deliveryAddress = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Enter delivery address") },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF00236F),
-                                unfocusedBorderColor = Color(0xFFC5C5D3)
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Inspection Due Date Card (Date Picker)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Inspection Due Date", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-                        OutlinedTextField(
-                            value = formattedDate,
+                            value = displayDate,
                             onValueChange = {},
-                            modifier = Modifier.fillMaxWidth().clickable { showDatePicker { date -> inspectionDueDate = date } },
-                            placeholder = { Text("Select a date") },
-                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showDatePicker = true },
                             readOnly = true,
-                            trailingIcon = { Icon(Icons.Default.DateRange, contentDescription = "Select date") },
+                            placeholder = { Text("Select delivery date") },
+                            trailingIcon = {
+                                IconButton(onClick = { showDatePicker = true }) {
+                                    Icon(Icons.Default.DateRange, null)
+                                }
+                            },
+                            shape = RoundedCornerShape(8.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedBorderColor = Color(0xFF00236F),
                                 unfocusedBorderColor = Color(0xFFC5C5D3)
-                            )
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Delivery Option Card (Dropdown)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Delivery Option", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-                        ExposedDropdownMenuBox(
-                            expanded = deliveryOptionExpanded,
-                            onExpandedChange = { deliveryOptionExpanded = it }
-                        ) {
-                            OutlinedTextField(
-                                value = deliveryOption,
-                                onValueChange = {},
-                                readOnly = true,
-                                modifier = Modifier.fillMaxWidth().menuAnchor(),
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = deliveryOptionExpanded) },
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Color(0xFF00236F),
-                                    unfocusedBorderColor = Color(0xFFC5C5D3)
-                                )
-                            )
-                            ExposedDropdownMenu(
-                                expanded = deliveryOptionExpanded,
-                                onDismissRequest = { deliveryOptionExpanded = false }
-                            ) {
-                                deliveryOptions.forEach { option ->
-                                    DropdownMenuItem(
-                                        text = { Text(option) },
-                                        onClick = {
-                                            deliveryOption = option
-                                            deliveryOptionExpanded = false
-                                        }
-                                    )
+                            ),
+                            isError = selectedDeliveryDate == null,
+                            supportingText = {
+                                if (selectedDeliveryDate == null) {
+                                    Text("Delivery date is required", fontSize = 11.sp, color = Color.Red)
                                 }
                             }
-                        }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Address Card (shows selected user's address)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(addressLabel, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = selectedUserAddress.ifEmpty { "Search and select a user to see their address" },
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF00236F),
+                                unfocusedBorderColor = Color(0xFFC5C5D3),
+                                disabledTextColor = Color(0xFF444651)
+                            ),
+                            isError = selectedUserAddress.isBlank() || selectedUserAddress == "No delivery address on file",
+                            supportingText = {
+                                if (selectedUserAddress.isBlank() || selectedUserAddress == "No delivery address on file") {
+                                    Text("Selected user has no delivery address", fontSize = 11.sp, color = Color.Red)
+                                }
+                            }
+                        )
                     }
                 }
 
@@ -504,22 +534,27 @@ fun CreateEscrowScreen() {
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Summary Card
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3A8A)), elevation = CardDefaults.cardElevation(8.dp)) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3A8A)),
+                    elevation = CardDefaults.cardElevation(8.dp)
+                ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text("Transaction Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF90A8FF))
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(Modifier.height(12.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Item Price", fontSize = 14.sp, color = Color(0xFF90A8FF).copy(alpha = 0.8f))
                             Text(formatCurrency(parsedAmount), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(Modifier.height(4.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Escrow Fee (1.5%)", fontSize = 14.sp, color = Color(0xFF90A8FF).copy(alpha = 0.8f))
                             Text(formatCurrency(escrowFee), fontSize = 14.sp, color = Color(0xFF90A8FF))
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(Modifier.height(8.dp))
                         HorizontalDivider(color = Color(0xFF90A8FF).copy(alpha = 0.2f))
-                        Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Total to Pay", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
                             Text(formatCurrency(totalAmount), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6CF8BB))
@@ -534,34 +569,30 @@ fun CreateEscrowScreen() {
                     modifier = Modifier.fillMaxWidth().height(56.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = if (isSuccess) Color(0xFF006C49) else Color(0xFF00236F)),
-                    enabled = !isProcessing && selectedSeller != null && deliveryAddress.isNotBlank() && inspectionDueDate != null
+                    enabled = !isProcessing && selectedUser != null && selectedDeliveryDate != null &&
+                            selectedUserAddress.isNotBlank() && selectedUserAddress != "No delivery address on file"
                 ) {
                     if (isProcessing) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     } else {
                         Icon(if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Shield, null, modifier = Modifier.size(20.dp), tint = Color.White)
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(Modifier.width(8.dp))
                         Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Text("Funds are held securely in trust until you verify the item.", fontSize = 12.sp, color = Color(0xFF444651), textAlign = androidx.compose.ui.text.style.TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(
+                    "Funds will be held securely in escrow until the transaction is completed.",
+                    fontSize = 12.sp,
+                    color = Color(0xFF444651),
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
-    }
-}
-
-@Composable
-fun CreateEscrowBottomNavigation() {
-    val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(0) }
-    NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color(0xFFF9F9FF), tonalElevation = 0.dp) {
-        NavigationBarItem(selected = selectedTab == 0, onClick = { selectedTab = 0; context.startActivity(Intent(context, BuyerDashboardActivity::class.java)) }, icon = { Icon(Icons.Default.Home, contentDescription = "Home", modifier = Modifier.size(24.dp)) }, label = { Text("Home", fontSize = 11.sp) })
-        NavigationBarItem(selected = selectedTab == 1, onClick = { selectedTab = 1; context.startActivity(Intent(context, TransactionsActivity::class.java)) }, icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Transactions", modifier = Modifier.size(24.dp)) }, label = { Text("Transactions", fontSize = 11.sp) })
-        NavigationBarItem(selected = selectedTab == 2, onClick = { selectedTab = 2; context.startActivity(Intent(context, ProfileActivity::class.java)) }, icon = { Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(24.dp)) }, label = { Text("Profile", fontSize = 11.sp) })
     }
 }

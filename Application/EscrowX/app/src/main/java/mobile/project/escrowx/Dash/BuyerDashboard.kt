@@ -60,6 +60,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
 
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
 
+    // Fetch user profile to get display name
     LaunchedEffect(Unit) {
         session.getEmail()?.let { email ->
             viewModel.loadUserData(email)
@@ -77,7 +78,10 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
         }
     }
 
-    val displayName = userProfile?.displayName ?: userName
+    // Use displayName from profile, fallback to email username
+    val displayName = userProfile?.displayName?.takeIf { it.isNotBlank() }
+        ?: userProfile?.email?.substringBefore("@")
+        ?: userName
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -332,7 +336,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // Welcome header
+        // Welcome header – shows actual registered name
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -346,9 +350,14 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // New Escrow button
+        // New Escrow button – launches unified CreateEscrowActivity with role BUYER
         Button(
-            onClick = { context.startActivity(Intent(context, CreateEscrowActivity::class.java)) },
+            onClick = {
+                val intent = Intent(context, CreateEscrowActivity::class.java).apply {
+                    putExtra("ROLE", "BUYER")
+                }
+                context.startActivity(intent)
+            },
             modifier = Modifier.fillMaxWidth().height(56.dp),
             shape = RoundedCornerShape(12.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))

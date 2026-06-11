@@ -29,6 +29,12 @@ interface AuthApiService {
     @POST("api/v1/auth/password-reset/confirm")
     suspend fun confirmPasswordReset(@Body request: PasswordResetConfirmRequest): Response<PasswordResetConfirmResponse>
 
+    @POST("api/v1/auth/refresh")
+    suspend fun refreshToken(@Body request: RefreshTokenRequest): Response<RefreshTokenResponse>
+
+    @POST("api/v1/auth/logout")
+    suspend fun logout(@Body request: LogoutRequest): Response<LogoutResponse>
+
     // USER ENDPOINTS
     @GET("api/v1/users/by-email/{email}")
     suspend fun getUserByEmail(@Path("email") email: String): Response<UserDetailsResponse>
@@ -39,28 +45,32 @@ interface AuthApiService {
     @GET("api/v1/users/{id}")
     suspend fun getUserById(@Path("id") id: String): Response<UserDetailsResponse>
 
-    // NEW: Update user profile
-    @PUT("api/v1/users/{id}/update_profile")
+    // UPDATE USER PROFILE (PATCH)
+    @PATCH("api/v1/users/{id}/update_profile")
     suspend fun updateProfile(
         @Path("id") userId: String,
         @Body request: UpdateProfileRequest
     ): Response<UserDetailsResponse>
 
-    // DASHBOARD ENDPOINTS
+    // DASHBOARD ENDPOINT (if available)
     @GET("api/v1/dashboard/summary")
     suspend fun getDashboardData(): Response<DashboardResponse>
 
-    // TRANSACTION/ESCROW ENDPOINTS
-    @POST("api/v1/transactions")
+    // TRANSACTION/ESCROW ENDPOINTS (as per your backend)
+    @POST("api/v1/transactions/create")
     suspend fun createEscrow(@Body request: CreateEscrowRequest): Response<EscrowResponse>
-
-    @GET("api/v1/transactions")
-    suspend fun listTransactions(
-        @Query("role") role: String? = null,
+    @GET("api/v1/transactions/buyer/{buyerId}")
+    suspend fun getTransactionsByBuyer(
+        @Path("buyerId") buyerId: String,
         @Query("status") status: String? = null,
-        @Query("userId") userId: String? = null,
-        @Query("dateFrom") dateFrom: String? = null,
-        @Query("dateTo") dateTo: String? = null,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20
+    ): Response<PageResponse<EscrowResponse>>
+
+    @GET("api/v1/transactions/seller/{sellerId}")
+    suspend fun getTransactionsBySeller(
+        @Path("sellerId") sellerId: String,
+        @Query("status") status: String? = null,
         @Query("page") page: Int = 0,
         @Query("size") size: Int = 20
     ): Response<PageResponse<EscrowResponse>>
@@ -68,7 +78,7 @@ interface AuthApiService {
     @GET("api/v1/transactions/{id}")
     suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
 
-    @POST("api/v1/transactions/{id}/accept")
+    @POST("api/v1/transactions/{id}/accept-transaction")
     suspend fun acceptTransaction(
         @Path("id") id: String,
         @Header("X-Actor-User-Id") actorUserId: String
@@ -86,17 +96,34 @@ interface AuthApiService {
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
 
-    @POST("api/v1/transactions/{id}/confirm-delivery")
-    suspend fun confirmDelivery(
-        @Path("id") id: String,
-        @Header("X-Actor-User-Id") actorUserId: String
-    ): Response<EscrowResponse>
-
     @POST("api/v1/transactions/{id}/confirm-receipt")
     suspend fun confirmReceipt(
         @Path("id") id: String,
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
+
+    // Optional separate endpoints for buyer/seller confirm delivery
+    @POST("api/v1/transactions/{id}/buyer-confirm-delivery")
+    suspend fun buyerConfirmDelivery(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/seller-confirm-delivery")
+    suspend fun sellerConfirmDelivery(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    // DISPUTE ENDPOINTS
+    @POST("api/v1/disputes")
+    suspend fun raiseDispute(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Body request: RaiseDisputeRequest
+    ): Response<DisputeResponse>
+
+    @GET("api/v1/disputes/{id}")
+    suspend fun getDisputeById(@Path("id") id: String): Response<DisputeResponse>
 }
 
 object RetrofitClient {
@@ -143,7 +170,7 @@ object RetrofitClient {
     }
 }
 
-// Data Classes
+// ---------- DATA CLASSES ----------
 data class CreateEscrowRequest(
     val buyerId: String,
     val sellerId: String,
@@ -201,6 +228,37 @@ data class UpdateProfileRequest(
     val displayName: String? = null,
     val phone: String? = null,
     val businessName: String? = null,
-    val deliveryAddress: String? = null,
+    val address: String? = null,          // ✅ match backend field name
     val shopLocation: String? = null
 )
+
+// Dispute related
+enum class DisputeCategory {
+    NON_DELIVERY,
+    ITEM_NOT_AS_DESCRIBED,
+    DAMAGED_ITEM,
+    WRONG_ITEM,
+    SELLER_UNRESPONSIVE,
+    OTHER
+}
+
+data class RaiseDisputeRequest(
+    val transactionId: String,
+    val category: String,
+    val description: String
+)
+
+data class DisputeResponse(
+    val id: String,
+    val transactionId: String,
+    val raisedById: String,
+    val category: String,
+    val status: String,
+    val createdAt: String
+)
+
+// Additional auth DTOs (if not already present elsewhere)
+data class RefreshTokenRequest(val refreshToken: String)
+data class RefreshTokenResponse(val accessToken: String, val refreshToken: String, val tokenType: String, val expiresIn: Long)
+data class LogoutRequest(val refreshToken: String)
+data class LogoutResponse(val loggedOut: Boolean, val message: String)

@@ -79,7 +79,7 @@ fun ProfileScreenContent() {
     var phoneNumber by remember { mutableStateOf("") }
     var displayName by remember { mutableStateOf("") }
     var businessName by remember { mutableStateOf("") }
-    var deliveryAddress by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }          // ✅ renamed from deliveryAddress
     var shopLocation by remember { mutableStateOf("") }
 
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
@@ -92,51 +92,8 @@ fun ProfileScreenContent() {
     val userRole = session.getUserRole() ?: "BUYER"
     val isSeller = userRole.equals("SELLER", ignoreCase = true)
 
-    // Payment numbers (only for buyers)
-    var paymentNumbers by remember { mutableStateOf<List<String>>(emptyList()) }
-    var showAddPaymentNumberDialog by remember { mutableStateOf(false) }
-    var editingIndex by remember { mutableStateOf<Int?>(null) }
-    var newPaymentNumber by remember { mutableStateOf("") }
-
-    fun loadPaymentNumbers() {
-        val prefs = context.getSharedPreferences("escrowx_payment", Context.MODE_PRIVATE)
-        val numbers = prefs.getStringSet("payment_numbers", emptySet())?.toList() ?: emptyList()
-        paymentNumbers = numbers
-    }
-
-    fun savePaymentNumbers(numbers: List<String>) {
-        val prefs = context.getSharedPreferences("escrowx_payment", Context.MODE_PRIVATE)
-        prefs.edit().putStringSet("payment_numbers", numbers.toSet()).apply()
-        paymentNumbers = numbers
-    }
-
-    fun addPaymentNumber(number: String) {
-        if (number.isBlank()) return
-        if (paymentNumbers.size >= 2) {
-            Toast.makeText(context, "You can add up to 2 payment numbers", Toast.LENGTH_SHORT).show()
-            return
-        }
-        if (paymentNumbers.contains(number)) {
-            Toast.makeText(context, "Number already exists", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val newList = paymentNumbers.toMutableList().apply { add(number) }
-        savePaymentNumbers(newList)
-    }
-
-    fun updatePaymentNumber(index: Int, newNumber: String) {
-        if (newNumber.isBlank()) return
-        val newList = paymentNumbers.toMutableList().apply { set(index, newNumber) }
-        savePaymentNumbers(newList)
-    }
-
-    fun deletePaymentNumber(index: Int) {
-        val newList = paymentNumbers.toMutableList().apply { removeAt(index) }
-        savePaymentNumbers(newList)
-    }
-
+    // Load profile from backend
     LaunchedEffect(Unit) {
-        loadPaymentNumbers()
         scope.launch {
             val token = session.getAccessToken()
             val userEmail = session.getEmail()
@@ -150,9 +107,8 @@ fun ProfileScreenContent() {
                         email = userProfile?.email ?: ""
                         phoneNumber = userProfile?.phone ?: ""
                         businessName = userProfile?.businessName ?: ""
-                        // Note: backend does not return deliveryAddress/shopLocation yet – will be added later
-                        deliveryAddress = userProfile?.deliveryAddress ?: "Westlands Commercial Centre, Ring Road, Nairobi, Kenya"
-                        shopLocation = userProfile?.shopLocation ?: "Westlands Commercial Centre, Ground Floor, Nairobi"
+                        address = userProfile?.address ?: ""               // ✅ load address
+                        shopLocation = userProfile?.shopLocation ?: ""
                     } else {
                         errorMessage = "Failed to load profile: ${response.code()}"
                     }
@@ -190,7 +146,7 @@ fun ProfileScreenContent() {
                     displayName = fullName.takeIf { it.isNotBlank() },
                     phone = phoneNumber.takeIf { it.isNotBlank() },
                     businessName = businessName.takeIf { it.isNotBlank() },
-                    deliveryAddress = if (isSeller) null else deliveryAddress.takeIf { it.isNotBlank() },
+                    address = if (isSeller) null else address.takeIf { it.isNotBlank() },   // ✅ send as "address"
                     shopLocation = if (isSeller) shopLocation.takeIf { it.isNotBlank() } else null
                 )
 
@@ -205,7 +161,7 @@ fun ProfileScreenContent() {
                     if (isSeller) {
                         shopLocation = updatedProfile.shopLocation ?: ""
                     } else {
-                        deliveryAddress = updatedProfile.deliveryAddress ?: ""
+                        address = updatedProfile.address ?: ""          // ✅ update from response
                     }
 
                     saveButtonText = "Saved Successfully"
@@ -227,7 +183,7 @@ fun ProfileScreenContent() {
         }
     }
 
-    // Camera and gallery launchers
+    // Camera & gallery launchers (unchanged)
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -280,14 +236,10 @@ fun ProfileScreenContent() {
             confirmButton = {
                 Column {
                     TextButton(onClick = { onGalleryClick() }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.PhotoLibrary, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Gallery")
+                        Icon(Icons.Default.PhotoLibrary, null); Spacer(Modifier.width(8.dp)); Text("Gallery")
                     }
                     TextButton(onClick = { onCameraClick() }, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.CameraAlt, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("Camera")
+                        Icon(Icons.Default.CameraAlt, null); Spacer(Modifier.width(8.dp)); Text("Camera")
                     }
                     TextButton(onClick = { showImagePickerDialog = false }, modifier = Modifier.fillMaxWidth()) {
                         Text("Cancel", color = Color.Red)
@@ -329,7 +281,7 @@ fun ProfileScreenContent() {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(errorMessage!!, color = Color.Red)
                             Spacer(Modifier.height(16.dp))
-                            Button(onClick = { /* retry logic can be implemented */ }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))) {
+                            Button(onClick = { /* retry */ }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))) {
                                 Text("Retry")
                             }
                         }
@@ -353,26 +305,11 @@ fun ProfileScreenContent() {
                         onPhoneNumberChange = { phoneNumber = it },
                         businessName = businessName,
                         onBusinessNameChange = { businessName = it },
-                        locationValue = if (isSeller) shopLocation else deliveryAddress,
-                        onLocationChange = if (isSeller) { newValue -> shopLocation = newValue } else { newValue -> deliveryAddress = newValue },
+                        locationValue = if (isSeller) shopLocation else address,
+                        onLocationChange = if (isSeller) { newValue -> shopLocation = newValue } else { newValue -> address = newValue },
                         userRole = userProfile?.role ?: "BUYER",
                         isSeller = isSeller
                     )
-
-                    if (!isSeller) {
-                        Spacer(Modifier.height(16.dp))
-                        PaymentNumbersSection(
-                            paymentNumbers = paymentNumbers,
-                            onAddClick = { showAddPaymentNumberDialog = true },
-                            onEditClick = { index, currentNumber ->
-                                editingIndex = index
-                                newPaymentNumber = currentNumber
-                                showAddPaymentNumberDialog = true
-                            },
-                            onDeleteClick = { index -> deletePaymentNumber(index) }
-                        )
-                    }
-
                     Spacer(Modifier.height(24.dp))
                     SecuritySettings()
                     Spacer(Modifier.height(24.dp))
@@ -380,96 +317,6 @@ fun ProfileScreenContent() {
                     Spacer(Modifier.height(32.dp))
                 }
             }
-        }
-    }
-
-    if (showAddPaymentNumberDialog) {
-        AlertDialog(
-            onDismissRequest = { showAddPaymentNumberDialog = false; newPaymentNumber = ""; editingIndex = null },
-            title = { Text(if (editingIndex != null) "Edit Payment Number" else "Add Payment Number") },
-            text = {
-                OutlinedTextField(
-                    value = newPaymentNumber,
-                    onValueChange = { newPaymentNumber = it },
-                    label = { Text("M-Pesa Number (e.g., 254712345678)") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        if (newPaymentNumber.isNotBlank()) {
-                            if (editingIndex != null) {
-                                updatePaymentNumber(editingIndex!!, newPaymentNumber)
-                            } else {
-                                addPaymentNumber(newPaymentNumber)
-                            }
-                        }
-                        showAddPaymentNumberDialog = false
-                        newPaymentNumber = ""
-                        editingIndex = null
-                    }
-                ) { Text("Save") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showAddPaymentNumberDialog = false
-                    newPaymentNumber = ""
-                    editingIndex = null
-                }) { Text("Cancel") }
-            }
-        )
-    }
-}
-
-@Composable
-fun PaymentNumbersSection(
-    paymentNumbers: List<String>,
-    onAddClick: () -> Unit,
-    onEditClick: (Int, String) -> Unit,
-    onDeleteClick: (Int) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Payment Numbers (M-Pesa)", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-                IconButton(onClick = onAddClick) {
-                    Icon(Icons.Default.Add, contentDescription = "Add", tint = Color(0xFF00236F))
-                }
-            }
-            if (paymentNumbers.isEmpty()) {
-                Text("No payment numbers added. Add one to use during checkout.", fontSize = 13.sp, color = Color.Gray)
-            } else {
-                paymentNumbers.forEachIndexed { index, number ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(number, fontSize = 14.sp, color = Color.Black)
-                        Row {
-                            IconButton(onClick = { onEditClick(index, number) }) {
-                                Icon(Icons.Default.Edit, contentDescription = "Edit", tint = Color(0xFF00236F), modifier = Modifier.size(20.dp))
-                            }
-                            IconButton(onClick = { onDeleteClick(index) }) {
-                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFBA1A1A), modifier = Modifier.size(20.dp))
-                            }
-                        }
-                    }
-                    if (index < paymentNumbers.lastIndex) HorizontalDivider()
-                }
-            }
-            Text("These numbers will be available when paying with M-Pesa.", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 8.dp))
         }
     }
 }
@@ -569,11 +416,12 @@ fun ProfileFormFields(
                 shape = RoundedCornerShape(8.dp)
             )
         }
+        // For buyers: label is "Address", for sellers: label is "Shop Location"
         OutlinedTextField(
             value = locationValue,
             onValueChange = onLocationChange,
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(if (isSeller) "Shop Location" else "Delivery Address") },
+            label = { Text(if (isSeller) "Shop Location" else "Address") },
             minLines = 3,
             shape = RoundedCornerShape(8.dp)
         )

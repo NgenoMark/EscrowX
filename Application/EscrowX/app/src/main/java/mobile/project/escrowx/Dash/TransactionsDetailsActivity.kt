@@ -72,7 +72,7 @@ fun TransactionDetailsScreen(
     val scope = rememberCoroutineScope()
 
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
-    var deliveryAddress by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("") }          // ✅ changed to "address"
 
     // Date picker state
     var showDatePicker by remember { mutableStateOf(false) }
@@ -85,7 +85,7 @@ fun TransactionDetailsScreen(
     val deliveryMethods = listOf("Courier", "In-Person", "Digital")
     var selectedDeliveryMethod by remember { mutableStateOf(deliveryMethods[0]) }
 
-    // Load buyer profile to get delivery address
+    // Load buyer profile to get address
     LaunchedEffect(Unit) {
         scope.launch {
             val token = session.getAccessToken()
@@ -95,7 +95,7 @@ fun TransactionDetailsScreen(
                     val response = RetrofitClient.authenticated(token).getUserByEmail(userEmail)
                     if (response.isSuccessful && response.body() != null) {
                         userProfile = response.body()
-                        deliveryAddress = userProfile?.deliveryAddress ?: ""
+                        address = userProfile?.address ?: ""        // ✅ use "address"
                     }
                 } catch (_: Exception) { }
             }
@@ -168,7 +168,7 @@ fun TransactionDetailsScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            // Item & Seller Summary Card
+            // Item & Seller Summary Card (unchanged)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -282,9 +282,7 @@ fun TransactionDetailsScreen(
                         readOnly = true,
                         placeholder = { Text("Select delivery date") },
                         trailingIcon = {
-                            IconButton(
-                                onClick = { showDatePicker = true }
-                            ) {
+                            IconButton(onClick = { showDatePicker = true }) {
                                 Icon(Icons.Default.DateRange, null)
                             }
                         },
@@ -354,7 +352,7 @@ fun TransactionDetailsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Delivery Address Card (Fetched from Profile)
+            // Address Card (Fetched from Profile) – label "Delivery Address" for buyer context
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -366,7 +364,7 @@ fun TransactionDetailsScreen(
                     Text("Delivery Address *", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
-                        value = deliveryAddress.ifEmpty { "No address found. Please update your profile." },
+                        value = address.ifEmpty { "No address found. Please update your profile." },
                         onValueChange = {},
                         readOnly = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -376,10 +374,10 @@ fun TransactionDetailsScreen(
                             unfocusedBorderColor = Color(0xFFC5C5D3),
                             disabledTextColor = Color(0xFF444651)
                         ),
-                        isError = deliveryAddress.isBlank(),
+                        isError = address.isBlank(),
                         supportingText = {
-                            if (deliveryAddress.isBlank()) {
-                                Text("Please add a delivery address in your profile", fontSize = 11.sp, color = Color.Red)
+                            if (address.isBlank()) {
+                                Text("Please add your address in the profile", fontSize = 11.sp, color = Color.Red)
                             }
                         }
                     )
@@ -388,7 +386,7 @@ fun TransactionDetailsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Transaction Summary Card
+            // Transaction Summary Card (unchanged)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -451,7 +449,7 @@ fun TransactionDetailsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Payment Security Note
+            // Payment Security Note (unchanged)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -481,8 +479,8 @@ fun TransactionDetailsScreen(
                         Toast.makeText(context, "Please select a delivery date", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
-                    if (deliveryAddress.isBlank()) {
-                        Toast.makeText(context, "Delivery address not found. Please update your profile.", Toast.LENGTH_SHORT).show()
+                    if (address.isBlank()) {
+                        Toast.makeText(context, "Your address not found. Please update your profile.", Toast.LENGTH_SHORT).show()
                         return@Button
                     }
                     val intent = Intent(context, PaymentActivity::class.java).apply {
@@ -494,7 +492,7 @@ fun TransactionDetailsScreen(
                         putExtra("TRANSACTION_ID", transactionId)
                         putExtra("DELIVERY_DATE", displayDate)
                         putExtra("DELIVERY_METHOD", selectedDeliveryMethod)
-                        putExtra("DELIVERY_ADDRESS", deliveryAddress)
+                        putExtra("DELIVERY_ADDRESS", address)
                     }
                     context.startActivity(intent)
                 },
@@ -506,7 +504,7 @@ fun TransactionDetailsScreen(
                     containerColor = Color(0xFF00236F),
                     contentColor = Color.White
                 ),
-                enabled = selectedDate != null && deliveryAddress.isNotBlank()
+                enabled = selectedDate != null && address.isNotBlank()
             ) {
                 Text("Proceed to Payment", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.width(8.dp))

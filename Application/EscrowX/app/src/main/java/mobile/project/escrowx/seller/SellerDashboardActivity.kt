@@ -29,9 +29,10 @@ import kotlinx.coroutines.launch
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.dash.CreateEscrowActivity   // ✅ unified escrow creation
 import mobile.project.escrowx.dash.DisputeCenterActivity
 import mobile.project.escrowx.dash.ProfileActivity
-import mobile.project.escrowx.dash.SettingsActivity   // ADDED
+import mobile.project.escrowx.dash.SettingsActivity
 import mobile.project.escrowx.dash.TransactionsActivity
 
 data class SellerRecentTransaction(
@@ -254,10 +255,13 @@ fun SellerDashboardScreen() {
 
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // New Escrow Button
+                    // New Escrow Button – launches unified CreateEscrowActivity with ROLE SELLER
                     Button(
                         onClick = {
-                            context.startActivity(Intent(context, SellerCreateEscrowActivity::class.java))
+                            val intent = Intent(context, CreateEscrowActivity::class.java).apply {
+                                putExtra("ROLE", "SELLER")
+                            }
+                            context.startActivity(intent)
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         shape = RoundedCornerShape(12.dp),
@@ -370,12 +374,11 @@ fun SellerDrawerContent(
     onNavigateToTransactions: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToDisputes: () -> Unit,
-    onNavigateToSettings: () -> Unit,   // ADDED
+    onNavigateToSettings: () -> Unit,
     onLogout: () -> Unit
 ) {
     ModalDrawerSheet {
         Spacer(modifier = Modifier.height(24.dp))
-        // Avatar
         Box(
             modifier = Modifier
                 .size(64.dp)
@@ -403,7 +406,6 @@ fun SellerDrawerContent(
         )
         HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-        // Menu items
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Home, contentDescription = null) },
             label = { Text("Home") },
@@ -437,7 +439,6 @@ fun SellerDrawerContent(
                 onNavigateToDisputes()
             }
         )
-        // NEW: Settings item
         NavigationDrawerItem(
             icon = { Icon(Icons.Default.Settings, contentDescription = null) },
             label = { Text("Settings") },
