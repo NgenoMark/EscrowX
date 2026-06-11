@@ -203,6 +203,10 @@ fun UnifiedCreateEscrowScreen(role: String) {
             Toast.makeText(context, "Please enter a valid amount", Toast.LENGTH_SHORT).show()
             return
         }
+        if (description.isBlank()) {
+            Toast.makeText(context, "Please enter item description", Toast.LENGTH_SHORT).show()
+            return
+        }
         if (selectedUser == null) {
             Toast.makeText(context, "Please select a valid user", Toast.LENGTH_SHORT).show()
             return
@@ -234,7 +238,7 @@ fun UnifiedCreateEscrowScreen(role: String) {
                 val year = calendar.get(Calendar.YEAR)
                 val month = calendar.get(Calendar.MONTH) + 1
                 val day = calendar.get(Calendar.DAY_OF_MONTH)
-                val deliveryDueAt = String.format("%04d-%02d-%02dT00:00:00+03:00", year, month, day)
+                val deliveryDueAt = String.format("%04d-%02d-%02dT12:00:00Z", year, month, day)
 
                 // Determine buyerId and sellerId based on role
                 val buyerId: String
@@ -253,8 +257,9 @@ fun UnifiedCreateEscrowScreen(role: String) {
                     buyerId = buyerId,
                     sellerId = sellerId,
                     title = itemName,
-                    amount = String.format("%.2f", parsedAmount),
-                    currency = "KES",
+                    productDescription = description.trim(),
+                    amount = parsedAmount,
+                    deliveryAddress = selectedUserAddress.trim(),
                     deliveryDueAt = deliveryDueAt
                 )
 

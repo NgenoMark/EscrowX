@@ -175,8 +175,11 @@ data class CreateEscrowRequest(
     val buyerId: String,
     val sellerId: String,
     val title: String,
-    val amount: String,
-    val currency: String = "KES",
+    val productDescription: String,
+    val amount: Double,
+    val deliveryAddress: String,
+    val currency: String? = null,
+    val initialDepositAmount: Double? = null,
     val deliveryDueAt: String? = null
 )
 
