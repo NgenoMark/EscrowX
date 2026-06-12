@@ -9,8 +9,8 @@ import com.example.escbackend.dispute.entity.DisputeEntity;
 import com.example.escbackend.dispute.repository.DisputeRepository;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository; // Assumed repository name
-import com.example.escbackend.infrastructure.audit.AuditLogEntity;
-import com.example.escbackend.infrastructure.audit.AuditLogRepository;
+import com.example.escbackend.audit.entity.AuditLogEntity;
+import com.example.escbackend.audit.repository.AuditLogRepository;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.UserRepository;
 import com.example.escbackend.user.service.AdminAuthorizationService;
@@ -164,7 +164,7 @@ public class DisputeService {
         return mapToDetailsResponse(dispute);
     }
 
-    @Transactional(readOnly = true) // <-- Add this!
+    @Transactional(readOnly = true)
     public DisputeDetailsResponse getById(UUID id, UUID actorUserId) {
         DisputeEntity dispute = disputeRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute records not found."));
