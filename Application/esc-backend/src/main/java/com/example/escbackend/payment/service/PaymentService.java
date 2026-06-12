@@ -119,7 +119,7 @@ public class PaymentService {
             escrowRepository.save(transaction);
             ledgerService.recordHold(transaction, payment.getAmount(), payment.getId());
         } else {
-            payment.setStatus("FAILED");
+            payment.setStatus("PAYMENT_FAILED");
         }
 
         paymentIntentRepository.save(payment);

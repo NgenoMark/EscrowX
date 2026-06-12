@@ -14,6 +14,7 @@ public class MpesaProperties {
     private String consumerKey;
     private String consumerSecret;
     private String shortCode;
+    private String b2cShortCode;
     private String passKey;
     private String callbackUrl;
     private String initiatorName;

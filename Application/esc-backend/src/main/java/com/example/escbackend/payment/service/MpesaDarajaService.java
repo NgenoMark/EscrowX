@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
@@ -52,12 +53,17 @@ public class MpesaDarajaService {
             entry("TransactionDesc", description)
         );
 
-        Map<?, ?> response = restClient.post()
-            .uri("/mpesa/stkpush/v1/processrequest")
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
-            .body(body)
-            .retrieve()
-            .body(Map.class);
+        Map<?, ?> response;
+        try {
+            response = restClient.post()
+                .uri("/mpesa/stkpush/v1/processrequest")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
+                .body(body)
+                .retrieve()
+                .body(Map.class);
+        } catch (RestClientResponseException ex) {
+            throw toDarajaApiException("STK push", ex);
+        }
 
         if (response == null) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Empty M-Pesa STK response");
@@ -75,6 +81,7 @@ public class MpesaDarajaService {
     public B2cResult initiateB2cPayout(String sellerPhoneNumber, int amount, String occasion, String remarks) {
         assertConfigured(properties.getInitiatorName(), "MPESA initiator name is not configured");
         assertConfigured(properties.getSecurityCredential(), "MPESA security credential is not configured");
+        assertConfigured(properties.getB2cShortCode(), "MPESA B2C short code is not configured");
         assertConfigured(properties.getResultUrl(), "MPESA B2C result URL is not configured");
         assertConfigured(properties.getTimeoutUrl(), "MPESA B2C timeout URL is not configured");
 
@@ -83,7 +90,7 @@ public class MpesaDarajaService {
             "SecurityCredential", properties.getSecurityCredential(),
             "CommandID", "BusinessPayment",
             "Amount", amount,
-            "PartyA", properties.getShortCode(),
+            "PartyA", properties.getB2cShortCode(),
             "PartyB", toDarajaPhone(sellerPhoneNumber),
             "Remarks", remarks,
             "QueueTimeOutURL", properties.getTimeoutUrl(),
@@ -91,12 +98,17 @@ public class MpesaDarajaService {
             "Occasion", occasion
         );
 
-        Map<?, ?> response = restClient.post()
-            .uri("/mpesa/b2c/v1/paymentrequest")
-            .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
-            .body(body)
-            .retrieve()
-            .body(Map.class);
+        Map<?, ?> response;
+        try {
+            response = restClient.post()
+                .uri("/mpesa/b2c/v1/paymentrequest")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken())
+                .body(body)
+                .retrieve()
+                .body(Map.class);
+        } catch (RestClientResponseException ex) {
+            throw toDarajaApiException("B2C payout", ex);
+        }
 
         if (response == null) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Empty M-Pesa B2C response");
@@ -113,11 +125,16 @@ public class MpesaDarajaService {
     private String accessToken() {
         String basic = Base64.getEncoder()
             .encodeToString((properties.getConsumerKey() + ":" + properties.getConsumerSecret()).getBytes(StandardCharsets.UTF_8));
-        Map<?, ?> response = restClient.get()
-            .uri("/oauth/v1/generate?grant_type=client_credentials")
-            .header(HttpHeaders.AUTHORIZATION, "Basic " + basic)
-            .retrieve()
-            .body(Map.class);
+        Map<?, ?> response;
+        try {
+            response = restClient.get()
+                .uri("/oauth/v1/generate?grant_type=client_credentials")
+                .header(HttpHeaders.AUTHORIZATION, "Basic " + basic)
+                .retrieve()
+                .body(Map.class);
+        } catch (RestClientResponseException ex) {
+            throw toDarajaApiException("OAuth token", ex);
+        }
 
         String token = response == null ? null : asString(response.get("access_token"));
         if (!StringUtils.hasText(token)) {
@@ -138,6 +155,26 @@ public class MpesaDarajaService {
         if (!StringUtils.hasText(value)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, message);
         }
+    }
+
+    private ApiException toDarajaApiException(String operation, RestClientResponseException ex) {
+        String responseBody = ex.getResponseBodyAsString();
+        String payload = StringUtils.hasText(responseBody) ? responseBody : "no response body";
+        StringBuilder message = new StringBuilder()
+            .append("M-Pesa ")
+            .append(operation)
+            .append(" request failed: HTTP ")
+            .append(ex.getStatusCode().value())
+            .append(" ")
+            .append(ex.getStatusText())
+            .append(". Daraja response: ")
+            .append(payload);
+
+        if (ex.getStatusCode().value() == 400 && !StringUtils.hasText(responseBody)) {
+            message.append(". This commonly means initiator/security credential/short code mismatch.");
+        }
+
+        return new ApiException(HttpStatus.BAD_GATEWAY, message.toString());
     }
 
     public record StkPushResult(

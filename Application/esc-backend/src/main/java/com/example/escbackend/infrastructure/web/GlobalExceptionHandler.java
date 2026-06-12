@@ -3,6 +3,7 @@ package com.example.escbackend.infrastructure.web;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.common.response.ApiErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -40,6 +41,23 @@ public class GlobalExceptionHandler {
                 .timestamp(OffsetDateTime.now())
                 .status(HttpStatus.BAD_REQUEST.value())
                 .error("VALIDATION_ERROR")
+                .message(message)
+                .path(request.getRequestURI())
+                .build()
+        );
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiErrorResponse> handleDataIntegrity(DataIntegrityViolationException ex, HttpServletRequest request) {
+        String message = ex.getMostSpecificCause() != null
+            ? ex.getMostSpecificCause().getMessage()
+            : ex.getMessage();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+            ApiErrorResponse.builder()
+                .timestamp(OffsetDateTime.now())
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("DATA_INTEGRITY_ERROR")
                 .message(message)
                 .path(request.getRequestURI())
                 .build()

@@ -9,7 +9,7 @@ public class EscBackendApplication {
     public static void main(String[] args) {
 
         SpringApplication.run(EscBackendApplication.class, args);
-        System.out.println("EscBackendApplication started");
+        System.out.println("EscrowX BackendApplication started");
     }
 
 }
