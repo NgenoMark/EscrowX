@@ -63,7 +63,7 @@ public class UserController {
         return userService.updateStatus(id, actorUserId, request);
     }
 
-    @PatchMapping("/{id}/blacklist")
+    @PatchMapping("admin/{id}/blacklist")
     public BlacklistUpdateResponse updateBlacklistStatus(
             @PathVariable UUID id,
             @RequestHeader("X-Actor-User-Id") UUID actorUserId,
