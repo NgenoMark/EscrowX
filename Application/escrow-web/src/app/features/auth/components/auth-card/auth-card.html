@@ -1,3 +1,4 @@
+<!-- auth-card.html -->
 <main class="auth-page">
   <section class="auth-panel">
     <div class="auth-brand">
@@ -8,163 +9,42 @@
       </div>
     </div>
 
-    <div class="auth-tabs" role="tablist" aria-label="Authentication mode">
-      <button type="button" [class.auth-tab-active]="mode() === 'login'" (click)="setMode('login')">Sign in</button>
-      <button type="button" [class.auth-tab-active]="mode() === 'register'" (click)="setMode('register')">Register</button>
-    </div>
-
     @if (error()) {
       <div class="auth-alert auth-alert-error">{{ error() }}</div>
     }
 
-    @if (success()) {
-      <div class="auth-alert auth-alert-success">{{ success() }}</div>
-    }
+    <form class="auth-form" #loginNgForm="ngForm" (ngSubmit)="login()">
+      <label>
+        <span>Email address</span>
+        <input
+          type="email"
+          name="email"
+          [(ngModel)]="loginForm.email"
+          autocomplete="email"
+          required
+          email
+        >
+      </label>
 
-    @if (mode() === 'login') {
-      <form class="auth-form" #loginNgForm="ngForm" (ngSubmit)="login()">
-        <label>
-          <span>Email address</span>
-          <input
-            type="email"
-            name="email"
-            [(ngModel)]="loginForm.email"
-            autocomplete="email"
-            required
-            email
-          >
-        </label>
+      <label>
+        <span>Password</span>
+        <input
+          type="password"
+          name="password"
+          [(ngModel)]="loginForm.password"
+          autocomplete="current-password"
+          required
+        >
+      </label>
 
-        <label>
-          <span>Password</span>
-          <input
-            type="password"
-            name="password"
-            [(ngModel)]="loginForm.password"
-            autocomplete="current-password"
-            required
-          >
-        </label>
-
-        <button type="submit" class="auth-submit" [disabled]="loginNgForm.invalid || loading()">
-          @if (loading()) {
-            <i class="fas fa-spinner fa-spin"></i>
-          } @else {
-            <i class="fas fa-lock"></i>
-          }
-          Sign in
-        </button>
-      </form>
-    }
-
-    @if (mode() === 'register') {
-      <form class="auth-form" #registerNgForm="ngForm" (ngSubmit)="register()">
-        <div class="auth-grid">
-          <label>
-            <span>Display name</span>
-            <input
-              type="text"
-              name="displayName"
-              [(ngModel)]="registerForm.displayName"
-              autocomplete="name"
-              maxlength="150"
-            >
-          </label>
-
-          <label>
-            <span>Business name</span>
-            <input
-              type="text"
-              name="businessName"
-              [(ngModel)]="registerForm.businessName"
-              maxlength="150"
-            >
-          </label>
-        </div>
-
-        <label>
-          <span>Phone number</span>
-          <input
-            type="tel"
-            name="phone"
-            [(ngModel)]="registerForm.phone"
-            autocomplete="tel"
-            required
-            pattern="^\+2547\d{8}$"
-            placeholder="+2547XXXXXXXX"
-          >
-        </label>
-
-        <label>
-          <span>Email address</span>
-          <input
-            type="email"
-            name="email"
-            [(ngModel)]="registerForm.email"
-            autocomplete="email"
-            required
-            email
-          >
-        </label>
-
-        <label>
-          <span>Password</span>
-          <input
-            type="password"
-            name="password"
-            [(ngModel)]="registerForm.password"
-            autocomplete="new-password"
-            required
-            pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,64}$"
-          >
-        </label>
-
-        <button type="submit" class="auth-submit" [disabled]="registerNgForm.invalid || loading()">
-          @if (loading()) {
-            <i class="fas fa-spinner fa-spin"></i>
-          } @else {
-            <i class="fas fa-user-plus"></i>
-          }
-          Create account
-        </button>
-      </form>
-    }
-
-    @if (mode() === 'confirm') {
-      <form class="auth-form" #confirmNgForm="ngForm" (ngSubmit)="confirm()">
-        <label>
-          <span>Email address</span>
-          <input
-            type="email"
-            name="confirmEmail"
-            [(ngModel)]="confirmForm.email"
-            autocomplete="email"
-            required
-            email
-          >
-        </label>
-
-        <label>
-          <span>OTP</span>
-          <input
-            type="text"
-            name="otp"
-            [(ngModel)]="confirmForm.otp"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            required
-          >
-        </label>
-
-        <button type="submit" class="auth-submit" [disabled]="confirmNgForm.invalid || loading()">
-          @if (loading()) {
-            <i class="fas fa-spinner fa-spin"></i>
-          } @else {
-            <i class="fas fa-check"></i>
-          }
-          Confirm account
-        </button>
-      </form>
-    }
+      <button type="submit" class="auth-submit" [disabled]="loginNgForm.invalid || loading()">
+        @if (loading()) {
+          <i class="fas fa-spinner fa-spin"></i>
+        } @else {
+          <i class="fas fa-lock"></i>
+        }
+        Sign in
+      </button>
+    </form>
   </section>
 </main>

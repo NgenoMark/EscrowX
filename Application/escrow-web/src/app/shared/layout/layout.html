@@ -1,23 +1,18 @@
 <div class="app-shell">
-  <app-sidebar
-    [collapsed]="sidebarCollapsed"
-    [mobileOpen]="mobileSidebarOpen"
-    (closeMobile)="closeMobileSidebar()"
-  ></app-sidebar>
-
+  <app-header [sidebarCollapsed]="sidebarCollapsed" [mobileSidebarOpen]="mobileSidebarOpen" (toggleSidebar)="toggleSidebar()"></app-header>
+  <div class="layout-body">
+    <app-sidebar
+      [collapsed]="sidebarCollapsed"
+      [mobileOpen]="mobileSidebarOpen"
+      (closeMobile)="closeMobileSidebar()"
+    ></app-sidebar>
+    <main class="content-area">
+      <div class="page-frame">
+        <router-outlet></router-outlet>
+      </div>
+    </main>
+  </div>
   @if (mobileSidebarOpen) {
-    <button
-      type="button"
-      class="sidebar-backdrop"
-      aria-label="Close navigation"
-      (click)="closeMobileSidebar()"
-    ></button>
+    <div class="sidebar-backdrop" (click)="closeMobileSidebar()"></div>
   }
-
-  <main class="app-main" [class.app-main-collapsed]="sidebarCollapsed">
-    <app-header [pageTitle]="pageTitle" (toggleSidebar)="toggleSidebar()"></app-header>
-    <div class="page-frame">
-      <router-outlet></router-outlet>
-    </div>
-  </main>
 </div>

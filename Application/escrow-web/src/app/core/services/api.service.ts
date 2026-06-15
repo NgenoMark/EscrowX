@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams, HttpHeaders } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { environment } from '../../../environments/environment.prod';
+import { AppEnvironmentService } from '../config/app-environment';
 
 // ========== RESPONSE INTERFACES ==========
 
@@ -118,7 +118,8 @@ export interface Dispute {
 })
 export class ApiService {
   private http = inject(HttpClient);
-  private apiUrl = environment.apiUrl;
+  private appEnvironment = inject(AppEnvironmentService);
+  private apiUrl = this.appEnvironment.apiUrl;
 
   // ========== AUTHENTICATION ==========
 
@@ -161,7 +162,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
   suspendUser(userId: string): Observable<ApiResponse<ApiUserDetails>> {
-    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/suspend`, {});
+    return this.http.patch<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/status`, { status: 'SUSPENDED' });
   }
 
   /**
@@ -170,7 +171,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
   activateUser(userId: string): Observable<ApiResponse<ApiUserDetails>> {
-    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/activate`, {});
+    return this.http.patch<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/status`, { status: 'ACTIVE' });
   }
 
   /**
@@ -198,7 +199,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
   blacklistUser(userId: string): Observable<ApiResponse<ApiUserDetails>> {
-    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/blacklist`, {});
+    return this.http.patch<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/blacklist`, {});
   }
 
   /**
@@ -207,7 +208,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated ApiUserDetails
    */
   removeBlacklist(userId: string): Observable<ApiResponse<ApiUserDetails>> {
-    return this.http.put<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/blacklist/remove`, {});
+    return this.http.patch<ApiResponse<ApiUserDetails>>(`${this.apiUrl}/users/${userId}/blacklist`, { blacklistStatus: 'NOT_BLACKLISTED' });
   }
 
   // ========== TRANSACTION MANAGEMENT ==========
@@ -223,7 +224,7 @@ export class ApiService {
     if (params?.page !== undefined) httpParams = httpParams.set('page', params.page);
     if (params?.size) httpParams = httpParams.set('size', params.size);
     if (params?.search) httpParams = httpParams.set('search', params.search);
-    return this.http.get<PageResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions`, { params: httpParams });
+    return this.http.get<PageResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions/search`, { params: httpParams });
   }
 
   /**
@@ -241,7 +242,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated ApiEscrowTransaction
    */
   forceReleaseFunds(transactionId: string): Observable<ApiResponse<ApiEscrowTransaction>> {
-    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/force-release`, {});
+    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions/${transactionId}/confirm-receipt`, {});
   }
 
   /**
@@ -250,7 +251,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated ApiEscrowTransaction
    */
   forceRefund(transactionId: string): Observable<ApiResponse<ApiEscrowTransaction>> {
-    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/force-refund`, {});
+    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions/${transactionId}/cancel`, {});
   }
 
   /**
@@ -259,7 +260,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated ApiEscrowTransaction
    */
   cancelTransaction(transactionId: string): Observable<ApiResponse<ApiEscrowTransaction>> {
-    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/admin/transactions/${transactionId}/cancel`, {});
+    return this.http.post<ApiResponse<ApiEscrowTransaction>>(`${this.apiUrl}/transactions/${transactionId}/cancel`, {});
   }
 
   // ========== DISPUTE MANAGEMENT ==========
@@ -274,7 +275,7 @@ export class ApiService {
     if (params?.status) httpParams = httpParams.set('status', params.status);
     if (params?.page) httpParams = httpParams.set('page', params.page);
     if (params?.limit) httpParams = httpParams.set('limit', params.limit);
-    return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/disputes`, { params: httpParams });
+    return this.http.get<ApiResponse<any[]>>(`${this.apiUrl}/admin/disputes`, { params: httpParams });
   }
 
   /**
@@ -292,7 +293,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated Dispute
    */
   resolveDisputeRefund(disputeId: string): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/refund`, {});
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve`, { resolution: 'REFUND_BUYER' });
   }
 
   /**
@@ -301,7 +302,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated Dispute
    */
   resolveDisputeRelease(disputeId: string): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/release`, {});
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve`, { resolution: 'RELEASE_SELLER' });
   }
 
   /**
@@ -312,7 +313,7 @@ export class ApiService {
    * @returns Observable emitting ApiResponse with updated Dispute
    */
   resolveDisputePartial(disputeId: string, partialAmount: number, notes: string): Observable<ApiResponse<any>> {
-    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve/partial`, { partialAmount, notes });
+    return this.http.post<ApiResponse<any>>(`${this.apiUrl}/admin/disputes/${disputeId}/resolve`, { resolution: 'PARTIAL_SETTLEMENT', partialAmount, notes });
   }
 
   /**

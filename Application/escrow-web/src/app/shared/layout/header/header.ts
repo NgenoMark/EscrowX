@@ -22,7 +22,8 @@ interface GlobalSearchResult {
   styleUrls: ['./header.css']
 })
 export class HeaderComponent implements AfterViewInit {
-  @Input() pageTitle: string = 'Dashboard';
+  @Input() sidebarCollapsed = false;
+  @Input() mobileSidebarOpen = false;
   @Output() toggleSidebar = new EventEmitter<void>();
   
   notificationsOpen = signal(false);
@@ -41,6 +42,11 @@ export class HeaderComponent implements AfterViewInit {
   });
 
   availableFilters: GlobalSearchFilter[] = ['all', 'users', 'transactions', 'disputes', 'audit'];
+
+  // Simple getter – works with plain @Input properties
+  get isSidebarVisible(): boolean {
+    return !this.sidebarCollapsed || this.mobileSidebarOpen;
+  }
 
   constructor(
     public searchService: SearchService,
@@ -91,6 +97,19 @@ export class HeaderComponent implements AfterViewInit {
     this.openGlobalSearch();
   }
 
+  // Click‑outside for notifications
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.notificationsOpen()) return;
+    
+    const target = event.target as HTMLElement;
+    const notificationWrap = document.querySelector('.notification-wrap');
+    
+    if (notificationWrap && !notificationWrap.contains(target)) {
+      this.notificationsOpen.set(false);
+    }
+  }
+
   onSearchInput(query: string): void {
     this.searchQuery.set(query);
     this.isSearching.set(true);
@@ -122,7 +141,6 @@ export class HeaderComponent implements AfterViewInit {
         if (include('users')) {
           const users = this.dataService.users();
           for (const user of users) {
-            // Removed kycStatus reference - only use fields from User interface
             const haystack = `${user.displayName} ${user.phone} ${user.email} ${user.role} ${user.status} ${user.blacklistStatus}`.toLowerCase();
             if (haystack.includes(query)) {
               results.push({
@@ -200,7 +218,10 @@ export class HeaderComponent implements AfterViewInit {
     this.searchService.setQuery('');
   }
 
-  toggleNotifications(): void {
+  toggleNotifications(event?: MouseEvent): void {
+    if (event) {
+      event.stopPropagation(); // prevent document click from immediately closing
+    }
     this.notificationsOpen.set(!this.notificationsOpen());
     if (this.globalSearchOpen()) {
       this.closeGlobalSearch();

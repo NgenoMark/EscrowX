@@ -1,3 +1,4 @@
+/* auth-card.css (unchanged) */
 .auth-page {
   display: grid;
   min-height: 100vh;
@@ -48,32 +49,6 @@
   font-weight: 650;
 }
 
-.auth-tabs {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.25rem;
-  margin-bottom: 1rem;
-  border-radius: 0.5rem;
-  background: #edf2f9;
-  padding: 0.25rem;
-}
-
-.auth-tabs button {
-  border: 0;
-  border-radius: 0.35rem;
-  background: transparent;
-  color: #64748b;
-  font-weight: 700;
-  min-height: 2.4rem;
-  cursor: pointer;
-}
-
-.auth-tabs .auth-tab-active {
-  background: #fff;
-  color: #0f766e;
-  box-shadow: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.08);
-}
-
 .auth-alert {
   margin-bottom: 1rem;
   border-radius: 0.45rem;
@@ -95,12 +70,6 @@
 .auth-form {
   display: grid;
   gap: 0.85rem;
-}
-
-.auth-grid {
-  display: grid;
-  gap: 0.85rem;
-  grid-template-columns: 1fr 1fr;
 }
 
 .auth-form label {
@@ -152,9 +121,5 @@
 @media (max-width: 520px) {
   .auth-panel {
     padding: 1rem;
-  }
-
-  .auth-grid {
-    grid-template-columns: 1fr;
   }
 }

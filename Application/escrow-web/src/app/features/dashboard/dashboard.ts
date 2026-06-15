@@ -13,6 +13,7 @@ import { StatCardComponent } from '../../shared/ui/stat-card/stat-card';
   templateUrl: './dashboard.html',
   styleUrls: ['./dashboard.css']
 })
+
 export class DashboardComponent {
   private dataService = inject(DataService);
   private searchService = inject(SearchService);

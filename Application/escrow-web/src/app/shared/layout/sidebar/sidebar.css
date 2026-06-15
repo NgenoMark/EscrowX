@@ -1,181 +1,273 @@
-.sidebar {
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: 40;
+/* Make sidebar fill parent height for footer stickiness */
+.layout-body {
   display: flex;
-  width: 18rem;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.sidebar {
+  display: flex;
   flex-direction: column;
-  border-right: 1px solid rgba(15, 23, 42, 0.08);
-  background: #102033;
-  color: #dbeafe;
-  transition: width 180ms ease, transform 180ms ease;
+  width: 16.25rem;
+  height: 100%;
+  background: #edf2f9;
+  color: #5e6e82;
+  transition: width 180ms ease, margin 180ms ease;
+  flex-shrink: 0;
+  overflow: hidden;
 }
 
 .sidebar-collapsed {
-  width: 5.25rem;
+  width: 5rem;
 }
 
-.brand-row {
-  display: flex;
-  min-height: 5rem;
-  align-items: center;
-  gap: 0.8rem;
-  padding: 1rem;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+/* Collapsed hover expansion: overlay without shifting content */
+.sidebar-collapsed:hover {
+  width: 16.25rem;
+  margin-right: -11.25rem;
+  position: relative;
+  z-index: 100;
+  background: #edf2f9;
+  box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.1);
 }
 
-.brand-mark {
-  display: grid;
-  width: 2.65rem;
-  height: 2.65rem;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 0.75rem;
-  background: #14b8a6;
-  color: #052f2b;
-  font-weight: 800;
-}
-
-.brand-copy h1 {
-  color: #ffffff;
-  font-size: 1.1rem;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.brand-copy p {
-  color: #94a3b8;
-  font-size: 0.72rem;
-  font-weight: 600;
-}
-
-.mobile-close {
+/* Hide text labels, brand copy, and user info (avatar + text) when collapsed */
+.sidebar-collapsed .nav-item span,
+.sidebar-collapsed .nav-item strong,
+.sidebar-collapsed .brand-copy,
+.sidebar-collapsed .admin-avatar,
+.sidebar-collapsed .admin-copy {
   display: none;
-  margin-left: auto;
-  color: #cbd5e1;
 }
 
-.nav-list {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  gap: 0.35rem;
-  overflow-y: auto;
-  padding: 1rem 0.75rem;
+/* On hover: show everything (including avatar and user info) */
+.sidebar-collapsed:hover .nav-item span,
+.sidebar-collapsed:hover .nav-item strong,
+.sidebar-collapsed:hover .brand-copy,
+.sidebar-collapsed:hover .admin-avatar,
+.sidebar-collapsed:hover .admin-copy {
+  display: block;
+}
+.sidebar-collapsed:hover .admin-avatar {
+  display: grid; /* restore grid display for avatar */
+}
+.sidebar-collapsed:hover .admin-copy {
+  display: block;
 }
 
-.nav-item {
-  display: flex;
-  min-height: 2.75rem;
-  align-items: center;
-  gap: 0.85rem;
-  border-radius: 0.7rem;
-  color: #cbd5e1;
-  font-size: 0.92rem;
-  font-weight: 650;
-  padding: 0 0.85rem;
-  text-decoration: none;
-  transition: background 160ms ease, color 160ms ease;
-}
-
+/* Collapsed nav‑item alignment */
 .sidebar-collapsed .nav-item {
   justify-content: center;
   padding: 0;
 }
+.sidebar-collapsed:hover .nav-item {
+  justify-content: flex-start;
+  padding: 0 0.65rem;
+}
 
+/* Brand row – more comfortable padding */
+.brand-row {
+  display: flex;
+  min-height: 4.5rem;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.8rem 1.2rem;
+  flex-shrink: 0;
+}
+.brand-copy h1 {
+  color: #2c7be5;
+  font-size: 1.5rem;
+  font-weight: 800;
+  line-height: 1;
+  margin: 0;
+}
+.brand-copy p {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #2c7be5;
+  margin: 0;
+}
+
+/* Navigation list – takes remaining space */
+.nav-list {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.2rem;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+}
+
+/* Section headers (if used) */
+.nav-section {
+  margin: 0.8rem 0.5rem 0.35rem;
+  border-bottom: 1px solid #d8e2ef;
+  color: #9da9bb;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.8;
+  letter-spacing: 0.3px;
+}
+.nav-section-spaced {
+  margin-top: 1rem;
+}
+
+/* Nav items – better tap targets */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  color: #5e6e82;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 0.4rem 0.8rem;
+  text-decoration: none;
+  transition: background 0.2s ease;
+}
 .nav-item i {
   width: 1.2rem;
+  color: #748194;
   text-align: center;
+  font-size: 1rem;
 }
-
 .nav-item strong {
   margin-left: auto;
-  min-width: 1.35rem;
+  min-width: 1.4rem;
   border-radius: 999px;
-  background: #ef4444;
+  background: #f59e0b;
   color: #ffffff;
   font-size: 0.7rem;
-  line-height: 1.35rem;
+  line-height: 1.4rem;
   text-align: center;
+  padding: 0 0.25rem;
 }
-
 .nav-item:hover,
 .nav-active {
-  background: rgba(20, 184, 166, 0.14);
-  color: #ffffff;
+  background: rgba(44, 123, 229, 0.1);
+  color: #2c7be5;
+}
+.nav-active i {
+  color: #2c7be5;
 }
 
-.nav-active {
-  box-shadow: inset 3px 0 0 #14b8a6;
-}
-
+/* Footer – always at bottom, with existing border+shadow   */
 .sidebar-status {
   display: flex;
   align-items: center;
   gap: 0.75rem;
   margin: 0.75rem;
-  border-radius: 0.85rem;
-  background: rgba(255, 255, 255, 0.08);
-  padding: 0.75rem;
+  border: 1px solid #d8e2ef;
+  border-radius: 0.5rem;
+  background: #f8fafc;  /* was #ffffff */
+  padding: 0.7rem;
+  box-shadow: 0 0.25rem 0.75rem rgba(15, 23, 42, 0.05);
+  flex-shrink: 0;
 }
 
-.sidebar-status-collapsed {
+/* Collapsed footer: center and show only logout button */
+.sidebar-collapsed .sidebar-status {
   justify-content: center;
+  gap: 0;
+}
+.sidebar-collapsed .admin-avatar,
+.sidebar-collapsed .admin-copy {
+  display: none;
+}
+.sidebar-collapsed .sidebar-status button {
+  margin: 0;
 }
 
+/* Avatar – always visible when expanded/hovered */
 .admin-avatar {
   display: grid;
-  width: 2.35rem;
-  height: 2.35rem;
+  width: 2.4rem;
+  height: 2.4rem;
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  background: #e0f2fe;
-  color: #0f172a;
-  font-size: 0.78rem;
+  background: #1e3a8a;
+  color: #ffffff;
+  font-size: 0.85rem;
   font-weight: 800;
 }
-
 .admin-copy {
   min-width: 0;
   flex: 1;
 }
-
 .admin-copy p {
-  color: #ffffff;
-  font-size: 0.86rem;
+  color: #344050;
+  font-size: 0.85rem;
   font-weight: 700;
+  margin: 0 0 0.1rem;
 }
-
 .admin-copy span {
   display: block;
   overflow: hidden;
-  color: #94a3b8;
-  font-size: 0.72rem;
+  color: #8a97ad;
+  font-size: 0.7rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* Logout button – always visible */
 .sidebar-status button {
-  color: #94a3b8;
+  background: none;
+  border: none;
+  color: #8a97ad;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 0.4rem;
+  border-radius: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s ease;
 }
-
 .sidebar-status button:hover {
-  color: #ffffff;
+  background: rgba(44, 123, 229, 0.1);
+  color: #2c7be5;
 }
 
+/* Mobile slide‑out panel (no hover expansion) */
 @media (max-width: 767px) {
-  .sidebar,
-  .sidebar-collapsed {
-    width: min(18rem, 86vw);
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 40;
     transform: translateX(-100%);
+    transition: transform 180ms ease;
+    width: 16.25rem;
+    height: 100vh;
   }
-
+  .sidebar-collapsed {
+    width: 16.25rem; /* on mobile, collapsed is ignored when open */
+  }
   .sidebar-open {
     transform: translateX(0);
   }
-
-  .mobile-close {
-    display: inline-flex;
+  /* Mobile always shows avatar and user info when sidebar is open */
+  .sidebar-collapsed .admin-avatar,
+  .sidebar-collapsed .admin-copy {
+    display: flex; /* or grid for avatar */
+  }
+  .sidebar-collapsed .admin-avatar {
+    display: grid;
+  }
+  .sidebar-collapsed .sidebar-status {
+    justify-content: flex-start;
+    gap: 0.75rem;
+  }
+  /* No hover expansion on mobile */
+  .sidebar-collapsed:hover {
+    width: 16.25rem;
+    margin-right: 0;
+    box-shadow: none;
+  }
+  .sidebar-collapsed:hover .nav-item span,
+  .sidebar-collapsed:hover .admin-copy {
+    display: block;
   }
 }

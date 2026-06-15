@@ -1,17 +1,12 @@
-<aside class="sidebar" [class.sidebar-collapsed]="collapsed" [class.sidebar-open]="mobileOpen">
+<aside 
+  class="sidebar" 
+  [class.sidebar-collapsed]="collapsed" 
+  [class.sidebar-open]="mobileOpen"
+>
   <div class="brand-row">
-    <div class="brand-mark">
-      <span>E</span>
+    <div class="brand-copy">
+      <p>Admin Console</p>
     </div>
-    @if (!collapsed) {
-      <div class="brand-copy">
-        <h1>EscrowX</h1>
-        <p>Admin Console</p>
-      </div>
-    }
-    <button type="button" class="mobile-close" aria-label="Close navigation" (click)="closeMobile.emit()">
-      <i class="fas fa-times"></i>
-    </button>
   </div>
 
   <nav class="nav-list" aria-label="Primary navigation">
@@ -23,10 +18,8 @@
         [title]="collapsed ? item.label : ''"
       >
         <i class="fas {{ item.icon }}"></i>
-        @if (!collapsed) {
-          <span>{{ item.label }}</span>
-        }
-        @if (item.count && !collapsed) {
+        <span>{{ item.label }}</span>
+        @if (item.count) {
           <strong>{{ item.count }}</strong>
         }
       </a>
@@ -37,14 +30,12 @@
     <div class="admin-avatar">
       {{ currentUser?.email?.charAt(0)?.toUpperCase() || 'A' }}
     </div>
-    @if (!collapsed) {
-      <div class="admin-copy">
-        <p>{{ userDisplayName }}</p>
-        <span>{{ userEmail }}</span>
-      </div>
-      <button type="button" aria-label="Sign out" (click)="logout()">
-        <i class="fas fa-sign-out-alt"></i>
-      </button>
-    }
+    <div class="admin-copy">
+      <p>{{ userDisplayName }}</p>
+      <span>{{ userEmail }}</span>
+    </div>
+    <button type="button" aria-label="Sign out" (click)="logout()">
+      <i class="fas fa-sign-out-alt"></i>
+    </button>
   </div>
 </aside>
