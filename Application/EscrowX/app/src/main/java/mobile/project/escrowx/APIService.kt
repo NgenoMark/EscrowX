@@ -65,16 +65,11 @@ interface AuthApiService {
         @Query("status") status: String? = null
     ): Response<List<EscrowResponse>>
 
-
     @GET("api/v1/transactions/seller/{sellerId}")
     suspend fun getTransactionsBySeller(
         @Path("sellerId") sellerId: String,
-        @Query("status") status: String? = null,
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20
-    ): Response<PageResponse<EscrowResponse>>
-    @GET("api/v1/transactions")
-    suspend fun getTransactions(): Response<List<TransactionResponse>>
+        @Query("status") status: String? = null
+    ): Response<List<EscrowResponse>>
 
     @GET("api/v1/transactions/{id}")
     suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
@@ -123,10 +118,9 @@ interface AuthApiService {
         @Body request: RaiseDisputeRequest
     ): Response<DisputeResponse>
 
-    @POST("api/v1/transactions/{id}/accept-transaction")
-    suspend fun acceptTransaction(@Path("id") transactionId: String): Response<TransactionResponse>
+    @GET("api/v1/disputes/{id}")
+    suspend fun getDisputeById(@Path("id") id: String): Response<DisputeResponse>
 }
-
 
 object RetrofitClient {
     private const val BASE_URL = "https://mullets-handset-pampered.ngrok-free.dev"
@@ -205,17 +199,18 @@ data class EscrowResponse(
 
 data class PageResponse<T>(
     val content: List<T>,
-    val pageable: Pageable?,
+    val pageable: PageableInfo,
     val totalPages: Int,
     val totalElements: Long,
     val last: Boolean,
     val size: Int,
     val number: Int,
-    val sort: Sort?,
+    val sort: SortInfo,
     val first: Boolean,
     val numberOfElements: Int,
     val empty: Boolean
 )
+
 data class PageableInfo(
     val pageNumber: Int,
     val pageSize: Int,
@@ -224,25 +219,12 @@ data class PageableInfo(
     val paged: Boolean,
     val unpaged: Boolean
 )
-data class Pageable(
-    val sort: Sort?,
-    val offset: Int,
-    val pageNumber: Int,
-    val pageSize: Int,
-    val paged: Boolean,
-    val unpaged: Boolean
-)
-data class Sort(
-    val empty: Boolean,
-    val sorted: Boolean,
-    val unsorted: Boolean
-)
+
 data class SortInfo(
     val empty: Boolean,
     val sorted: Boolean,
     val unsorted: Boolean
 )
-
 
 data class UpdateProfileRequest(
     val displayName: String? = null,
@@ -275,23 +257,6 @@ data class DisputeResponse(
     val category: String,
     val status: String,
     val createdAt: String
-)
-data class TransactionResponse(
-    val id: String,
-    val reference: String?,
-    val buyerId: String,
-    val sellerId: String,
-    val title: String,
-    val productDescription: String,
-    val amount: Double,
-    val deliveryAddress: String,
-    val initialDepositAmount: Double?,
-    val currency: String?,
-    val status: String,
-    val deliveryDueAt: String,
-    val autoReleaseAt: String?,
-    val createdAt: String,
-    val updatedAt: String
 )
 
 // Additional auth DTOs (if not already present elsewhere)

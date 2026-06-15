@@ -29,6 +29,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.EscrowResponse
 import mobile.project.escrowx.RetrofitClient
@@ -242,6 +244,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
     val session = SessionManager(context)
 
     var realIncomingTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
+    var sellerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isLoadingReal by remember { mutableStateOf(true) }
     var realError by remember { mutableStateOf<String?>(null) }
 
@@ -274,25 +277,42 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                 val buyerId = session.getUserId()
                 if (token.isNullOrBlank() || buyerId.isNullOrBlank()) {
                     realError = "Session expired. Please login again."
+                    sellerNamesById = emptyMap()
                     isLoadingReal = false
                     return@launch
                 }
-                // ✅ Remove page & size parameters; response is List<EscrowResponse>
-                val response = RetrofitClient.authenticated(token).getTransactionsByBuyer(
-                    buyerId = buyerId,
-                    status = "CREATED"
-                )
+                val api = RetrofitClient.authenticated(token)
+                val response = api.getTransactionsByBuyer(buyerId)
                 if (response.isSuccessful && response.body() != null) {
-                    val list = response.body()!!
-                    if (list.isNotEmpty()) {
-                        realIncomingTransactions = list
-                    } else {
-                        realError = "No pending transactions"
+                    val createdTransactions = response.body()!!.filter {
+                        it.status.equals("CREATED", ignoreCase = true)
+                    }
+                    realIncomingTransactions = createdTransactions
+
+                    val sellerIds = createdTransactions.map { it.sellerId }.distinct()
+                    sellerNamesById = coroutineScope {
+                        sellerIds.map { sellerId ->
+                            async {
+                                val sellerName = try {
+                                    val sellerResponse = api.getUserById(sellerId)
+                                    if (sellerResponse.isSuccessful) {
+                                        sellerResponse.body()?.displayName?.takeIf { it.isNotBlank() }
+                                    } else {
+                                        null
+                                    }
+                                } catch (_: Exception) {
+                                    null
+                                }
+                                sellerId to (sellerName ?: "Seller ${sellerId.take(6)}")
+                            }
+                        }.map { it.await() }.toMap()
                     }
                 } else {
+                    sellerNamesById = emptyMap()
                     realError = "Failed to load: ${response.code()}"
                 }
             } catch (_: Exception) {
+                sellerNamesById = emptyMap()
                 realError = "Network error. Please check your connection."
             } finally {
                 isLoadingReal = false
@@ -301,21 +321,31 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
     }
 
     fun acceptTransaction(transactionId: String, onSuccess: () -> Unit) {
+        if (transactionId.startsWith("dummy")) {
+            Toast.makeText(context, "Dummy transaction accepted (simulated)", Toast.LENGTH_SHORT).show()
+            onSuccess()
+            return
+        }
         scope.launch {
             try {
                 val token = session.getAccessToken()
-                if (token.isNullOrBlank()) {
+                val actorUserId = session.getUserId()
+                if (token.isNullOrBlank() || actorUserId.isNullOrBlank()) {
                     Toast.makeText(context, "Session expired", Toast.LENGTH_SHORT).show()
                     return@launch
                 }
-                val response = RetrofitClient.authenticated(token).acceptTransaction(transactionId)
+                val response = RetrofitClient.authenticated(token)
+                    .acceptTransaction(transactionId, actorUserId)
                 if (response.isSuccessful) {
                     Toast.makeText(context, "Transaction accepted!", Toast.LENGTH_LONG).show()
                     onSuccess()
                 } else {
+                    val errorBody = response.errorBody()?.string()
+                    println("Accept failed: ${response.code()} - $errorBody")
                     Toast.makeText(context, "Accept failed: ${response.code()}", Toast.LENGTH_SHORT).show()
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                println("Error accepting transaction: ${e.message}")
                 Toast.makeText(context, "Error accepting transaction", Toast.LENGTH_SHORT).show()
             }
         }
@@ -325,11 +355,11 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         loadRealIncoming()
     }
 
-    val combinedItems = remember(realIncomingTransactions) {
+    val combinedItems = remember(realIncomingTransactions, sellerNamesById) {
         val realItems = realIncomingTransactions.map { txn ->
             IncomingRequestItem(
                 id = txn.id,
-                sellerName = "Seller ${txn.sellerId.take(6)}",
+                sellerName = sellerNamesById[txn.sellerId] ?: "Seller ${txn.sellerId.take(6)}",
                 itemTitle = txn.title,
                 amount = formatAmount(txn.amount),
                 status = txn.status
@@ -482,12 +512,8 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                             IncomingRequestCard(
                                 request = request,
                                 onAccept = {
-                                    if (request.id.startsWith("dummy")) {
-                                        Toast.makeText(context, "This is a demo request. Accept action is simulated.", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        acceptTransaction(request.id) {
-                                            loadRealIncoming()
-                                        }
+                                    acceptTransaction(request.id) {
+                                        loadRealIncoming()
                                     }
                                 },
                                 onDecline = {
