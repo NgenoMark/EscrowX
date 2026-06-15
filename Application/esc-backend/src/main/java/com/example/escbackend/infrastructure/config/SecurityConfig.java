@@ -22,7 +22,10 @@ public class SecurityConfig {
                                 "/swagger-ui/**",
                                 "/v3/api-docs/**",
                                 "/swagger-ui.html",
-                                "/webjars/**"
+                                "/webjars/**",
+                                "/api/v1/payments/mpesa/b2c-result",
+                                "/api/v1/payments/mpesa/b2c-timeout",
+                                "/api/v1/payments/mpesa/stk-callback"
                         ).permitAll()
                         // Permit your API endpoints
                         .requestMatchers("/api/v1/**").permitAll()
