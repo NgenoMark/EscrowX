@@ -39,7 +39,6 @@ export class LayoutComponent implements OnInit {
       this.mobileSidebarOpen = !this.mobileSidebarOpen;
       return;
     }
-
     this.sidebarCollapsed = !this.sidebarCollapsed;
   }
 

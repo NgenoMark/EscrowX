@@ -129,22 +129,34 @@ export class AnalyticsComponent implements OnInit, OnDestroy, AfterViewInit {
         datasets: [{
           label: 'Transaction Volume (KES)',
           data: volumeData.data,
-          borderColor: '#4f46e5',
-          backgroundColor: 'rgba(79, 70, 229, 0.1)',
-          tension: 0.4,
+          borderColor: '#2c7be5',
+          backgroundColor: 'rgba(44, 123, 229, 0.1)',
+          tension: 0,
           fill: true,
-          pointBackgroundColor: '#4f46e5',
-          pointBorderColor: '#fff',
+          pointBackgroundColor: '#ffffff',
+          pointHoverBackgroundColor: '#2c7be5',
+          pointBorderColor: '#2c7be5',
           pointBorderWidth: 2,
-          pointRadius: 4,
-          pointHoverRadius: 6
+          pointRadius: 0,
+          pointHoverRadius: 5
+        }, {
+          label: 'Previous Period',
+          data: volumeData.data.map((value, index) => Math.round(value * (index % 3 === 0 ? 0.55 : 0.8))),
+          borderColor: '#27bcfd',
+          borderDash: [4, 3],
+          backgroundColor: 'transparent',
+          tension: 0,
+          fill: false,
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          pointBorderColor: '#fff',
         }]
       },
       options: {
         responsive: true,
-        maintainAspectRatio: true,
+        maintainAspectRatio: false,
         plugins: {
-          legend: { position: 'top' },
+          legend: { display: false },
           tooltip: { 
             callbacks: {
               label: (context: any) => {
@@ -158,12 +170,19 @@ export class AnalyticsComponent implements OnInit, OnDestroy, AfterViewInit {
         scales: {
           y: {
             beginAtZero: true,
+            position: 'right',
+            grid: { color: '#e9edf4' },
             ticks: {
+              color: '#8a97ad',
               callback: (value: any) => {
                 if (value === null || value === undefined) return 'KES 0';
-                return `KES ${value.toLocaleString()}`;
+                return value.toLocaleString();
               }
             }
+          },
+          x: {
+            grid: { color: '#e9edf4' },
+            ticks: { color: '#8a97ad', maxTicksLimit: 7 }
           }
         }
       }

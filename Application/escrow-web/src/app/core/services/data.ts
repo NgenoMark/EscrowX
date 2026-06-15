@@ -1,9 +1,9 @@
 import { Injectable, inject, signal } from '@angular/core';
-import { forkJoin } from 'rxjs';
-import { environment } from '../../../environments/environment';
-import { Transaction } from '../models/transaction';
+import { catchError, forkJoin, of } from 'rxjs';
+import { Transaction, EscrowTransactionStatus } from '../models/transaction';
 import { User } from '../models/user';
 import { Dispute } from '../models/dispute';
+import { AppEnvironmentService } from '../config/app-environment';
 import { ApiEscrowTransaction, ApiService, ApiUserDetails } from './api.service';
 import { MockDataService } from './mock-data.service';
 import { NotificationService } from './notifications';
@@ -20,6 +20,7 @@ export interface AuditLog {
   providedIn: 'root'
 })
 export class DataService {
+  private appEnvironment = inject(AppEnvironmentService);
   private notificationService = inject(NotificationService);
   private apiService = inject(ApiService);
   private mockDataService = inject(MockDataService);
@@ -39,7 +40,7 @@ export class DataService {
   }
 
   private loadConfiguredData(): void {
-    if (environment.useMockData) {
+    if (this.appEnvironment.useMockData) {
       this.loadMockDataFromService();
       return;
     }
@@ -56,21 +57,38 @@ export class DataService {
 
   private loadApiData(): void {
     forkJoin({
-      usersPage: this.apiService.getUsers({ size: 500 }),
-      transactionsPage: this.apiService.getTransactions({ size: 500 })
+      usersPage: this.apiService.getUsers({ size: 500 }).pipe(catchError(() => of(null))),
+      transactionsPage: this.apiService.getTransactions({ size: 500 }).pipe(catchError(() => of(null))),
+      disputesResponse: this.apiService.getDisputes({ limit: 500 }).pipe(catchError(() => of(null))),
+      auditResponse: this.apiService.getAuditLogs({ limit: 500 }).pipe(catchError(() => of(null)))
     }).subscribe({
-      next: ({ usersPage, transactionsPage }) => {
-        const users = usersPage.content.map(user => this.mapApiUser(user));
+      next: ({ usersPage, transactionsPage, disputesResponse, auditResponse }) => {
+        const users = usersPage?.content.map(user => this.mapApiUser(user)) ?? [];
         this.usersSignal.set(users);
-        this.transactionsSignal.set(transactionsPage.content.map(transaction => this.mapApiTransaction(transaction, users)));
+        this.transactionsSignal.set(transactionsPage?.content.map(transaction => this.mapApiTransaction(transaction, users)) ?? []);
+        this.disputesSignal.set(this.extractApiList(disputesResponse).map(dispute => this.mapApiDispute(dispute, users)));
+        this.auditLogsSignal.set(this.extractApiList(auditResponse).map(log => this.mapApiAuditLog(log, users)));
+
+        if (!usersPage || !transactionsPage || !disputesResponse || !auditResponse) {
+          this.notificationService.add('Partial API Data', 'One or more admin API endpoints could not be loaded.', 'warning');
+        }
       },
       error: () => {
         this.notificationService.add('API Unavailable', 'Could not load data from the configured API URL.', 'danger');
       }
     });
+  }
 
-    this.mockDataService.getDisputes().subscribe(disputes => this.disputesSignal.set(disputes));
-    this.mockDataService.getAuditLogs().subscribe(logs => this.auditLogsSignal.set(logs));
+  private extractApiList(response: unknown): any[] {
+    if (!response) return [];
+    const value = response as { data?: unknown; content?: unknown };
+    if (Array.isArray(value)) return value;
+    if (Array.isArray(value.content)) return value.content;
+    if (Array.isArray(value.data)) return value.data;
+    if (value.data && Array.isArray((value.data as { content?: unknown }).content)) {
+      return (value.data as { content: any[] }).content;
+    }
+    return [];
   }
 
   private mapApiUser(user: ApiUserDetails): User {
@@ -78,9 +96,9 @@ export class DataService {
       id: user.id,
       phone: user.phone,
       email: user.email,
-      role: user.role,
-      status: user.status,
-      blacklistStatus: user.blacklistStatus ?? 'NOT_BLACKLISTED',
+      role: user.role as 'BUYER' | 'SELLER' | 'ADMIN' | 'SUPER_ADMIN',
+      status: user.status as 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED',
+      blacklistStatus: (user.blacklistStatus as 'NOT_BLACKLISTED' | 'TEMPORARILY_MUTED' | 'PERMANENTLY_BANNED' | 'UNDER_INVESTIGATION') ?? 'NOT_BLACKLISTED',
       displayName: user.displayName || user.email || user.phone,
       businessName: user.businessName ?? null,
       avatarUrl: user.avatarUrl ?? null,
@@ -106,13 +124,58 @@ export class DataService {
       amount: Number(transaction.amount),
       initialDepositAmount: transaction.initialDepositAmount == null ? undefined : Number(transaction.initialDepositAmount),
       currency: transaction.currency,
-      status: transaction.status,
+      status: transaction.status as EscrowTransactionStatus,
       created: transaction.createdAt,
       createdAt: transaction.createdAt,
       updatedAt: transaction.updatedAt ?? undefined,
       deliveryDueAt: transaction.deliveryDueAt ?? undefined,
       autoReleaseAt: transaction.autoReleaseAt ?? undefined,
       autoReleaseDate: transaction.autoReleaseAt ?? undefined
+    };
+  }
+
+  private mapApiDispute(dispute: any, users: User[]): Dispute {
+    const transactionId = dispute.transactionId ?? dispute.transaction_id ?? dispute.txId ?? '';
+    const raisedById = dispute.raisedBy ?? dispute.raised_by ?? dispute.raisedById ?? '';
+    const raisedByUser = users.find(user => user.id === raisedById);
+    const transaction = this.transactionsSignal().find(tx => tx.id === transactionId);
+    const category = dispute.category ?? 'OTHER';
+
+    return {
+      id: String(dispute.id ?? ''),
+      txId: String(transactionId),
+      transactionId: String(transactionId),
+      raisedById: String(raisedById),
+      raisedBy: raisedByUser?.displayName ?? String(raisedById || 'Unknown user'),
+      raisedByRole: raisedByUser?.role === 'SELLER' ? 'SELLER' : 'BUYER',
+      against: transaction?.seller ?? transaction?.buyer ?? 'Unknown party',
+      assignedAdminId: dispute.assignedAdminId ?? dispute.assigned_admin_id,
+      category,
+      reason: dispute.reason ?? category,
+      description: dispute.description ?? '',
+      evidence: dispute.evidence ?? [],
+      status: dispute.status === 'OPEN' ? 'PENDING' : dispute.status,
+      amount: Number(dispute.amount ?? transaction?.amount ?? 0),
+      createdAt: dispute.createdAt ?? dispute.created_at ?? '',
+      updatedAt: dispute.updatedAt ?? dispute.updated_at,
+      resolvedAt: dispute.resolvedAt ?? dispute.resolved_at,
+      resolution: dispute.resolution
+    };
+  }
+
+  private mapApiAuditLog(log: any, users: User[]): AuditLog {
+    const actorId = log.actorUserId ?? log.actor_user_id;
+    const actor = users.find(user => user.id === actorId);
+    const entityType = log.entityType ?? log.entity_type ?? '';
+    const entityId = log.entityId ?? log.entity_id ?? '';
+    const metadata = log.metadata ? JSON.stringify(log.metadata) : '';
+
+    return {
+      timestamp: log.createdAt ?? log.created_at ?? log.timestamp ?? '',
+      admin: actor?.email ?? actorId ?? 'system',
+      action: log.action ?? 'UNKNOWN_ACTION',
+      target: [entityType, entityId].filter(Boolean).join(': ') || 'system',
+      details: metadata || log.details || ''
     };
   }
 
@@ -214,42 +277,42 @@ export class DataService {
     // Mock disputes
     this.disputesSignal.set([
       {
-        id: "DSP-101", 
-        txId: "ESC-TX1003", 
-        raisedBy: "Peter Omondi", 
+        id: "DSP-101",
+        txId: "ESC-TX1003",
+        raisedBy: "Peter Omondi",
         raisedByRole: "BUYER",
-        against: "Faith Wanjiku", 
+        against: "Faith Wanjiku",
         reason: "Item never delivered after payment",
         description: "I paid KES 23,000 for a laptop on May 20th.",
-        evidence: ["screenshot_wa.png", "payment_receipt.jpg"], 
-        status: "PENDING", 
-        amount: 23000, 
+        evidence: ["screenshot_wa.png", "payment_receipt.jpg"],
+        status: "PENDING",
+        amount: 23000,
         createdAt: "2025-05-26"
       },
       {
-        id: "DSP-102", 
-        txId: "ESC-TX1006", 
-        raisedBy: "Brian Odhiambo", 
+        id: "DSP-102",
+        txId: "ESC-TX1006",
+        raisedBy: "Brian Odhiambo",
         raisedByRole: "BUYER",
-        against: "Peter Omondi", 
+        against: "Peter Omondi",
         reason: "Received counterfeit phone",
         description: "The phone I received is clearly counterfeit.",
-        evidence: ["counterfeit_photo.jpg"], 
-        status: "PENDING", 
-        amount: 9200, 
+        evidence: ["counterfeit_photo.jpg"],
+        status: "PENDING",
+        amount: 9200,
         createdAt: "2025-05-24"
       },
       {
-        id: "DSP-103", 
-        txId: "ESC-TX1001", 
-        raisedBy: "Mercy Achieng", 
+        id: "DSP-103",
+        txId: "ESC-TX1001",
+        raisedBy: "Mercy Achieng",
         raisedByRole: "SELLER",
-        against: "John Kamau", 
+        against: "John Kamau",
         reason: "Buyer confirmed then disputed",
         description: "The buyer confirmed receipt then opened a dispute.",
-        evidence: ["delivery_proof.png"], 
-        status: "UNDER_REVIEW", 
-        amount: 12500, 
+        evidence: ["delivery_proof.png"],
+        status: "UNDER_REVIEW",
+        amount: 12500,
         createdAt: "2025-05-28"
       }
     ]);
