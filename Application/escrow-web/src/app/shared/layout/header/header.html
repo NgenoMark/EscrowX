@@ -1,30 +1,41 @@
 <header class="topbar">
   <div class="topbar-inner">
-    <div class="flex items-center gap-3">
-      <button type="button" class="icon-button" aria-label="Toggle navigation" (click)="toggleSidebar.emit()">
-        <i class="fas fa-bars"></i>
+    <div class="topbar-left">
+      <button 
+        type="button" 
+        class="icon-button menu-button" 
+        [attr.aria-label]="isSidebarVisible ? 'Close navigation' : 'Open navigation'"
+        (click)="toggleSidebar.emit()"
+      >
+        <i class="fas" [class.fa-bars]="!isSidebarVisible" [class.fa-times]="isSidebarVisible"></i>
       </button>
-      <div>
-        <p class="section-kicker">Operations</p>
-        <h2 class="topbar-title">{{ pageTitle }}</h2>
-      </div>
-    </div>
-    
-    <div class="topbar-actions">
+
+      <div class="logo-text">EscrowX</div>
+
       <button type="button" class="search-trigger" (click)="openGlobalSearch()">
         <i class="fas fa-search"></i>
         <span>Search...</span>
-        <kbd>⌘K</kbd>
+      </button>
+    </div>
+
+    <div class="topbar-actions">
+      <button type="button" class="icon-button" aria-label="Settings">
+        <i class="fas fa-cog"></i>
       </button>
 
       <div class="notification-wrap">
-        <button type="button" class="icon-button notification-button" aria-label="Notifications" (click)="toggleNotifications()">
+        <button 
+          type="button" 
+          class="icon-button notification-button" 
+          aria-label="Notifications"
+          (click)="toggleNotifications($event)"
+        >
           <i class="fas fa-bell"></i>
           @if (notificationService.unreadCount() > 0) {
             <span class="notification-badge">{{ notificationService.unreadCount() }}</span>
           }
         </button>
-        
+
         @if (notificationsOpen()) {
           <div class="notification-panel">
             <div class="notification-header">
@@ -32,9 +43,7 @@
                 <p class="section-kicker">Alerts</p>
                 <h3>Notifications</h3>
               </div>
-              <button type="button" class="text-button" (click)="notificationService.markAllRead()">
-                Mark all read
-              </button>
+              <button type="button" class="text-button" (click)="notificationService.markAllRead()">Mark all read</button>
             </div>
             <div class="notification-list">
               @for (notification of notificationService.notifications(); track notification.id) {
@@ -53,9 +62,7 @@
                 <p class="notification-empty">No notifications</p>
               }
             </div>
-            <button type="button" class="notification-clear" (click)="notificationService.clearRead()">
-              Clear read
-            </button>
+            <button type="button" class="notification-clear" (click)="notificationService.clearRead()">Clear read</button>
           </div>
         }
       </div>
@@ -91,26 +98,12 @@
 
       <div class="filter-chips">
         @for (filter of availableFilters; track filter) {
-          <button
-            type="button"
-            [class]="getFilterChipClass(filter)"
-            (click)="setFilter(filter)"
-          >
-            @if (filter === 'all') {
-              <i class="fas fa-globe"></i>
-            }
-            @if (filter === 'users') {
-              <i class="fas fa-user-circle"></i>
-            }
-            @if (filter === 'transactions') {
-              <i class="fas fa-exchange-alt"></i>
-            }
-            @if (filter === 'disputes') {
-              <i class="fas fa-gavel"></i>
-            }
-            @if (filter === 'audit') {
-              <i class="fas fa-history"></i>
-            }
+          <button type="button" [class]="getFilterChipClass(filter)" (click)="setFilter(filter)">
+            @if (filter === 'all') { <i class="fas fa-globe"></i> }
+            @if (filter === 'users') { <i class="fas fa-user-circle"></i> }
+            @if (filter === 'transactions') { <i class="fas fa-exchange-alt"></i> }
+            @if (filter === 'disputes') { <i class="fas fa-gavel"></i> }
+            @if (filter === 'audit') { <i class="fas fa-history"></i> }
             {{ filter | titlecase }}
           </button>
         }
@@ -118,37 +111,19 @@
 
       <div class="modal-body">
         @if (isSearching()) {
-          <div class="loading-state">
-            <i class="fas fa-spinner fa-spin"></i>
-            <span>Searching...</span>
-          </div>
+          <div class="empty-state"><i class="fas fa-spinner fa-spin"></i><p>Searching...</p></div>
         } @else if (!searchQuery()) {
-          <div class="empty-state">
-            <i class="fas fa-search"></i>
-            <p>Start typing to search across all records</p>
-            <small>Try searching for users, transactions, or disputes</small>
-          </div>
+          <div class="empty-state"><i class="fas fa-search"></i><p>Start typing to search across all records</p></div>
         } @else if (globalResults().length === 0) {
-          <div class="empty-state">
-            <i class="fas fa-inbox"></i>
-            <p>No results found for "{{ searchQuery() }}"</p>
-            <small>Try different keywords or adjust your filters</small>
-          </div>
+          <div class="empty-state"><i class="fas fa-inbox"></i><p>No results found for "{{ searchQuery() }}"</p></div>
         } @else {
           <div class="results-list">
-            <div class="results-header">
-              <span>{{ globalResults().length }} result{{ globalResults().length !== 1 ? 's' : '' }}</span>
-            </div>
+            <div class="results-header">{{ globalResults().length }} result{{ globalResults().length !== 1 ? 's' : '' }}</div>
             @for (result of globalResults(); track result.title + result.type) {
               <button type="button" class="result-item" (click)="openResult(result)">
-                <div class="result-icon">
-                  <i [class]="result.icon"></i>
-                </div>
+                <div class="result-icon"><i [class]="result.icon"></i></div>
                 <div class="result-content">
-                  <div class="result-title">
-                    <strong>{{ result.title }}</strong>
-                    <span class="result-type">{{ result.type }}</span>
-                  </div>
+                  <div class="result-title"><strong>{{ result.title }}</strong><span class="result-type">{{ result.type }}</span></div>
                   <div class="result-detail">{{ result.detail }}</div>
                 </div>
                 <i class="fas fa-chevron-right result-arrow"></i>
@@ -156,14 +131,6 @@
             }
           </div>
         }
-      </div>
-
-      <div class="modal-footer">
-        <div class="keyboard-shortcuts">
-          <span><kbd>↑</kbd> <kbd>↓</kbd> to navigate</span>
-          <span><kbd>Enter</kbd> to select</span>
-          <span><kbd>Esc</kbd> to close</span>
-        </div>
       </div>
     </div>
   </div>

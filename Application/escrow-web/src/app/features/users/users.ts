@@ -1,8 +1,9 @@
-import { Component, inject, signal, computed } from '@angular/core';
+import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { DataService } from '../../core/services/data';
 import { SearchService } from '../../core/services/search';
+import { ApiService, ApiUserDetails } from '../../core/services/api.service';
 import { User } from '../../core/models/user';
 
 @Component({
@@ -12,43 +13,67 @@ import { User } from '../../core/models/user';
   templateUrl: './users.html',
   styleUrls: ['./users.css']
 })
-export class UsersComponent {
-  // Make dataService public so it can be accessed in the template
-  public dataService = inject(DataService);
+export class UsersComponent implements OnInit {
+  private dataService = inject(DataService);
   private searchService = inject(SearchService);
-  
+  private apiService = inject(ApiService);
+
+  // Local signal to hold users fetched directly from API
+  private directUsersSignal = signal<User[]>([]);
+  directUsers = this.directUsersSignal.asReadonly();
+
   searchTerm = this.searchService.query;
-  
-  // Computed filtered users – using displayName
-  filteredUsers = computed(() => {
+
+  // Method instead of getter – allows template to call filteredUsers()
+  filteredUsers(): User[] {
+    const users = this.directUsersSignal().length ? this.directUsersSignal() : this.dataService.users();
     const term = this.searchTerm().toLowerCase();
-    const users = this.dataService.users();
-    
     if (!term) return users;
-    
-    return users.filter(user => 
+    return users.filter(user =>
       user.displayName.toLowerCase().includes(term) ||
       user.phone.includes(term) ||
       user.email.toLowerCase().includes(term)
     );
-  });
+  }
 
-  // Statistics derived from actual User fields
-  totalUsers = computed(() => this.dataService.users().length);
-  activeUsers = computed(() => this.dataService.users().filter(u => u.status === 'ACTIVE').length);
-  suspendedUsers = computed(() => this.dataService.users().filter(u => u.status === 'SUSPENDED').length);
-  
-  // Phone verification - derived from status
-  phoneVerifiedUsers = computed(() => this.dataService.users().filter(u => u.status === 'ACTIVE').length);
-  
-  // KYC stats - not applicable in base User model, set to 0
-  kycApproved = computed(() => 0);
-  
-  // Blacklisted count based on blacklistStatus
-  blacklistedCount = computed(() => this.dataService.users().filter(u => u.blacklistStatus === 'PERMANENTLY_BANNED').length);
-  
-  // Under investigation count
-  underInvestigationCount = computed(() => this.dataService.users().filter(u => u.blacklistStatus === 'UNDER_INVESTIGATION').length);
+  // Computed signals now call filteredUsers() as a method
+  totalUsers = computed(() => this.filteredUsers().length);
+  activeUsers = computed(() => this.filteredUsers().filter(u => u.status === 'ACTIVE').length);
+  suspendedUsers = computed(() => this.filteredUsers().filter(u => u.status === 'SUSPENDED').length);
+  phoneVerifiedUsers = computed(() => this.filteredUsers().filter(u => u.status === 'ACTIVE').length);
+  blacklistedCount = computed(() => this.filteredUsers().filter(u => u.blacklistStatus === 'PERMANENTLY_BANNED').length);
+  underInvestigationCount = computed(() => this.filteredUsers().filter(u => u.blacklistStatus === 'UNDER_INVESTIGATION').length);
+
+  ngOnInit() {
+    console.log('🟢 UsersComponent – fetching users directly from API');
+    this.apiService.getUsers({ size: 500 }).subscribe({
+      next: (response) => {
+        console.log('✅ Raw API response for users:', response);
+        const users = response.content.map(apiUser => this.mapApiUser(apiUser));
+        this.directUsersSignal.set(users);
+        console.log(`✅ Loaded ${users.length} users directly`);
+      },
+      error: (err) => {
+        console.error('❌ Failed to fetch users directly:', err);
+      }
+    });
+  }
+
+  private mapApiUser(user: ApiUserDetails): User {
+    return {
+      id: user.id,
+      phone: user.phone,
+      email: user.email,
+      role: user.role as any,
+      status: user.status as any,
+      blacklistStatus: (user.blacklistStatus as any) ?? 'NOT_BLACKLISTED',
+      displayName: user.displayName || user.email || user.phone,
+      businessName: user.businessName ?? null,
+      avatarUrl: user.avatarUrl ?? null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt ?? undefined
+    };
+  }
 
   onSearch(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -68,8 +93,9 @@ export class UsersComponent {
       alert('User is already suspended.');
       return;
     }
-    if (confirm(`⚠️ Are you sure you want to SUSPEND ${user.displayName}?\n\nThey will not be able to create new transactions or access their account until activated.`)) {
+    if (confirm(`⚠️ Are you sure you want to SUSPEND ${user.displayName}?`)) {
       this.dataService.suspendUser(user.id);
+      this.ngOnInit(); // refresh list
     }
   }
 
@@ -79,11 +105,12 @@ export class UsersComponent {
       return;
     }
     if (user.blacklistStatus === 'PERMANENTLY_BANNED') {
-      alert('Cannot activate a permanently banned user. Remove from blacklist first.');
+      alert('Cannot activate a permanently banned user.');
       return;
     }
-    if (confirm(`✅ Activate ${user.displayName}?\n\nThey will regain full access to the platform.`)) {
+    if (confirm(`✅ Activate ${user.displayName}?`)) {
       this.dataService.activateUser(user.id);
+      this.ngOnInit();
     }
   }
 
@@ -92,8 +119,9 @@ export class UsersComponent {
       alert('User is already blacklisted.');
       return;
     }
-    if (confirm(`🚫 PERMANENT ACTION: Blacklisting ${user.displayName}\n\nThis will:\n• Permanently block their phone number\n• Prevent future registrations with this email\n• Suspend their current account\n\nThis action is IRREVERSIBLE. Continue?`)) {
+    if (confirm(`🚫 PERMANENT ACTION: Blacklist ${user.displayName}?`)) {
       this.dataService.blacklistUser(user.id);
+      this.ngOnInit();
     }
   }
 
@@ -102,12 +130,12 @@ export class UsersComponent {
       alert('User is not blacklisted.');
       return;
     }
-    if (confirm(`🔄 Remove ${user.displayName} from blacklist?\n\nThey will be able to register again with the same phone/email. Their account status will be reset to pending verification.`)) {
+    if (confirm(`🔄 Remove ${user.displayName} from blacklist?`)) {
       this.dataService.removeBlacklist(user.id);
+      this.ngOnInit();
     }
   }
 
-  // Helper methods for badge styling
   getRoleBadgeClass(role: string): string {
     switch(role) {
       case 'BUYER': return 'bg-blue-100 text-blue-800';
@@ -146,17 +174,14 @@ export class UsersComponent {
     }
   }
 
-  // Helper to check if user is blacklisted
   isBlacklisted(user: User): boolean {
     return user.blacklistStatus === 'PERMANENTLY_BANNED';
   }
 
-  // Helper to check if user can be activated
   canActivate(user: User): boolean {
     return user.status === 'SUSPENDED' && user.blacklistStatus !== 'PERMANENTLY_BANNED';
   }
 
-  // Helper to check if user can be suspended
   canSuspend(user: User): boolean {
     return user.status === 'ACTIVE' && user.blacklistStatus !== 'PERMANENTLY_BANNED';
   }
