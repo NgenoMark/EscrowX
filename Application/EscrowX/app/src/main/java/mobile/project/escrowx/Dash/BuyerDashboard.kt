@@ -30,11 +30,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
-import mobile.project.escrowx.R
+import mobile.project.escrowx.EscrowResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.LoginActivity
 import mobile.project.escrowx.auth.SessionManager
+import java.text.NumberFormat
+import java.util.Locale
 
 class BuyerDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,7 +62,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
 
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
 
-    // Fetch user profile to get display name
     LaunchedEffect(Unit) {
         session.getEmail()?.let { email ->
             viewModel.loadUserData(email)
@@ -71,14 +72,11 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     if (response.isSuccessful) {
                         userProfile = response.body()
                     }
-                } catch (_: Exception) {
-                    // Ignore
-                }
+                } catch (_: Exception) { }
             }
         }
     }
 
-    // Use displayName from profile, fallback to email username
     val displayName = userProfile?.displayName?.takeIf { it.isNotBlank() }
         ?: userProfile?.email?.substringBefore("@")
         ?: userName
@@ -104,28 +102,13 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                                 .background(Color.White.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = "Profile",
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
+                            Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White, modifier = Modifier.size(32.dp))
                         }
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = displayName,
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = session.getEmail() ?: "user@escrowx.com",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 12.sp
-                        )
+                        Text(text = displayName, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(text = session.getEmail() ?: "user@escrowx.com", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
                     }
                 }
-
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                     label = { Text("Settings", fontWeight = FontWeight.Medium) },
@@ -142,18 +125,13 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         unselectedIconColor = Color.DarkGray
                     )
                 )
-
                 NavigationDrawerItem(
                     icon = { Icon(Icons.Default.Info, contentDescription = "App Info") },
                     label = { Text("App Info", fontWeight = FontWeight.Medium) },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        Toast.makeText(
-                            context,
-                            "EscrowX v1.0.0\nSecure mobile escrow for safer transactions",
-                            Toast.LENGTH_LONG
-                        ).show()
+                        Toast.makeText(context, "EscrowX v1.0.0\nSecure mobile escrow for safer transactions", Toast.LENGTH_LONG).show()
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                     colors = NavigationDrawerItemDefaults.colors(
@@ -163,26 +141,11 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         unselectedIconColor = Color.DarkGray
                     )
                 )
-
                 Spacer(modifier = Modifier.weight(1f))
-
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color.LightGray)
-
                 NavigationDrawerItem(
-                    icon = {
-                        Icon(
-                            Icons.AutoMirrored.Filled.Logout,
-                            contentDescription = "Logout",
-                            tint = Color(0xFFBA1A1A)
-                        )
-                    },
-                    label = {
-                        Text(
-                            "Logout",
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFFBA1A1A)
-                        )
-                    },
+                    icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout", tint = Color(0xFFBA1A1A)) },
+                    label = { Text("Logout", fontWeight = FontWeight.Medium, color = Color(0xFFBA1A1A)) },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -199,7 +162,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         unselectedIconColor = Color(0xFFBA1A1A)
                     )
                 )
-
                 Text(
                     text = "EscrowX v1.0",
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -213,14 +175,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = {
-                        Text(
-                            "EscrowX",
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00236F)
-                        )
-                    },
+                    title = { Text("EscrowX", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F)) },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
                             Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color(0xFF00236F))
@@ -257,12 +212,8 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                                     2 -> context.startActivity(Intent(context, ProfileActivity::class.java))
                                 }
                             },
-                            icon = {
-                                Icon(icon, contentDescription = label, tint = if (selectedTab == index) Color(0xFF00236F) else Color.Gray)
-                            },
-                            label = {
-                                Text(label, color = if (selectedTab == index) Color(0xFF00236F) else Color.Gray, fontSize = 11.sp)
-                            }
+                            icon = { Icon(icon, contentDescription = label, tint = if (selectedTab == index) Color(0xFF00236F) else Color.Gray) },
+                            label = { Text(label, color = if (selectedTab == index) Color(0xFF00236F) else Color.Gray, fontSize = 11.sp) }
                         )
                     }
                 }
@@ -287,24 +238,108 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
 
 @Composable
 private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displayName: String) {
-    val disputesCount = 3
+    val scope = rememberCoroutineScope()
+    val session = SessionManager(context)
 
-    val incomingRequests = listOf(
+    var realIncomingTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
+    var isLoadingReal by remember { mutableStateOf(true) }
+    var realError by remember { mutableStateOf<String?>(null) }
+
+    // Dummy data (fallback)
+    val dummyRequests = listOf(
         IncomingRequestItem(
-            id = "1",
+            id = "dummy1",
             sellerName = "Tech Haven KE",
             itemTitle = "Payment for Wireless Mouse",
             amount = "8,200"
         ),
         IncomingRequestItem(
-            id = "2",
+            id = "dummy2",
             sellerName = "Phone Mart Kenya",
             itemTitle = "iPhone 15 Pro",
             amount = "125,000"
         )
     )
 
-    // Mock active escrows with full details for tracking
+    fun formatAmount(amount: Double): String {
+        return NumberFormat.getIntegerInstance(Locale.getDefault()).format(amount)
+    }
+
+    fun loadRealIncoming() {
+        scope.launch {
+            isLoadingReal = true
+            realError = null
+            try {
+                val token = session.getAccessToken()
+                val buyerId = session.getUserId()
+                if (token.isNullOrBlank() || buyerId.isNullOrBlank()) {
+                    realError = "Session expired. Please login again."
+                    isLoadingReal = false
+                    return@launch
+                }
+                // ✅ Remove page & size parameters; response is List<EscrowResponse>
+                val response = RetrofitClient.authenticated(token).getTransactionsByBuyer(
+                    buyerId = buyerId,
+                    status = "CREATED"
+                )
+                if (response.isSuccessful && response.body() != null) {
+                    val list = response.body()!!
+                    if (list.isNotEmpty()) {
+                        realIncomingTransactions = list
+                    } else {
+                        realError = "No pending transactions"
+                    }
+                } else {
+                    realError = "Failed to load: ${response.code()}"
+                }
+            } catch (_: Exception) {
+                realError = "Network error. Please check your connection."
+            } finally {
+                isLoadingReal = false
+            }
+        }
+    }
+
+    fun acceptTransaction(transactionId: String, onSuccess: () -> Unit) {
+        scope.launch {
+            try {
+                val token = session.getAccessToken()
+                if (token.isNullOrBlank()) {
+                    Toast.makeText(context, "Session expired", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val response = RetrofitClient.authenticated(token).acceptTransaction(transactionId)
+                if (response.isSuccessful) {
+                    Toast.makeText(context, "Transaction accepted!", Toast.LENGTH_LONG).show()
+                    onSuccess()
+                } else {
+                    Toast.makeText(context, "Accept failed: ${response.code()}", Toast.LENGTH_SHORT).show()
+                }
+            } catch (_: Exception) {
+                Toast.makeText(context, "Error accepting transaction", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadRealIncoming()
+    }
+
+    val combinedItems = remember(realIncomingTransactions) {
+        val realItems = realIncomingTransactions.map { txn ->
+            IncomingRequestItem(
+                id = txn.id,
+                sellerName = "Seller ${txn.sellerId.take(6)}",
+                itemTitle = txn.title,
+                amount = formatAmount(txn.amount),
+                status = txn.status
+            )
+        }
+        realItems + dummyRequests
+    }
+
+    val disputesCount = 3
+
     val activeEscrows = listOf(
         mapOf(
             "id" to "txn_123",
@@ -336,7 +371,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
-        // Welcome header – shows actual registered name
+        // Welcome header
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -350,7 +385,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // New Escrow button – launches unified CreateEscrowActivity with role BUYER
+        // New Escrow button
         Button(
             onClick = {
                 val intent = Intent(context, CreateEscrowActivity::class.java).apply {
@@ -410,25 +445,58 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            items(incomingRequests) { request ->
-                IncomingRequestCard(
-                    request = request,
-                    onAccept = {
-                        val intent = Intent(context, TransactionDetailsActivity::class.java).apply {
-                            putExtra("TRANSACTION_ID", request.id)
-                            putExtra("SELLER_NAME", request.sellerName)
-                            putExtra("BUSINESS_NAME", request.sellerName)
-                            putExtra("ITEM_TITLE", request.itemTitle)
-                            putExtra("AMOUNT", request.amount)
-                            putExtra("INSPECTION_DAYS", 3)
+        when {
+            isLoadingReal -> {
+                Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Color(0xFF00236F))
+                }
+            }
+            realError != null -> {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF0F0)), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(realError!!, color = Color.Red)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(onClick = { loadRealIncoming() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))) {
+                            Text("Retry")
                         }
-                        context.startActivity(intent)
-                    },
-                    onDecline = {
-                        Toast.makeText(context, "Request declined: ${request.itemTitle}", Toast.LENGTH_SHORT).show()
                     }
-                )
+                }
+            }
+            else -> {
+                if (combinedItems.isEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F3FF))
+                    ) {
+                        Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Info, null, tint = Color(0xFF00236F), modifier = Modifier.size(40.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("No incoming escrow requests", fontSize = 14.sp, color = Color(0xFF444651))
+                            Text("Tap + to create a new escrow.", fontSize = 12.sp, color = Color(0xFF444651))
+                        }
+                    }
+                } else {
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
+                        items(combinedItems) { request ->
+                            IncomingRequestCard(
+                                request = request,
+                                onAccept = {
+                                    if (request.id.startsWith("dummy")) {
+                                        Toast.makeText(context, "This is a demo request. Accept action is simulated.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        acceptTransaction(request.id) {
+                                            loadRealIncoming()
+                                        }
+                                    }
+                                },
+                                onDecline = {
+                                    Toast.makeText(context, "Request declined: ${request.itemTitle}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -492,7 +560,6 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Recent Transactions
         Text("Recent Transactions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -529,6 +596,8 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         Spacer(modifier = Modifier.height(32.dp))
     }
 }
+
+// ===================== COMPOSABLES (FULL IMPLEMENTATIONS) =====================
 
 @Composable
 fun IncomingRequestCard(
@@ -604,9 +673,7 @@ fun IncomingRequestCard(
                     onClick = onDecline,
                     modifier = Modifier.weight(1f).height(40.dp),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = Color(0xFFBA1A1A)
-                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFBA1A1A)),
                     border = BorderStroke(1.dp, Color(0xFFBA1A1A))
                 ) {
                     Text("Decline", fontSize = 13.sp, fontWeight = FontWeight.Medium)
@@ -615,10 +682,7 @@ fun IncomingRequestCard(
                     onClick = onAccept,
                     modifier = Modifier.weight(1f).height(40.dp),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF00236F),
-                        contentColor = Color.White
-                    )
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F), contentColor = Color.White)
                 ) {
                     Text("Accept", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
@@ -662,12 +726,7 @@ fun ActiveEscrowCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
-                Text(
-                    text = amountText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00236F)
-                )
+                Text(text = amountText, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
             }
             Spacer(modifier = Modifier.height(12.dp))
             Surface(
