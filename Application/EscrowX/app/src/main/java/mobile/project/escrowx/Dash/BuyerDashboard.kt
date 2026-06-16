@@ -2,6 +2,9 @@
 
 package mobile.project.escrowx.dash
 
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -47,7 +50,7 @@ class BuyerDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 BuyerDashboardScreen()
             }
         }
@@ -59,6 +62,7 @@ class BuyerDashboardActivity : ComponentActivity() {
 fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
     val context = LocalContext.current
     val session = SessionManager(context)
+    val colorScheme = MaterialTheme.colorScheme
     val userName by viewModel.userName.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -90,7 +94,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
-                drawerContainerColor = Color.White,
+                drawerContainerColor = colorScheme.surface,
                 drawerShape = RoundedCornerShape(16.dp)
             ) {
                 Box(
@@ -126,8 +130,8 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     colors = NavigationDrawerItemDefaults.colors(
                         selectedTextColor = Color(0xFF00236F),
                         selectedIconColor = Color(0xFF00236F),
-                        unselectedTextColor = Color.Black,
-                        unselectedIconColor = Color.DarkGray
+                        unselectedTextColor = colorScheme.onSurface,
+                        unselectedIconColor = colorScheme.onSurfaceVariant
                     )
                 )
                 NavigationDrawerItem(
@@ -142,8 +146,8 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     colors = NavigationDrawerItemDefaults.colors(
                         selectedTextColor = Color(0xFF00236F),
                         selectedIconColor = Color(0xFF00236F),
-                        unselectedTextColor = Color.Black,
-                        unselectedIconColor = Color.DarkGray
+                        unselectedTextColor = colorScheme.onSurface,
+                        unselectedIconColor = colorScheme.onSurfaceVariant
                     )
                 )
                 Spacer(modifier = Modifier.weight(1f))
@@ -171,29 +175,30 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     text = "EscrowX v1.0",
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                     fontSize = 12.sp,
-                    color = Color.Gray,
+                    color = colorScheme.onSurfaceVariant,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
             }
         }
     ) {
         Scaffold(
+            containerColor = colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text("EscrowX", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F)) },
+                    title = { Text("EscrowX", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colorScheme.primary) },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color(0xFF00236F))
+                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = colorScheme.primary)
                         }
                     },
                     actions = {
                         IconButton(onClick = { }) {
-                            Icon(Icons.Default.NotificationsNone, contentDescription = "Notifications", tint = Color(0xFF00236F))
+                            Icon(Icons.Default.NotificationsNone, contentDescription = "Notifications", tint = colorScheme.primary)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.White,
-                        titleContentColor = Color(0xFF00236F)
+                        containerColor = colorScheme.surface,
+                        titleContentColor = colorScheme.primary
                     )
                 )
             },
@@ -236,13 +241,14 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
 
 @Composable
 private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displayName: String) {
+    val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
-    val brandPrimary = Color(0xFF002066)
-    val brandSurface = Color(0xFFF3F6FF)
-    val brandCard = Color.White
-    val brandTextPrimary = Color(0xFF151C27)
-    val brandTextSecondary = Color(0xFF475569)
+    val brandPrimary = colorScheme.primary
+    val brandSurface = colorScheme.background
+    val brandCard = colorScheme.surface
+    val brandTextPrimary = colorScheme.onSurface
+    val brandTextSecondary = colorScheme.onSurfaceVariant
 
     var realIncomingTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
     var sellerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }

@@ -1,4 +1,6 @@
 package mobile.project.escrowx.dash
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.os.Bundle
@@ -48,7 +50,7 @@ class TransactionDetailsActivity : ComponentActivity() {
         val amount = intent.getStringExtra("AMOUNT") ?: "8,200"
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 TransactionDetailsScreen(
                     transactionId = transactionId,
                     sellerName = sellerName,
@@ -73,6 +75,7 @@ fun TransactionDetailsScreen(
     val context = LocalContext.current
     val session = SessionManager(context)
     val scope = rememberCoroutineScope()
+    val colorScheme = MaterialTheme.colorScheme
 
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
     var address by remember { mutableStateOf("") }          // ✅ changed to "address"
@@ -141,6 +144,7 @@ fun TransactionDetailsScreen(
     }
 
     Scaffold(
+        containerColor = colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
@@ -148,15 +152,15 @@ fun TransactionDetailsScreen(
                         "Accept Request",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF151C27)
+                        color = colorScheme.onSurface
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = { (context as? TransactionDetailsActivity)?.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.surface)
             )
         },
         bottomBar = {
@@ -167,7 +171,7 @@ fun TransactionDetailsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFFF9F9FF))
+                .background(colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
@@ -175,7 +179,7 @@ fun TransactionDetailsScreen(
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
                 border = BorderStroke(1.dp, Color(0xFFC5C5D3)),
                 elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
             ) {
@@ -204,7 +208,7 @@ fun TransactionDetailsScreen(
                                 itemTitle,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF151C27)
+                                color = colorScheme.onSurface
                             )
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -220,7 +224,7 @@ fun TransactionDetailsScreen(
                                 Text(
                                     businessName,
                                     fontSize = 12.sp,
-                                    color = Color(0xFF444651)
+                                    color = colorScheme.onSurfaceVariant
                                 )
                             }
                             Surface(

@@ -1,4 +1,6 @@
 package mobile.project.escrowx.seller
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -43,7 +45,7 @@ class CreatePaymentLinkActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 CreatePaymentLinkScreen()
             }
         }

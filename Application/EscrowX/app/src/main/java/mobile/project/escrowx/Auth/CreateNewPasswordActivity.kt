@@ -1,4 +1,6 @@
 package mobile.project.escrowx.auth
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.os.Bundle
@@ -36,7 +38,7 @@ class CreateNewPasswordActivity : ComponentActivity() {
         val otp = intent.getStringExtra("OTP") ?: ""
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 CreateNewPasswordScreen(email = email, otp = otp)
             }
         }

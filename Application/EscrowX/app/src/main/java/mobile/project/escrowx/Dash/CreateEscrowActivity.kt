@@ -1,4 +1,6 @@
 package mobile.project.escrowx.dash
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.os.Bundle
@@ -48,7 +50,7 @@ class CreateEscrowActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val role = intent.getStringExtra("ROLE") ?: "BUYER"
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 UnifiedCreateEscrowScreen(role = role)
             }
         }

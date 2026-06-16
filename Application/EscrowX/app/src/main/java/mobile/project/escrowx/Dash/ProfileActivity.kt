@@ -53,6 +53,8 @@ import mobile.project.escrowx.ui.components.BuyerNavItem
 import mobile.project.escrowx.ui.components.SellerNavBar
 import mobile.project.escrowx.ui.components.SellerNavItem
 import mobile.project.escrowx.ui.components.navigateTab
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -61,8 +63,13 @@ class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
-                ProfileScreenContent()
+            EscrowXTheme(
+                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                dynamicColor = false
+            ) {
+                ProfileScreenContent(
+                    onThemeChanged = { recreate() }
+                )
             }
         }
     }
@@ -70,10 +77,11 @@ class ProfileActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreenContent() {
+fun ProfileScreenContent(onThemeChanged: () -> Unit = {}) {
     val context = LocalContext.current
     val session = SessionManager(context)
     val scope = rememberCoroutineScope()
+    val colorScheme = MaterialTheme.colorScheme
 
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -257,13 +265,24 @@ fun ProfileScreenContent() {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Profile", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF151C27)) },
+                title = {
+                    Text(
+                        "Profile",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { (context as? ProfileActivity)?.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colorScheme.onSurface
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.surface)
             )
         },
         bottomBar = { ProfileBottomNavigationBar(userRole = userRole) }
@@ -272,7 +291,7 @@ fun ProfileScreenContent() {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFFF9F9FF))
+                .background(colorScheme.background)
                 .verticalScroll(rememberScrollState())
         ) {
             when {
@@ -316,7 +335,7 @@ fun ProfileScreenContent() {
                         isSeller = isSeller
                     )
                     Spacer(Modifier.height(24.dp))
-                    SecuritySettings()
+                    SecuritySettings(onThemeChanged = onThemeChanged)
                     Spacer(Modifier.height(24.dp))
                     ProfileSaveButton(isSaving, saveButtonText, isSaveSuccess) { saveChanges() }
                     Spacer(Modifier.height(32.dp))
@@ -328,6 +347,7 @@ fun ProfileScreenContent() {
 
 @Composable
 fun ProfileHero(displayName: String, fullName: String, role: String, profileImageUri: Uri?, onEditClick: () -> Unit) {
+    val colorScheme = MaterialTheme.colorScheme
     val nameToShow = if (displayName.isNotBlank()) displayName else fullName.ifBlank { "User" }
     val isSeller = role.equals("SELLER", ignoreCase = true)
     val badgeText = if (isSeller) "Verified Seller" else "Verified Buyer"
@@ -335,14 +355,17 @@ fun ProfileHero(displayName: String, fullName: String, role: String, profileImag
     val textColor = if (isSeller) Color(0xFF00236F) else Color(0xFF005236)
 
     Column(
-        modifier = Modifier.fillMaxWidth().background(Color.White).padding(vertical = 32.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(colorScheme.surface)
+            .padding(vertical = 32.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(modifier = Modifier.size(96.dp), contentAlignment = Alignment.BottomEnd) {
             Surface(
                 modifier = Modifier.size(96.dp).clip(CircleShape),
-                color = Color(0xFFDCE2F3),
-                border = BorderStroke(2.dp, Color(0xFFB6C4FF))
+                color = colorScheme.surfaceVariant,
+                border = BorderStroke(2.dp, colorScheme.outlineVariant)
             ) {
                 if (profileImageUri != null) {
                     val painter = rememberImagePainter(profileImageUri)
@@ -354,7 +377,12 @@ fun ProfileHero(displayName: String, fullName: String, role: String, profileImag
                     )
                 } else {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(48.dp), tint = Color(0xFF00236F))
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = "Profile",
+                            modifier = Modifier.size(48.dp),
+                            tint = colorScheme.primary
+                        )
                     }
                 }
             }
@@ -370,7 +398,7 @@ fun ProfileHero(displayName: String, fullName: String, role: String, profileImag
             }
         }
         Spacer(Modifier.height(12.dp))
-        Text(nameToShow, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
+        Text(nameToShow, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
         Spacer(Modifier.height(4.dp))
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -435,38 +463,45 @@ fun ProfileFormFields(
 
 @Composable
 fun AccountInfoCard(email: String, phoneNumber: String, role: String, status: String, createdAt: String) {
+    val colorScheme = MaterialTheme.colorScheme
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFE7EEFE))
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Text("Account Information", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+            Text("Account Information", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
             Spacer(Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Column { Text("Email", fontSize = 11.sp, color = Color(0xFF444651)); Text(email.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
-                Column { Text("Role", fontSize = 11.sp, color = Color(0xFF444651)); Text(role, fontSize = 13.sp, fontWeight = FontWeight.Medium) }
+                Column { Text("Email", fontSize = 11.sp, color = colorScheme.onSurfaceVariant); Text(email.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colorScheme.onSurface) }
+                Column { Text("Role", fontSize = 11.sp, color = colorScheme.onSurfaceVariant); Text(role, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colorScheme.onSurface) }
                 Column {
-                    Text("Status", fontSize = 11.sp, color = Color(0xFF444651))
+                    Text("Status", fontSize = 11.sp, color = colorScheme.onSurfaceVariant)
                     Text(status, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = if (status == "ACTIVE") Color(0xFF10B981) else Color(0xFFF59E0B))
                 }
             }
             Spacer(Modifier.height(8.dp))
-            Row { Column { Text("Phone", fontSize = 11.sp, color = Color(0xFF444651)); Text(phoneNumber.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium) } }
+            Row { Column { Text("Phone", fontSize = 11.sp, color = colorScheme.onSurfaceVariant); Text(phoneNumber.ifBlank { "Not set" }, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colorScheme.onSurface) } }
             Spacer(Modifier.height(8.dp))
-            Row { Column { Text("Member Since", fontSize = 11.sp, color = Color(0xFF444651)); Text(formatDateString(createdAt), fontSize = 12.sp, color = Color(0xFF444651)) } }
+            Row { Column { Text("Member Since", fontSize = 11.sp, color = colorScheme.onSurfaceVariant); Text(formatDateString(createdAt), fontSize = 12.sp, color = colorScheme.onSurfaceVariant) } }
         }
     }
 }
 
 @Composable
-fun SecuritySettings() {
+fun SecuritySettings(onThemeChanged: () -> Unit = {}) {
     val context = LocalContext.current
     val session = SessionManager(context)
+    val colorScheme = MaterialTheme.colorScheme
+    var darkModeEnabled by remember { mutableStateOf(ThemePreferenceManager.isDarkModeEnabled(context)) }
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
-        Text("SECURITY & PRIVACY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF444651))
+        Text("SECURITY & PRIVACY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(8.dp))
-        Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = colorScheme.surface)
+        ) {
             Column {
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable {
@@ -482,17 +517,46 @@ fun SecuritySettings() {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row { Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651)); Spacer(Modifier.width(12.dp)); Text("Change Password", fontSize = 14.sp) }
-                    Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF757682))
+                    Row { Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp), tint = colorScheme.onSurfaceVariant); Spacer(Modifier.width(12.dp)); Text("Change Password", fontSize = 14.sp, color = colorScheme.onSurface) }
+                    Icon(Icons.Default.ChevronRight, null, tint = colorScheme.onSurfaceVariant)
                 }
-                HorizontalDivider(color = Color(0xFFC5C5D3))
+                HorizontalDivider(color = colorScheme.outlineVariant)
                 Row(
                     modifier = Modifier.fillMaxWidth().clickable { Toast.makeText(context, "2FA coming soon", Toast.LENGTH_SHORT).show() }.padding(16.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row { Icon(Icons.Default.Security, null, modifier = Modifier.size(20.dp), tint = Color(0xFF444651)); Spacer(Modifier.width(12.dp)); Column { Text("Two-Factor Authentication", fontSize = 14.sp); Text("Enabled", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF006C49)) } }
-                    Icon(Icons.Default.ChevronRight, null, tint = Color(0xFF757682))
+                    Row { Icon(Icons.Default.Security, null, modifier = Modifier.size(20.dp), tint = colorScheme.onSurfaceVariant); Spacer(Modifier.width(12.dp)); Column { Text("Two-Factor Authentication", fontSize = 14.sp, color = colorScheme.onSurface); Text("Enabled", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = Color(0xFF006C49)) } }
+                    Icon(Icons.Default.ChevronRight, null, tint = colorScheme.onSurfaceVariant)
+                }
+                HorizontalDivider(color = colorScheme.outlineVariant)
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.DarkMode, null, modifier = Modifier.size(20.dp), tint = colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text("Dark Mode", fontSize = 14.sp, color = colorScheme.onSurface)
+                            Text(
+                                if (darkModeEnabled) "Enabled" else "Disabled",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Switch(
+                        checked = darkModeEnabled,
+                        onCheckedChange = { enabled ->
+                            if (darkModeEnabled == enabled) return@Switch
+                            darkModeEnabled = enabled
+                            ThemePreferenceManager.setDarkModeEnabled(context.applicationContext, enabled)
+                            onThemeChanged()
+                        }
+                    )
                 }
             }
         }

@@ -1,4 +1,6 @@
 package mobile.project.escrowx.dash
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.os.Bundle
@@ -43,7 +45,7 @@ class TransactionsActivity : ComponentActivity() {
         val sessionRole = SessionManager(this).getUserRole()
         val role = intent.getStringExtra("ROLE") ?: sessionRole ?: "BUYER"
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 TransactionsScreen(role = role)
             }
         }
@@ -56,6 +58,7 @@ fun TransactionsScreen(role: String) {
     val context = LocalContext.current
     val session = SessionManager(context)
     val scope = rememberCoroutineScope()
+    val colorScheme = MaterialTheme.colorScheme
 
     var allTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList<EscrowResponse>()) }
     var filteredTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList<EscrowResponse>()) }
@@ -176,19 +179,20 @@ fun TransactionsScreen(role: String) {
     }
 
     Scaffold(
+        containerColor = colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("My Transactions", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F)) },
+                title = { Text("My Transactions", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colorScheme.primary) },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (role == "BUYER") context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
                         else context.startActivity(Intent(context, SellerDashboardActivity::class.java))
                         (context as? TransactionsActivity)?.finish()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.surface)
             )
         },
         bottomBar = {
@@ -220,7 +224,7 @@ fun TransactionsScreen(role: String) {
         }
     ) { paddingValues ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).background(Color(0xFFF9F9FF))
+            modifier = Modifier.fillMaxSize().padding(paddingValues).background(colorScheme.background)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -235,21 +239,21 @@ fun TransactionsScreen(role: String) {
                 "${filteredTransactions.size} transaction${if (filteredTransactions.size != 1) "s" else ""}",
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                 fontSize = 12.sp,
-                color = Color.Gray
+                color = colorScheme.onSurfaceVariant
             )
 
             when {
                 isLoading -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = Color(0xFF00236F))
+                        CircularProgressIndicator(color = colorScheme.primary)
                     }
                 }
                 filteredTransactions.isEmpty() -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Receipt, null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                            Icon(Icons.Default.Receipt, null, modifier = Modifier.size(64.dp), tint = colorScheme.onSurfaceVariant)
                             Spacer(Modifier.height(16.dp))
-                            Text("No transactions found", color = Color.Gray)
+                            Text("No transactions found", color = colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -317,17 +321,18 @@ fun TransactionsScreen(role: String) {
 
 @Composable
 fun FilterChipButton(text: String, selected: Boolean, onClick: () -> Unit) {
+    val colorScheme = MaterialTheme.colorScheme
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(99.dp),
-        color = if (selected) Color(0xFF00236F) else Color.White,
-        border = BorderStroke(1.dp, if (selected) Color.Transparent else Color(0xFFC5C5D3)),
+        color = if (selected) colorScheme.primary else colorScheme.surface,
+        border = BorderStroke(1.dp, if (selected) Color.Transparent else colorScheme.outlineVariant),
         modifier = Modifier.wrapContentSize()
     ) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = if (selected) Color.White else Color.Black,
+            color = if (selected) colorScheme.onPrimary else colorScheme.onSurface,
             fontSize = 13.sp
         )
     }
@@ -340,6 +345,7 @@ fun TransactionCard(
     onViewDetails: () -> Unit,
     onRaiseDispute: () -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     val statusColor = when {
         transaction.status.equals("COMPLETED", ignoreCase = true) -> Color(0xFF10B981)
         transaction.status.equals("IN_DELIVERY", ignoreCase = true) -> Color(0xFFF59E0B)
@@ -360,7 +366,7 @@ fun TransactionCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -374,7 +380,7 @@ fun TransactionCard(
                     Spacer(Modifier.width(8.dp))
                     Text(transaction.status, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = statusColor)
                 }
-                Text(formattedDate, fontSize = 12.sp, color = Color.Gray)
+                Text(formattedDate, fontSize = 12.sp, color = colorScheme.onSurfaceVariant)
             }
             Spacer(Modifier.height(12.dp))
             Row(
@@ -382,11 +388,11 @@ fun TransactionCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(transaction.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.Black)
-                Text("KES ${transaction.amount.toInt()}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+                Text(transaction.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
+                Text("KES ${transaction.amount.toInt()}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colorScheme.primary)
             }
             Spacer(Modifier.height(16.dp))
-            HorizontalDivider(thickness = 1.dp, color = Color(0xFFEEEEEE))
+            HorizontalDivider(thickness = 1.dp, color = colorScheme.outlineVariant)
             Row(
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
                 horizontalArrangement = Arrangement.End,
@@ -396,9 +402,9 @@ fun TransactionCard(
                     modifier = Modifier.clickable { onViewDetails() }.padding(horizontal = 12.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(Icons.Default.Visibility, null, modifier = Modifier.size(20.dp), tint = Color(0xFF00236F))
+                    Icon(Icons.Default.Visibility, null, modifier = Modifier.size(20.dp), tint = colorScheme.primary)
                     Spacer(Modifier.width(4.dp))
-                    Text("Details", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFF00236F))
+                    Text("Details", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colorScheme.primary)
                 }
                 if (!transaction.status.equals("CANCELLED", ignoreCase = true)) {
                     Row(

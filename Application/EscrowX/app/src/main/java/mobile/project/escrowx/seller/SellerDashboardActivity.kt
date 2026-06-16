@@ -1,4 +1,6 @@
 package mobile.project.escrowx.seller
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.os.Bundle
@@ -50,7 +52,7 @@ class SellerDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 SellerDashboardScreen()
             }
         }
@@ -62,6 +64,7 @@ class SellerDashboardActivity : ComponentActivity() {
 fun SellerDashboardScreen() {
     val context = LocalContext.current
     val session = SessionManager(context)
+    val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
@@ -147,6 +150,7 @@ fun SellerDashboardScreen() {
         gesturesEnabled = drawerState.isOpen || drawerState.isAnimationRunning
     ) {
         Scaffold(
+            containerColor = colorScheme.background,
             topBar = {
                 TopAppBar(
                     title = {
@@ -154,7 +158,7 @@ fun SellerDashboardScreen() {
                             "EscrowX",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00236F)
+                            color = colorScheme.primary
                         )
                     },
                     navigationIcon = {
@@ -164,7 +168,7 @@ fun SellerDashboardScreen() {
                             Icon(
                                 Icons.Default.Menu,
                                 contentDescription = "Menu",
-                                tint = Color(0xFF00236F)
+                                tint = colorScheme.primary
                             )
                         }
                     },
@@ -173,7 +177,7 @@ fun SellerDashboardScreen() {
                             Icon(
                                 Icons.Default.NotificationsNone,
                                 contentDescription = "Notifications",
-                                tint = Color(0xFF00236F)
+                                tint = colorScheme.primary
                             )
                         }
                         Box(
@@ -187,12 +191,12 @@ fun SellerDashboardScreen() {
                                 Icons.Default.Person,
                                 contentDescription = "Avatar",
                                 modifier = Modifier.size(18.dp),
-                                tint = Color(0xFF00236F)
+                                tint = colorScheme.primary
                             )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xFFF9F9FF)
+                        containerColor = colorScheme.surface
                     )
                 )
             },
@@ -224,7 +228,7 @@ fun SellerDashboardScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .background(Color(0xFFF9F9FF))
+                    .background(colorScheme.background)
                     .padding(16.dp)
             ) {
                 if (isLoading) {
@@ -232,7 +236,7 @@ fun SellerDashboardScreen() {
                         modifier = Modifier.fillMaxSize(),
                         contentAlignment = Alignment.Center
                     ) {
-                        CircularProgressIndicator(color = Color(0xFF00236F))
+                        CircularProgressIndicator(color = colorScheme.primary)
                     }
                 } else {
                     // Welcome Header
@@ -249,7 +253,7 @@ fun SellerDashboardScreen() {
                                 text = "Hello, $sellerName",
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFF151C27)
+                                color = colorScheme.onSurface
                             )
                             Icon(
                                 Icons.Default.Verified,
@@ -261,7 +265,7 @@ fun SellerDashboardScreen() {
                         Text(
                             text = "Your business is thriving today.",
                             fontSize = 13.sp,
-                            color = Color(0xFF444651)
+                            color = colorScheme.onSurfaceVariant
                         )
                     }
 

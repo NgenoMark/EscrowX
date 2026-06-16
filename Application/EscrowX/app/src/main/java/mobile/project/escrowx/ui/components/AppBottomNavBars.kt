@@ -6,13 +6,13 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -34,9 +34,11 @@ fun BuyerNavBar(
     onItemSelected: (BuyerNavItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     NavigationBar(
         modifier = modifier.height(75.dp),
-        containerColor = Color.White
+        containerColor = colorScheme.surface,
+        tonalElevation = 0.dp
     ) {
         val items = listOf(
             BuyerNavItem.Home to ("Home" to Icons.Default.Home),
@@ -53,11 +55,11 @@ fun BuyerNavBar(
                 icon = { Icon(icon, contentDescription = label) },
                 label = { Text(label, fontSize = 11.sp) },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color(0xFF00236F),
-                    selectedTextColor = Color(0xFF00236F),
-                    unselectedIconColor = Color.Gray,
-                    unselectedTextColor = Color.Gray,
-                    indicatorColor = Color(0xFFE7EEFE)
+                    selectedIconColor = colorScheme.primary,
+                    selectedTextColor = colorScheme.primary,
+                    unselectedIconColor = colorScheme.onSurfaceVariant,
+                    unselectedTextColor = colorScheme.onSurfaceVariant,
+                    indicatorColor = colorScheme.surfaceVariant
                 )
             )
         }
@@ -70,9 +72,10 @@ fun SellerNavBar(
     onItemSelected: (SellerNavItem) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     NavigationBar(
         modifier = modifier.height(80.dp),
-        containerColor = Color(0xFFF9F9FF),
+        containerColor = colorScheme.surface,
         tonalElevation = 0.dp
     ) {
         val items = listOf(
@@ -90,11 +93,11 @@ fun SellerNavBar(
                 icon = { Icon(icon, contentDescription = label) },
                 label = { Text(label, fontSize = 11.sp) },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color(0xFF00236F),
-                    selectedTextColor = Color(0xFF00236F),
-                    unselectedIconColor = Color.Gray,
-                    unselectedTextColor = Color.Gray,
-                    indicatorColor = Color(0xFFE7EEFE)
+                    selectedIconColor = colorScheme.primary,
+                    selectedTextColor = colorScheme.primary,
+                    unselectedIconColor = colorScheme.onSurfaceVariant,
+                    unselectedTextColor = colorScheme.onSurfaceVariant,
+                    indicatorColor = colorScheme.surfaceVariant
                 )
             )
         }

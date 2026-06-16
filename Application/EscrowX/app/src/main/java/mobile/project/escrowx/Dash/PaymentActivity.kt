@@ -2,6 +2,9 @@
 
 package mobile.project.escrowx.dash
 
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -56,7 +59,7 @@ class PaymentActivity : ComponentActivity() {
         val deliveryAddress = intent.getStringExtra("DELIVERY_ADDRESS") ?: ""
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 PaymentScreen(
                     itemName = itemName,
                     transactionAmount = transactionAmount,
