@@ -37,6 +37,9 @@ import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.LoginActivity
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.ui.components.BuyerNavBar
+import mobile.project.escrowx.ui.components.BuyerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -195,30 +198,23 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                 )
             },
             bottomBar = {
-                NavigationBar(
-                    modifier = Modifier.height(75.dp),
-                    containerColor = Color.White
-                ) {
-                    val items = listOf(
-                        "Home" to Icons.Default.Home,
-                        "Transactions" to Icons.Default.AccountBalanceWallet,
-                        "Profile" to Icons.Default.Person
-                    )
-                    items.forEachIndexed { index, (label, icon) ->
-                        NavigationBarItem(
-                            selected = selectedTab == index,
-                            onClick = {
-                                selectedTab = index
-                                when (index) {
-                                    1 -> context.startActivity(Intent(context, TransactionsActivity::class.java))
-                                    2 -> context.startActivity(Intent(context, ProfileActivity::class.java))
-                                }
-                            },
-                            icon = { Icon(icon, contentDescription = label, tint = if (selectedTab == index) Color(0xFF00236F) else Color.Gray) },
-                            label = { Text(label, color = if (selectedTab == index) Color(0xFF00236F) else Color.Gray, fontSize = 11.sp) }
-                        )
+                BuyerNavBar(
+                    selectedIndex = selectedTab,
+                    onItemSelected = { item ->
+                        selectedTab = item.index
+                        when (item) {
+                            BuyerNavItem.Home -> {
+                                navigateTab(context, BuyerDashboardActivity::class.java)
+                            }
+                            BuyerNavItem.Transactions -> {
+                                navigateTab(context, TransactionsActivity::class.java)
+                            }
+                            BuyerNavItem.Profile -> {
+                                navigateTab(context, ProfileActivity::class.java)
+                            }
+                        }
                     }
-                }
+                )
             }
         ) { padding ->
             when (selectedTab) {

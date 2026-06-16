@@ -34,6 +34,9 @@ import mobile.project.escrowx.dash.DisputeCenterActivity
 import mobile.project.escrowx.dash.ProfileActivity
 import mobile.project.escrowx.dash.SettingsActivity
 import mobile.project.escrowx.dash.TransactionsActivity
+import mobile.project.escrowx.ui.components.SellerNavBar
+import mobile.project.escrowx.ui.components.SellerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 
 data class SellerRecentTransaction(
     val id: String,
@@ -194,18 +197,27 @@ fun SellerDashboardScreen() {
                 )
             },
             bottomBar = {
-                SellerBottomNavigationBar(selectedTab = selectedBottomTab) { index ->
-                    selectedBottomTab = index
-                    when (index) {
-                        1 -> {
-                            val intent = Intent(context, TransactionsActivity::class.java).apply {
-                                putExtra("ROLE", "SELLER")
+                SellerNavBar(
+                    selectedIndex = selectedBottomTab,
+                    onItemSelected = { item ->
+                        selectedBottomTab = item.index
+                        when (item) {
+                            SellerNavItem.Home -> {
+                                navigateTab(context, SellerDashboardActivity::class.java)
                             }
-                            context.startActivity(intent)
+                            SellerNavItem.Transactions -> {
+                                navigateTab(
+                                    context,
+                                    TransactionsActivity::class.java,
+                                    Bundle().apply { putString("ROLE", "SELLER") }
+                                )
+                            }
+                            SellerNavItem.Profile -> {
+                                navigateTab(context, ProfileActivity::class.java)
+                            }
                         }
-                        2 -> context.startActivity(Intent(context, ProfileActivity::class.java))
                     }
-                }
+                )
             }
         ) { paddingValues ->
             Column(
@@ -541,33 +553,5 @@ fun RecentTransactionCard(transaction: SellerRecentTransaction) {
                 }
             }
         }
-    }
-}
-
-@Composable
-fun SellerBottomNavigationBar(selectedTab: Int, onTabSelected: (Int) -> Unit) {
-    NavigationBar(
-        modifier = Modifier.height(80.dp),
-        containerColor = Color(0xFFF9F9FF),
-        tonalElevation = 0.dp
-    ) {
-        NavigationBarItem(
-            selected = selectedTab == 0,
-            onClick = { onTabSelected(0) },
-            icon = { Icon(Icons.Default.Home, contentDescription = "Home", modifier = Modifier.size(24.dp)) },
-            label = { Text("Home", fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 1,
-            onClick = { onTabSelected(1) },
-            icon = { Icon(Icons.Default.AccountBalanceWallet, contentDescription = "Transactions", modifier = Modifier.size(24.dp)) },
-            label = { Text("Transactions", fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 2,
-            onClick = { onTabSelected(2) },
-            icon = { Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(24.dp)) },
-            label = { Text("Profile", fontSize = 11.sp) }
-        )
     }
 }

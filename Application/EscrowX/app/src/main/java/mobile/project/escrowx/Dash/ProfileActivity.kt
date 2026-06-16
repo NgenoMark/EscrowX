@@ -48,6 +48,11 @@ import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.ChangePasswordVerificationActivity
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.seller.SellerDashboardActivity
+import mobile.project.escrowx.ui.components.BuyerNavBar
+import mobile.project.escrowx.ui.components.BuyerNavItem
+import mobile.project.escrowx.ui.components.SellerNavBar
+import mobile.project.escrowx.ui.components.SellerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -261,7 +266,7 @@ fun ProfileScreenContent() {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF))
             )
         },
-        bottomBar = { ProfileBottomNavigationBar(isSeller = isSeller) }
+        bottomBar = { ProfileBottomNavigationBar(userRole = userRole) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -516,29 +521,42 @@ fun ProfileSaveButton(isSaving: Boolean, buttonText: String, isSuccess: Boolean,
 }
 
 @Composable
-fun ProfileBottomNavigationBar(isSeller: Boolean) {
+fun ProfileBottomNavigationBar(userRole: String) {
     val context = LocalContext.current
-    NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color(0xFFF9F9FF)) {
-        NavigationBarItem(
-            selected = false,
-            onClick = {
-                if (isSeller) context.startActivity(Intent(context, SellerDashboardActivity::class.java))
-                else context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
-            },
-            icon = { Icon(Icons.Default.Home, null, modifier = Modifier.size(24.dp)) },
-            label = { Text("Home", fontSize = 11.sp) }
+    val isSeller = userRole.equals("SELLER", ignoreCase = true)
+    if (isSeller) {
+        SellerNavBar(
+            selectedIndex = SellerNavItem.Profile.index,
+            onItemSelected = { item ->
+                when (item) {
+                    SellerNavItem.Home -> navigateTab(context, SellerDashboardActivity::class.java)
+                    SellerNavItem.Transactions -> {
+                        navigateTab(
+                            context,
+                            TransactionsActivity::class.java,
+                            Bundle().apply { putString("ROLE", "SELLER") }
+                        )
+                    }
+                    SellerNavItem.Profile -> Unit
+                }
+            }
         )
-        NavigationBarItem(
-            selected = false,
-            onClick = { context.startActivity(Intent(context, TransactionsActivity::class.java)) },
-            icon = { Icon(Icons.Default.AccountBalanceWallet, null, modifier = Modifier.size(24.dp)) },
-            label = { Text("Transactions", fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = true,
-            onClick = { },
-            icon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(24.dp)) },
-            label = { Text("Profile", fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+    } else {
+        BuyerNavBar(
+            selectedIndex = BuyerNavItem.Profile.index,
+            onItemSelected = { item ->
+                when (item) {
+                    BuyerNavItem.Home -> navigateTab(context, BuyerDashboardActivity::class.java)
+                    BuyerNavItem.Transactions -> {
+                        navigateTab(
+                            context,
+                            TransactionsActivity::class.java,
+                            Bundle().apply { putString("ROLE", "BUYER") }
+                        )
+                    }
+                    BuyerNavItem.Profile -> Unit
+                }
+            }
         )
     }
 }

@@ -30,6 +30,9 @@ import androidx.compose.ui.unit.sp
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.dash.ProfileActivity
 import mobile.project.escrowx.dash.TransactionsActivity
+import mobile.project.escrowx.ui.components.SellerNavBar
+import mobile.project.escrowx.ui.components.SellerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 
 data class ActiveEscrowItem(
     val id: String,
@@ -272,39 +275,20 @@ fun ActiveEscrowCard(
 @Composable
 fun SellerActiveEscrowsBottomNavigation() {
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(1) }
-
-    NavigationBar(
-        modifier = Modifier.height(80.dp),
-        containerColor = Color(0xFFF9F9FF),
-        tonalElevation = 0.dp
-    ) {
-        NavigationBarItem(
-            selected = selectedTab == 0,
-            onClick = {
-                selectedTab = 0
-                context.startActivity(Intent(context, SellerDashboardActivity::class.java))
-            },
-            icon = { Icon(Icons.Default.Home, null, modifier = Modifier.size(24.dp)) },
-            label = { Text("Home", fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 1,
-            onClick = {
-                selectedTab = 1
-                context.startActivity(Intent(context, TransactionsActivity::class.java))
-            },
-            icon = { Icon(Icons.AutoMirrored.Filled.ReceiptLong, null, modifier = Modifier.size(24.dp)) },
-            label = { Text("Transactions", fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 2,
-            onClick = {
-                selectedTab = 2
-                context.startActivity(Intent(context, ProfileActivity::class.java))
-            },
-            icon = { Icon(Icons.Default.Person, null, modifier = Modifier.size(24.dp)) },
-            label = { Text("Profile", fontSize = 11.sp) }
-        )
-    }
+    SellerNavBar(
+        selectedIndex = SellerNavItem.Transactions.index,
+        onItemSelected = { item ->
+            when (item) {
+                SellerNavItem.Home -> navigateTab(context, SellerDashboardActivity::class.java)
+                SellerNavItem.Transactions -> {
+                    navigateTab(
+                        context,
+                        TransactionsActivity::class.java,
+                        Bundle().apply { putString("ROLE", "SELLER") }
+                    )
+                }
+                SellerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
+            }
+        }
+    )
 }

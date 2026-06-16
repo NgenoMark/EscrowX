@@ -31,6 +31,9 @@ import kotlinx.coroutines.launch
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.dash.BuyerDashboardActivity
+import mobile.project.escrowx.ui.components.BuyerNavBar
+import mobile.project.escrowx.ui.components.BuyerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 
 class BuyerTransactionDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -539,45 +542,20 @@ fun RowScope.BuyerProgressStep(
 @Composable
 fun BuyerTransactionDetailBottomNavigation() {
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(0) }
-
-    NavigationBar(
-        modifier = Modifier.height(80.dp),
-        containerColor = Color(0xFFF9F9FF),
-        tonalElevation = 0.dp
-    ) {
-        NavigationBarItem(
-            selected = selectedTab == 0,
-            onClick = {
-                selectedTab = 0
-                context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
-            },
-            icon = { Icon(Icons.Default.Home, contentDescription = "Home", modifier = Modifier.size(24.dp)) },
-            label = { Text("Home", fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 1,
-            onClick = {
-                selectedTab = 1
-                context.startActivity(Intent(context, TransactionsActivity::class.java))
-            },
-            icon = {
-                Icon(
-                    Icons.AutoMirrored.Filled.ReceiptLong,
-                    contentDescription = "Transactions",
-                    modifier = Modifier.size(24.dp)
-                )
-            },
-            label = { Text("Transactions", fontSize = 11.sp) }
-        )
-        NavigationBarItem(
-            selected = selectedTab == 2,
-            onClick = {
-                selectedTab = 2
-                context.startActivity(Intent(context, ProfileActivity::class.java))
-            },
-            icon = { Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(24.dp)) },
-            label = { Text("Profile", fontSize = 11.sp) }
-        )
-    }
+    BuyerNavBar(
+        selectedIndex = BuyerNavItem.Home.index,
+        onItemSelected = { item ->
+            when (item) {
+                BuyerNavItem.Home -> navigateTab(context, BuyerDashboardActivity::class.java)
+                BuyerNavItem.Transactions -> {
+                    navigateTab(
+                        context,
+                        TransactionsActivity::class.java,
+                        Bundle().apply { putString("ROLE", "BUYER") }
+                    )
+                }
+                BuyerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
+            }
+        }
+    )
 }

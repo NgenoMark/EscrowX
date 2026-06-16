@@ -30,12 +30,18 @@ import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.seller.SellerTransactionDetailActivity
+import mobile.project.escrowx.ui.components.BuyerNavBar
+import mobile.project.escrowx.ui.components.BuyerNavItem
+import mobile.project.escrowx.ui.components.SellerNavBar
+import mobile.project.escrowx.ui.components.SellerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 import com.google.gson.Gson
 
 class TransactionsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val role = intent.getStringExtra("ROLE") ?: "BUYER"
+        val sessionRole = SessionManager(this).getUserRole()
+        val role = intent.getStringExtra("ROLE") ?: sessionRole ?: "BUYER"
         setContent {
             MaterialTheme {
                 TransactionsScreen(role = role)
@@ -186,26 +192,30 @@ fun TransactionsScreen(role: String) {
             )
         },
         bottomBar = {
-            NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color.White) {
-                val items = listOf("Home" to Icons.Default.Home, "Transactions" to Icons.Default.AccountBalanceWallet, "Profile" to Icons.Default.Person)
-                items.forEachIndexed { index, (label, icon) ->
-                    NavigationBarItem(
-                        selected = selectedBottomTab == index,
-                        onClick = {
-                            selectedBottomTab = index
-                            when (index) {
-                                0 -> {
-                                    if (role == "BUYER") context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
-                                    else context.startActivity(Intent(context, SellerDashboardActivity::class.java))
-                                }
-                                1 -> { /* already here */ }
-                                2 -> context.startActivity(Intent(context, ProfileActivity::class.java))
-                            }
-                        },
-                        icon = { Icon(icon, contentDescription = label, tint = if (selectedBottomTab == index) Color(0xFF00236F) else Color.Gray) },
-                        label = { Text(label, color = if (selectedBottomTab == index) Color(0xFF00236F) else Color.Gray, fontSize = 11.sp) }
-                    )
-                }
+            if (role.equals("SELLER", ignoreCase = true)) {
+                SellerNavBar(
+                    selectedIndex = selectedBottomTab,
+                    onItemSelected = { item ->
+                        selectedBottomTab = item.index
+                        when (item) {
+                            SellerNavItem.Home -> navigateTab(context, SellerDashboardActivity::class.java)
+                            SellerNavItem.Transactions -> Unit
+                            SellerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
+                        }
+                    }
+                )
+            } else {
+                BuyerNavBar(
+                    selectedIndex = selectedBottomTab,
+                    onItemSelected = { item ->
+                        selectedBottomTab = item.index
+                        when (item) {
+                            BuyerNavItem.Home -> navigateTab(context, BuyerDashboardActivity::class.java)
+                            BuyerNavItem.Transactions -> Unit
+                            BuyerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
+                        }
+                    }
+                )
             }
         }
     ) { paddingValues ->
