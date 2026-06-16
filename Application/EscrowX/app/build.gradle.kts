@@ -58,6 +58,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation("androidx.core:core-splashscreen:1.0.1")
 
     // Compose - matching versions with Kotlin 2.0.21
     implementation("androidx.compose.ui:ui:1.7.6")

@@ -39,14 +39,21 @@
 
         <!-- LAUNCHER ACTIVITY -->
         <activity
-            android:name=".auth.LoginActivity"
+            android:name=".auth.SplashActivity"
             android:exported="true"
             android:screenOrientation="unspecified"
-            android:windowSoftInputMode="adjustResize">
+            android:theme="@style/Theme.EscrowX.SplashFull">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".auth.LoginActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize">
         </activity>
 
         <!-- AUTH ACTIVITIES -->

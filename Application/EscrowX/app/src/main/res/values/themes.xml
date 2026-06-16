@@ -2,4 +2,15 @@
 <resources>
 
     <style name="Theme.EscrowX" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <style name="Theme.EscrowX.SplashFull" parent="Theme.EscrowX">
+        <item name="android:windowBackground">#000000</item>
+    </style>
+
+    <style name="Theme.EscrowX.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">#F7F9FC</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">#002066</item>
+        <item name="postSplashScreenTheme">@style/Theme.EscrowX</item>
+    </style>
 </resources>
