@@ -54,22 +54,23 @@ data class RegisterResponse(
 )
 
 data class PasswordResetRequestDto(
-    val phone: String
+    val email: String
 )
 
 data class PasswordResetRequestResponse(
-    val phone: String,
+    val email: String,
     val message: String,
-    val otpPreview: String
+    val otpPreview: String?
 )
 
 data class PasswordResetConfirmRequest(
-    val phone: String,
+    val email: String,
     val otp: String,
     val newPassword: String
 )
 
 data class PasswordResetConfirmResponse(
-    val phone: String,
-    val passwordUpdated: Boolean
+    val email: String? = null,
+    val message: String? = null,
+    val passwordUpdated: Boolean? = null
 )
