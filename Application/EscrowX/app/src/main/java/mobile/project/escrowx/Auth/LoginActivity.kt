@@ -6,9 +6,12 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -29,7 +32,21 @@ class LoginActivity : ComponentActivity() {
         val btnLoginContinue = findViewById<Button>(R.id.btnLoginContinue)
         val etLoginIdentifier = findViewById<EditText>(R.id.etLoginIdentifier)
         val etLoginPassword = findViewById<EditText>(R.id.etLoginPassword)
+        val btnToggleLoginPassword = findViewById<ImageButton>(R.id.btnToggleLoginPassword)
         val tvForgotPassword = findViewById<TextView>(R.id.tvForgotPassword)
+        var isPasswordVisible = false
+
+        btnToggleLoginPassword.setOnClickListener {
+            isPasswordVisible = !isPasswordVisible
+            if (isPasswordVisible) {
+                etLoginPassword.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                btnToggleLoginPassword.setImageResource(R.drawable.ic_visibility)
+            } else {
+                etLoginPassword.transformationMethod = PasswordTransformationMethod.getInstance()
+                btnToggleLoginPassword.setImageResource(R.drawable.ic_visibility_off)
+            }
+            etLoginPassword.setSelection(etLoginPassword.text.length)
+        }
 
         btnTabSignUp.setOnClickListener {
             startActivity(Intent(this, SignUpActivity::class.java))

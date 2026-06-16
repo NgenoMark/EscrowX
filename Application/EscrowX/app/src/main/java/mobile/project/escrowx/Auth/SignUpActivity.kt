@@ -7,10 +7,13 @@ import android.os.Bundle
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import android.text.method.HideReturnsTransformationMethod
+import android.text.method.PasswordTransformationMethod
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -32,7 +35,21 @@ class SignUpActivity : ComponentActivity() {
         val etPhone = findViewById<EditText>(R.id.etSignUpPhone)
         val etEmail = findViewById<EditText>(R.id.etSignUpEmail)
         val etPassword = findViewById<EditText>(R.id.etSignUpPassword)
+        val btnToggleSignUpPassword = findViewById<ImageButton>(R.id.btnToggleSignUpPassword)
         val etBusiness = findViewById<EditText>(R.id.etSignUpBusiness)
+        var isPasswordVisible = false
+
+        btnToggleSignUpPassword.setOnClickListener {
+            isPasswordVisible = !isPasswordVisible
+            if (isPasswordVisible) {
+                etPassword.transformationMethod = HideReturnsTransformationMethod.getInstance()
+                btnToggleSignUpPassword.setImageResource(R.drawable.ic_visibility)
+            } else {
+                etPassword.transformationMethod = PasswordTransformationMethod.getInstance()
+                btnToggleSignUpPassword.setImageResource(R.drawable.ic_visibility_off)
+            }
+            etPassword.setSelection(etPassword.text.length)
+        }
 
         val roles = arrayOf("BUYER", "SELLER")
         val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, roles)

@@ -238,27 +238,16 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
 private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displayName: String) {
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
+    val brandPrimary = Color(0xFF002066)
+    val brandSurface = Color(0xFFF3F6FF)
+    val brandCard = Color.White
+    val brandTextPrimary = Color(0xFF151C27)
+    val brandTextSecondary = Color(0xFF475569)
 
     var realIncomingTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
     var sellerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isLoadingReal by remember { mutableStateOf(true) }
     var realError by remember { mutableStateOf<String?>(null) }
-
-    // Dummy data (fallback)
-    val dummyRequests = listOf(
-        IncomingRequestItem(
-            id = "dummy1",
-            sellerName = "Tech Haven KE",
-            itemTitle = "Payment for Wireless Mouse",
-            amount = "8,200"
-        ),
-        IncomingRequestItem(
-            id = "dummy2",
-            sellerName = "Phone Mart Kenya",
-            itemTitle = "iPhone 15 Pro",
-            amount = "125,000"
-        )
-    )
 
     fun formatAmount(amount: Double): String {
         return NumberFormat.getIntegerInstance(Locale.getDefault()).format(amount)
@@ -278,7 +267,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                     return@launch
                 }
                 val api = RetrofitClient.authenticated(token)
-                val response = api.getTransactionsByBuyer(buyerId)
+                val response = api.getTransactionsByBuyer(buyerId, "CREATED")
                 if (response.isSuccessful && response.body() != null) {
                     val createdTransactions = response.body()!!.filter {
                         it.status.equals("CREATED", ignoreCase = true)
@@ -307,9 +296,9 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                     sellerNamesById = emptyMap()
                     realError = "Failed to load: ${response.code()}"
                 }
-            } catch (_: Exception) {
+            } catch (e: Exception) {
                 sellerNamesById = emptyMap()
-                realError = "Network error. Please check your connection."
+                realError = "Network error. ${e.message ?: "Please check your connection."}"
             } finally {
                 isLoadingReal = false
             }
@@ -317,11 +306,6 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
     }
 
     fun acceptTransaction(transactionId: String, onSuccess: () -> Unit) {
-        if (transactionId.startsWith("dummy")) {
-            Toast.makeText(context, "Dummy transaction accepted (simulated)", Toast.LENGTH_SHORT).show()
-            onSuccess()
-            return
-        }
         scope.launch {
             try {
                 val token = session.getAccessToken()
@@ -351,8 +335,8 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         loadRealIncoming()
     }
 
-    val combinedItems = remember(realIncomingTransactions, sellerNamesById) {
-        val realItems = realIncomingTransactions.map { txn ->
+    val awaitingAcceptanceItems = remember(realIncomingTransactions, sellerNamesById) {
+        realIncomingTransactions.map { txn ->
             IncomingRequestItem(
                 id = txn.id,
                 sellerName = sellerNamesById[txn.sellerId] ?: "Seller ${txn.sellerId.take(6)}",
@@ -361,39 +345,13 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                 status = txn.status
             )
         }
-        realItems + dummyRequests
     }
-
-    val disputesCount = 3
-
-    val activeEscrows = listOf(
-        mapOf(
-            "id" to "txn_123",
-            "productName" to "iPhone 15 Pro",
-            "sellerName" to "Jumia Electronics",
-            "amount" to "125,000",
-            "orderId" to "ESC-ABC123",
-            "date" to "24 Oct, 2023",
-            "shippingAddress" to "Westlands Hub, Ground Floor Wing A, Nairobi, Kenya",
-            "status" to "IN_DELIVERY"
-        ),
-        mapOf(
-            "id" to "txn_456",
-            "productName" to "Samsung Galaxy S24",
-            "sellerName" to "Samsung Store",
-            "amount" to "85,000",
-            "orderId" to "ESC-DEF456",
-            "date" to "20 Oct, 2023",
-            "shippingAddress" to "Imaara Mall, Nairobi, Kenya",
-            "status" to "FUNDS_HELD"
-        )
-    )
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(Color(0xFFF9F9FF))
+            .background(brandSurface)
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
@@ -404,68 +362,52 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column {
-                Text(text = "Hello, $displayName", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                Text(text = "Welcome back to your secure dashboard.", fontSize = 13.sp, color = Color.Gray)
+                Text(text = "Welcome back, $displayName", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
+                Text(text = "Manage your escrows securely from one place.", fontSize = 13.sp, color = brandTextSecondary)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 2) How It Works
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = brandCard),
+            border = BorderStroke(1.dp, Color(0xFFD8E3FF)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("How EscrowX Works", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
+                Text("1. Create or receive an escrow request.", fontSize = 13.sp, color = brandTextSecondary)
+                Text("2. Review details and accept the transaction.", fontSize = 13.sp, color = brandTextSecondary)
+                Text("3. Funds stay secure until completion terms are met.", fontSize = 13.sp, color = brandTextSecondary)
             }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // New Escrow button
-        Button(
-            onClick = {
-                val intent = Intent(context, CreateEscrowActivity::class.java).apply {
-                    putExtra("ROLE", "BUYER")
-                }
-                context.startActivity(intent)
-            },
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))
-        ) {
-            Icon(Icons.Default.Add, contentDescription = "Add", tint = Color.White, modifier = Modifier.size(20.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("New Escrow", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Disputes card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFE7E7)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp).clickable {
-                    context.startActivity(Intent(context, DisputeCenterActivity::class.java))
-                },
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(text = "Disputes", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFFDC2626))
-                    Text(text = "$disputesCount active", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFFDC2626))
-                }
-                Icon(Icons.Default.Gavel, contentDescription = "Disputes", tint = Color(0xFFDC2626), modifier = Modifier.size(32.dp))
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Incoming Requests Section
+        // 3) Transactions Awaiting Acceptance
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Incoming Requests", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
-            TextButton(onClick = {
-                context.startActivity(Intent(context, IncomingRequestsActivity::class.java))
-            }) {
-                Text("View All", color = Color(0xFF00236F), fontSize = 12.sp)
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "View All", modifier = Modifier.size(16.dp), tint = Color(0xFF00236F))
+            Text("Transactions Awaiting Acceptance", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
+            OutlinedButton(
+                onClick = {
+                    val intent = Intent(context, TransactionsActivity::class.java).apply {
+                        putExtra("ROLE", "BUYER")
+                    }
+                    context.startActivity(intent)
+                },
+                shape = RoundedCornerShape(50),
+                border = BorderStroke(1.dp, Color(0xFFBCD0FF)),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = brandPrimary),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
+                modifier = Modifier.height(34.dp)
+            ) {
+                Text("View all", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
             }
         }
 
@@ -474,7 +416,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         when {
             isLoadingReal -> {
                 Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF00236F))
+                    CircularProgressIndicator(color = brandPrimary)
                 }
             }
             realError != null -> {
@@ -482,41 +424,43 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(realError!!, color = Color.Red)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = { loadRealIncoming() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F))) {
+                        Button(onClick = { loadRealIncoming() }, colors = ButtonDefaults.buttonColors(containerColor = brandPrimary)) {
                             Text("Retry")
                         }
                     }
                 }
             }
-            else -> {
-                if (combinedItems.isEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF0F3FF))
-                    ) {
-                        Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Info, null, tint = Color(0xFF00236F), modifier = Modifier.size(40.dp))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("No incoming escrow requests", fontSize = 14.sp, color = Color(0xFF444651))
-                            Text("Tap + to create a new escrow.", fontSize = 12.sp, color = Color(0xFF444651))
-                        }
+            awaitingAcceptanceItems.isEmpty() -> {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF0FF)),
+                    border = BorderStroke(1.dp, Color(0xFFD2E0FF))
+                ) {
+                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.CheckCircle, null, tint = brandPrimary, modifier = Modifier.size(40.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("No transactions awaiting acceptance", fontSize = 14.sp, color = brandTextSecondary)
                     }
-                } else {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-                        items(combinedItems) { request ->
-                            IncomingRequestCard(
-                                request = request,
-                                onAccept = {
-                                    acceptTransaction(request.id) {
-                                        loadRealIncoming()
-                                    }
-                                },
-                                onDecline = {
-                                    Toast.makeText(context, "Request declined: ${request.itemTitle}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            else -> {
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp)
+                ) {
+                    items(awaitingAcceptanceItems) { request ->
+                        IncomingRequestCard(
+                            request = request,
+                            onAccept = {
+                                acceptTransaction(request.id) {
+                                    loadRealIncoming()
                                 }
-                            )
-                        }
+                            },
+                            onDecline = {
+                                Toast.makeText(context, "Decline action not enabled on this screen yet.", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
                 }
             }
@@ -524,95 +468,18 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Active Escrows Section
-        Row(
+        // 4) Logistics Section Placeholder
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = brandCard),
+            border = BorderStroke(1.dp, Color(0xFFD8E3FF)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Text("Active Escrows", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-            TextButton(onClick = {
-                Toast.makeText(context, "Swipe to see more escrows", Toast.LENGTH_SHORT).show()
-            }) {
-                Text("View All", color = Color(0xFF00236F))
-                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = "View All", modifier = Modifier.size(16.dp), tint = Color(0xFF00236F))
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text("Logistics", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
+                Text("Logistics details will be added here in the next update.", fontSize = 13.sp, color = brandTextSecondary)
             }
-        }
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.fillMaxWidth()) {
-            items(activeEscrows) { escrow ->
-                val status = escrow["status"] ?: "FUNDS_HELD"
-                val topStatus = if (status == "IN_DELIVERY") "PENDING DELIVERY" else "PENDING PAYMENT"
-                val topStatusColor = if (status == "IN_DELIVERY") Color(0xFFFEF3C7) else Color(0xFFFEE2E2)
-                val topStatusTextColor = if (status == "IN_DELIVERY") Color(0xFFD97706) else Color(0xFFDC2626)
-                val bottomStatus = if (status == "IN_DELIVERY") "IN INSPECTION" else "AWAITING"
-                val bottomStatusColor = if (status == "IN_DELIVERY") Color(0xFFE7EEFE) else Color(0xFFFEF3C7)
-                val bottomStatusTextColor = if (status == "IN_DELIVERY") Color(0xFF00236F) else Color(0xFFD97706)
-                val timeLeft = if (status == "IN_DELIVERY") "2 days left" else "5 days left"
-
-                ActiveEscrowCard(
-                    topStatus = topStatus,
-                    topStatusColor = topStatusColor,
-                    topStatusTextColor = topStatusTextColor,
-                    amountText = "KES ${escrow["amount"]}",
-                    bottomStatus = bottomStatus,
-                    bottomStatusColor = bottomStatusColor,
-                    bottomStatusTextColor = bottomStatusTextColor,
-                    partyName = escrow["sellerName"] ?: "Unknown",
-                    partyIcon = Icons.Default.Store,
-                    timeLeftText = timeLeft,
-                    onTrackClick = {
-                        val intent = Intent(context, BuyerTransactionDetailActivity::class.java).apply {
-                            putExtra("TRANSACTION_ID", escrow["id"])
-                            putExtra("PRODUCT_NAME", escrow["productName"])
-                            putExtra("SELLER_NAME", escrow["sellerName"])
-                            putExtra("AMOUNT", escrow["amount"])
-                            putExtra("ORDER_ID", escrow["orderId"])
-                            putExtra("DATE", escrow["date"])
-                            putExtra("SHIPPING_ADDRESS", escrow["shippingAddress"])
-                            putExtra("STATUS", status)
-                        }
-                        context.startActivity(intent)
-                    }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Text("Recent Transactions", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TransactionListItem(
-                title = "Funds Released",
-                subtitle = "M-Pesa Store #452",
-                amount = "KES 2,400",
-                date = "Oct 12",
-                status = "COMPLETED",
-                icon = Icons.Default.Store,
-                iconColor = Color(0xFF00236F)
-            )
-            TransactionListItem(
-                title = "Dispute Opened",
-                subtitle = "Apple AirPods Gen 3",
-                amount = "KES 18,000",
-                date = "Oct 10",
-                status = "UNDER REVIEW",
-                icon = Icons.Default.Gavel,
-                iconColor = Color(0xFFDC2626)
-            )
-            TransactionListItem(
-                title = "Escrow Created",
-                subtitle = "Jumia Electronics",
-                amount = "KES 12,500",
-                date = "Oct 09",
-                status = "ACTIVE",
-                icon = Icons.Default.AccountBalanceWallet,
-                iconColor = Color(0xFF00236F)
-            )
         }
 
         Spacer(modifier = Modifier.height(32.dp))
@@ -628,10 +495,11 @@ fun IncomingRequestCard(
     onDecline: () -> Unit
 ) {
     Card(
-        modifier = Modifier.width(280.dp),
+        modifier = Modifier.width(324.dp),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        border = BorderStroke(1.dp, Color(0xFFD8E3FF)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -643,14 +511,14 @@ fun IncomingRequestCard(
                     "PENDING YOUR ACTION",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFF59E0B),
+                    color = Color(0xFFB7791F),
                     letterSpacing = 0.5.sp
                 )
                 Text(
                     "KES ${request.amount}",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00236F)
+                    color = Color(0xFF002066)
                 )
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -662,13 +530,13 @@ fun IncomingRequestCard(
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFE7EEFE)),
+                        .background(Color(0xFFEAF0FF)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Store,
                         contentDescription = "Store",
-                        tint = Color(0xFF00236F),
+                        tint = Color(0xFF002066),
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -682,7 +550,7 @@ fun IncomingRequestCard(
                     Text(
                         request.itemTitle,
                         fontSize = 12.sp,
-                        color = Color(0xFF444651)
+                        color = Color(0xFF475569)
                     )
                 }
             }
@@ -693,7 +561,7 @@ fun IncomingRequestCard(
             ) {
                 OutlinedButton(
                     onClick = onDecline,
-                    modifier = Modifier.weight(1f).height(40.dp),
+                    modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFBA1A1A)),
                     border = BorderStroke(1.dp, Color(0xFFBA1A1A))
@@ -702,9 +570,9 @@ fun IncomingRequestCard(
                 }
                 Button(
                     onClick = onAccept,
-                    modifier = Modifier.weight(1f).height(40.dp),
+                    modifier = Modifier.weight(1f).height(46.dp),
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00236F), contentColor = Color.White)
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF002066), contentColor = Color.White)
                 ) {
                     Text("Accept", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
