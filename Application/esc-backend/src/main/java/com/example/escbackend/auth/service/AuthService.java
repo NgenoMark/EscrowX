@@ -145,14 +145,14 @@ public class AuthService {
     }
 
     public PasswordResetRequestResponse requestPasswordReset(PasswordResetRequestDto request) {
-        UserEntity user = userRepository.findByPhone(request.getPhone())
+        UserEntity user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String otp = otpService.generate(user.getPhone(), "PASSWORD_RESET");
+        String otp = otpService.generate(user.getEmail(), "PASSWORD_RESET");
         otpDeliveryService.sendPasswordResetOtp(user.getEmail(), otp);
 
         return PasswordResetRequestResponse.builder()
-            .phone(user.getPhone())
+            .email(user.getEmail())
             .message("OTP sent")
             .otpPreview(null)
             .build();
@@ -160,15 +160,15 @@ public class AuthService {
 
     @Transactional
     public PasswordResetConfirmResponse confirmPasswordReset(PasswordResetConfirmRequest request) {
-        UserEntity user = userRepository.findByPhone(request.getPhone())
+        UserEntity user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        otpService.verify(request.getPhone(), "PASSWORD_RESET", request.getOtp());
+        otpService.verify(request.getEmail(), "PASSWORD_RESET", request.getOtp());
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
         return PasswordResetConfirmResponse.builder()
-            .phone(user.getPhone())
+            .email(user.getEmail())
             .passwordUpdated(true)
             .build();
     }

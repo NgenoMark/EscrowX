@@ -6,7 +6,7 @@ import lombok.Getter;
 @Getter
 @Builder
 public class PasswordResetRequestResponse {
-    private String phone;
+    private String email;
     private String message;
     private String otpPreview;
 }
