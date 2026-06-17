@@ -588,46 +588,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         Spacer(modifier = Modifier.height(24.dp))
 
         // How It Works Section
-        DashboardSectionHeader(title = "How EscrowX Works")
-        Spacer(Modifier.height(12.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            border = BorderStroke(
-                1.dp,
-                colorScheme.outlineVariant.copy(alpha = 0.3f)
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                HowItWorksStep(
-                    number = 1,
-                    title = "Create or Receive",
-                    description = "Create an escrow request or receive one from a seller"
-                )
-                HorizontalDivider(color = colorScheme.outlineVariant.copy(alpha = 0.3f))
-                HowItWorksStep(
-                    number = 2,
-                    title = "Review & Accept",
-                    description = "Review transaction details and accept the escrow"
-                )
-                HorizontalDivider(color = colorScheme.outlineVariant.copy(alpha = 0.3f))
-                HowItWorksStep(
-                    number = 3,
-                    title = "Secure Completion",
-                    description = "Funds stay secure until all terms are met"
-                )
-            }
-        }
+        ExpandableHowItWorksCard()
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -978,6 +939,86 @@ fun HowItWorksStep(
                 fontSize = 13.sp,
                 color = colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+fun ExpandableHowItWorksCard() {
+    val colorScheme = MaterialTheme.colorScheme
+    var expanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "How Escrow Works",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (expanded) "Tap to collapse" else "Tap to view steps",
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Collapse" else "Expand",
+                    tint = colorScheme.onSurfaceVariant
+                )
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HorizontalDivider(color = colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    HowItWorksStep(
+                        number = 1,
+                        title = "Create or Receive",
+                        description = "Create an escrow request or receive one from a seller"
+                    )
+                    HorizontalDivider(color = colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    HowItWorksStep(
+                        number = 2,
+                        title = "Review & Accept",
+                        description = "Review transaction details and accept the escrow"
+                    )
+                    HorizontalDivider(color = colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    HowItWorksStep(
+                        number = 3,
+                        title = "Secure Completion",
+                        description = "Funds stay secure until all terms are met"
+                    )
+                }
+            }
         }
     }
 }

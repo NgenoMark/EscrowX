@@ -311,42 +311,6 @@ fun TransactionsScreen(role: String) {
                 .padding(paddingValues)
                 .background(colorScheme.background)
         ) {
-            // Create Escrow Button
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.End
-            ) {
-                Button(
-                    onClick = {
-                        context.startActivity(Intent(context, CreateEscrowActivity::class.java))
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = colorScheme.primary
-                    ),
-                    elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 2.dp,
-                        pressedElevation = 0.dp
-                    )
-                ) {
-                    Icon(
-                        Icons.Default.Add,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp),
-                        tint = Color.White
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    Text(
-                        "Create Escrow",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White
-                    )
-                }
-            }
-
             // Filters Section
             Column(
                 modifier = Modifier
@@ -359,6 +323,9 @@ fun TransactionsScreen(role: String) {
                     onStatusFilterChange = { selectedStatusFilter = it },
                     selectedPartyFilter = selectedPartyFilter,
                     onPartyFilterChange = { selectedPartyFilter = it },
+                    onCreateEscrow = {
+                        context.startActivity(Intent(context, CreateEscrowActivity::class.java))
+                    },
                     colorScheme = colorScheme
                 )
 
@@ -597,12 +564,13 @@ fun TransactionFilters(
     onStatusFilterChange: (TransactionFilter) -> Unit,
     selectedPartyFilter: TransactionPartyFilter,
     onPartyFilterChange: (TransactionPartyFilter) -> Unit,
+    onCreateEscrow: () -> Unit,
     colorScheme: ColorScheme
 ) {
     var isExpanded by remember { mutableStateOf(false) }
     val activeFiltersCount =
         (if (selectedStatusFilter != TransactionFilter.ALL) 1 else 0) +
-            (if (selectedPartyFilter != TransactionPartyFilter.ALL) 1 else 0)
+        (if (selectedPartyFilter != TransactionPartyFilter.ALL) 1 else 0)
 
     Card(
         modifier = Modifier
@@ -626,14 +594,15 @@ fun TransactionFilters(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Header Row: Filters + Create Button
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { isExpanded = !isExpanded },
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Left: Filter Label with expand/collapse
                 Row(
+                    modifier = Modifier.clickable { isExpanded = !isExpanded },
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
@@ -650,6 +619,7 @@ fun TransactionFilters(
                         color = colorScheme.onSurface
                     )
 
+                    // Active filter count badge
                     if (activeFiltersCount > 0) {
                         Surface(
                             shape = CircleShape,
@@ -666,29 +636,52 @@ fun TransactionFilters(
                     }
                 }
 
+                // Right: Create Escrow Button + Expand/Collapse
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (!isExpanded && activeFiltersCount > 0) {
+                    // Create Escrow Button - Compact version
+                    Button(
+                        onClick = onCreateEscrow,
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp),
+                        modifier = Modifier.height(34.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colorScheme.primary,
+                            contentColor = Color.White
+                        ),
+                        elevation = ButtonDefaults.buttonElevation(
+                            defaultElevation = 2.dp,
+                            pressedElevation = 0.dp
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = "Create Escrow",
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(4.dp))
                         Text(
-                            text = getActiveFilterSummary(selectedStatusFilter, selectedPartyFilter),
-                            fontSize = 11.sp,
-                            color = colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.widthIn(max = 120.dp)
+                            text = "Create",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
 
+                    // Expand/Collapse icon
                     Icon(
                         if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                         contentDescription = if (isExpanded) "Collapse filters" else "Expand filters",
-                        tint = colorScheme.onSurfaceVariant
+                        tint = colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .size(24.dp)
+                            .clickable { isExpanded = !isExpanded }
                     )
                 }
             }
 
+            // ===== EXPANDABLE FILTER CONTENT =====
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically(
@@ -716,35 +709,122 @@ fun TransactionFilters(
                         thickness = 0.5.dp
                     )
 
-                    FilterGroup(
-                        title = "Status",
-                        options = listOf(
-                            FilterOption("All", Icons.Default.List, TransactionFilter.ALL),
-                            FilterOption("Complete", Icons.Default.CheckCircle, TransactionFilter.COMPLETE),
-                            FilterOption("Incomplete", Icons.Default.Pending, TransactionFilter.INCOMPLETE)
-                        ),
-                        selectedOption = selectedStatusFilter,
-                        onOptionSelected = { onStatusFilterChange(it) },
-                        colorScheme = colorScheme
-                    )
+                    // ===== STATUS FILTER GROUP =====
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "STATUS",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.2.sp,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                            if (selectedStatusFilter != TransactionFilter.ALL) {
+                                Text(
+                                    text = selectedStatusFilter.name.lowercase(Locale.getDefault()),
+                                    fontSize = 10.sp,
+                                    color = colorScheme.primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChipCompact(
+                                text = "All",
+                                icon = Icons.Default.List,
+                                selected = selectedStatusFilter == TransactionFilter.ALL,
+                                onClick = { onStatusFilterChange(TransactionFilter.ALL) },
+                                colorScheme = colorScheme
+                            )
+                            FilterChipCompact(
+                                text = "Complete",
+                                icon = Icons.Default.CheckCircle,
+                                selected = selectedStatusFilter == TransactionFilter.COMPLETE,
+                                onClick = { onStatusFilterChange(TransactionFilter.COMPLETE) },
+                                colorScheme = colorScheme
+                            )
+                            FilterChipCompact(
+                                text = "Incomplete",
+                                icon = Icons.Default.Pending,
+                                selected = selectedStatusFilter == TransactionFilter.INCOMPLETE,
+                                onClick = { onStatusFilterChange(TransactionFilter.INCOMPLETE) },
+                                colorScheme = colorScheme
+                            )
+                        }
+                    }
 
                     HorizontalDivider(
                         color = colorScheme.outlineVariant.copy(alpha = 0.15f),
                         thickness = 0.5.dp
                     )
 
-                    FilterGroup(
-                        title = "Role",
-                        options = listOf(
-                            FilterOption("All", Icons.Default.People, TransactionPartyFilter.ALL),
-                            FilterOption("Buyer", Icons.Default.ShoppingCart, TransactionPartyFilter.BUYER),
-                            FilterOption("Seller", Icons.Default.Storefront, TransactionPartyFilter.SELLER)
-                        ),
-                        selectedOption = selectedPartyFilter,
-                        onOptionSelected = { onPartyFilterChange(it) },
-                        colorScheme = colorScheme
-                    )
+                    // ===== ROLE FILTER GROUP =====
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "ROLE",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurfaceVariant,
+                                letterSpacing = 1.2.sp,
+                                modifier = Modifier.padding(start = 4.dp)
+                            )
+                            if (selectedPartyFilter != TransactionPartyFilter.ALL) {
+                                Text(
+                                    text = selectedPartyFilter.name.lowercase(Locale.getDefault()),
+                                    fontSize = 10.sp,
+                                    color = colorScheme.primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
 
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChipCompact(
+                                text = "All",
+                                icon = Icons.Default.People,
+                                selected = selectedPartyFilter == TransactionPartyFilter.ALL,
+                                onClick = { onPartyFilterChange(TransactionPartyFilter.ALL) },
+                                colorScheme = colorScheme
+                            )
+                            FilterChipCompact(
+                                text = "Buyer",
+                                icon = Icons.Default.ShoppingCart,
+                                selected = selectedPartyFilter == TransactionPartyFilter.BUYER,
+                                onClick = { onPartyFilterChange(TransactionPartyFilter.BUYER) },
+                                colorScheme = colorScheme
+                            )
+                            FilterChipCompact(
+                                text = "Seller",
+                                icon = Icons.Default.Storefront,
+                                selected = selectedPartyFilter == TransactionPartyFilter.SELLER,
+                                onClick = { onPartyFilterChange(TransactionPartyFilter.SELLER) },
+                                colorScheme = colorScheme
+                            )
+                        }
+                    }
+
+                    // ===== CLEAR FILTERS BUTTON =====
                     if (activeFiltersCount > 0) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
