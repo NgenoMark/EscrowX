@@ -11,6 +11,11 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
@@ -462,6 +467,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         realIncomingTransactions.map { txn ->
             IncomingRequestItem(
                 id = txn.id,
+                reference = txn.reference?.ifBlank { txn.id } ?: txn.id,
                 sellerName = sellerNamesById[txn.sellerId] ?: "Seller ${txn.sellerId.take(6)}",
                 itemTitle = txn.title,
                 amount = formatAmount(txn.amount),
@@ -952,6 +958,7 @@ fun IncomingRequestCard(
     onDecline: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    var expanded by remember { mutableStateOf(false) }
 
     Card(
         modifier = Modifier
@@ -961,7 +968,10 @@ fun IncomingRequestCard(
         colors = CardDefaults.cardColors(
             containerColor = colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 4.dp
+        ),
         border = BorderStroke(
             1.dp,
             colorScheme.outlineVariant.copy(alpha = 0.3f)
@@ -970,10 +980,10 @@ fun IncomingRequestCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Header
+            // Status Badge & Reference
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -981,44 +991,73 @@ fun IncomingRequestCard(
             ) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = Color(0xFFFEF3C7)
+                    color = Color(0xFFFEF3C7),
+                    modifier = Modifier
                 ) {
-                    Text(
-                        "PENDING YOUR ACTION",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF92400E),
-                        letterSpacing = 0.8.sp,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    )
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFF59E0B))
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Awaiting Action",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF92400E),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
                 }
+
                 Text(
-                    "KES ${request.amount}",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.primary
+                    text = "Ref: ${request.reference.take(8)}",
+                    fontSize = 10.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                 )
             }
 
-            // Seller Info
+            // Main Content - Seller & Item
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
+                // Seller Avatar with gradient
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(56.dp)
                         .clip(CircleShape)
-                        .background(colorScheme.primary.copy(alpha = 0.1f)),
+                        .background(
+                            brush = Brush.horizontalGradient(
+                                colors = listOf(
+                                    colorScheme.primary,
+                                    colorScheme.primary.copy(alpha = 0.7f)
+                                )
+                            )
+                        ),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Default.Store,
-                        contentDescription = "Store",
-                        tint = colorScheme.primary,
-                        modifier = Modifier.size(26.dp)
+                    Text(
+                        text = request.sellerName
+                            .split(" ")
+                            .map { it.firstOrNull()?.toString() ?: "" }
+                            .joinToString("")
+                            .take(2)
+                            .uppercase(),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
                     )
                 }
+
                 Column {
                     Text(
                         request.sellerName,
@@ -1038,28 +1077,142 @@ fun IncomingRequestCard(
                 }
             }
 
+            // Divider
+            HorizontalDivider(
+                color = colorScheme.outlineVariant.copy(alpha = 0.3f),
+                thickness = 0.5.dp
+            )
+
+            // Transaction Summary - Compact
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                SummaryChip(
+                    label = "Amount",
+                    value = "KES ${request.amount}",
+                    icon = Icons.Default.AttachMoney,
+                    colorScheme = colorScheme
+                )
+                SummaryChip(
+                    label = "Status",
+                    value = "Pending",
+                    icon = Icons.Default.Pending,
+                    colorScheme = colorScheme
+                )
+                SummaryChip(
+                    label = "Reference",
+                    value = request.reference.take(6),
+                    icon = Icons.Default.LocalOffer,
+                    colorScheme = colorScheme
+                )
+            }
+
+            // Expandable Details
+            AnimatedVisibility(
+                visible = expanded,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.2f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            DetailRow(
+                                label = "Transaction ID",
+                                value = request.id,
+                                colorScheme = colorScheme
+                            )
+                            DetailRow(
+                                label = "Full Reference",
+                                value = request.reference,
+                                colorScheme = colorScheme
+                            )
+                            DetailRow(
+                                label = "Seller",
+                                value = request.sellerName,
+                                colorScheme = colorScheme
+                            )
+                            DetailRow(
+                                label = "Item",
+                                value = request.itemTitle,
+                                colorScheme = colorScheme
+                            )
+                            DetailRow(
+                                label = "Amount",
+                                value = "KES ${request.amount}",
+                                colorScheme = colorScheme,
+                                isHighlighted = true
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Expand/Collapse Button
+            TextButton(
+                onClick = { expanded = !expanded },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(32.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = colorScheme.onSurfaceVariant
+                )
+            ) {
+                Icon(
+                    if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = if (expanded) "Show less" else "Show more",
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    text = if (expanded) "Show Less" else "Show Details",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
             // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 OutlinedButton(
                     onClick = onDecline,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(44.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     ),
                     border = BorderStroke(
                         1.5.dp,
-                        MaterialTheme.colorScheme.error
+                        MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
                     )
                 ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         "Decline",
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -1067,7 +1220,7 @@ fun IncomingRequestCard(
                     onClick = onAccept,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(44.dp),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = colorScheme.primary,
@@ -1086,7 +1239,7 @@ fun IncomingRequestCard(
                     Spacer(Modifier.width(6.dp))
                     Text(
                         "Accept",
-                        fontSize = 14.sp,
+                        fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -1338,11 +1491,79 @@ fun TransactionListItem(
 
 data class IncomingRequestItem(
     val id: String,
+    val reference: String,
     val sellerName: String,
     val itemTitle: String,
     val amount: String,
     val status: String = "PENDING_YOUR_ACTION"
 )
+
+@Composable
+fun SummaryChip(
+    label: String,
+    value: String,
+    icon: ImageVector,
+    colorScheme: ColorScheme
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            color = colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.3.sp
+        )
+    }
+}
+
+@Composable
+fun DetailRow(
+    label: String,
+    value: String,
+    colorScheme: ColorScheme,
+    isHighlighted: Boolean = false
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = value,
+            fontSize = 11.sp,
+            color = if (isHighlighted) colorScheme.primary else colorScheme.onSurface,
+            fontWeight = if (isHighlighted) FontWeight.Bold else FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .weight(1f)
+                .padding(start = 8.dp)
+        )
+    }
+}
 
 @Preview(showBackground = true, widthDp = 428, heightDp = 920)
 @Composable
