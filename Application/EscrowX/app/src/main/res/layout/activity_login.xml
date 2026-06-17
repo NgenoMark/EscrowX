@@ -3,7 +3,7 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
-    android:background="#F7F9FC">
+    android:background="@color/auth_screen_bg">
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -26,7 +26,7 @@
         android:text="@string/app_name"
         android:textSize="24sp"
         android:textStyle="bold"
-        android:textColor="#002066"
+        android:textColor="@color/auth_title_text"
         android:layout_marginTop="16dp"/>
 
     <TextView
@@ -34,7 +34,7 @@
         android:layout_height="wrap_content"
         android:text="@string/app_tagline"
         android:textAlignment="center"
-        android:textColor="#666666"
+        android:textColor="@color/auth_muted_text"
         android:layout_marginTop="8dp"
         android:layout_marginBottom="32dp"/>
 
@@ -42,7 +42,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="horizontal"
-        android:background="#EEEFFF"
+        android:background="@drawable/bg_auth_tab_container"
         android:padding="4dp"
         android:layout_marginBottom="24dp"
         style="?android:attr/buttonBarStyle">
@@ -52,8 +52,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/label_login"
-            android:backgroundTint="#FFFFFF"
-            android:textColor="#002066"
+            android:backgroundTint="@color/auth_card_bg"
+            android:textColor="@color/auth_title_text"
             style="?android:attr/buttonBarButtonStyle"/>
 
         <Button
@@ -62,8 +62,8 @@
             android:layout_height="wrap_content"
             android:layout_weight="1"
             android:text="@string/label_sign_up"
-            android:backgroundTint="#EEEFFF"
-            android:textColor="#666666"
+            android:backgroundTint="@color/auth_input_bg"
+            android:textColor="@color/auth_muted_text"
             style="?android:attr/buttonBarButtonStyle"/>
     </LinearLayout>
 
@@ -74,7 +74,9 @@
         android:hint="@string/hint_login_identifier"
         android:inputType="textEmailAddress"
         android:autofillHints="emailAddress"
-        android:background="@android:drawable/editbox_background"
+        android:background="@drawable/bg_auth_input"
+        android:textColor="@color/auth_input_text"
+        android:textColorHint="@color/auth_input_hint"
         android:padding="12dp"
         android:layout_marginBottom="16dp"/>
 
@@ -90,7 +92,9 @@
             android:hint="@string/hint_password"
             android:inputType="textPassword"
             android:autofillHints="password"
-            android:background="@android:drawable/editbox_background"
+            android:background="@drawable/bg_auth_input"
+            android:textColor="@color/auth_input_text"
+            android:textColorHint="@color/auth_input_hint"
             android:paddingStart="12dp"
             android:paddingEnd="48dp"
             android:paddingTop="12dp"
@@ -106,7 +110,7 @@
             android:contentDescription="Show password"
             android:padding="8dp"
             android:src="@drawable/ic_visibility_off"
-            android:tint="#666666" />
+            android:tint="@color/auth_muted_text" />
     </FrameLayout>
 
     <TextView
@@ -114,7 +118,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:text="@string/btn_forgot_password"
-        android:textColor="#002066"
+        android:textColor="@color/auth_link_text"
         android:textStyle="bold"
         android:layout_gravity="end"
         android:layout_marginTop="12dp"
@@ -125,7 +129,7 @@
         android:layout_width="match_parent"
         android:layout_height="52dp"
         android:text="@string/btn_continue"
-        android:backgroundTint="#002066"
+        android:backgroundTint="@color/brand_primary"
         android:textColor="#FFFFFF"
         android:textStyle="bold"/>
 
@@ -134,7 +138,7 @@
         android:layout_height="wrap_content"
         android:text="@string/label_or_continue"
         android:textSize="12sp"
-        android:textColor="#999999"
+        android:textColor="@color/auth_muted_text"
         android:layout_marginVertical="24dp"/>
 
     <Button
@@ -142,8 +146,8 @@
         android:layout_width="match_parent"
         android:layout_height="52dp"
         android:text="@string/btn_google"
-        android:backgroundTint="#FFFFFF"
-        android:textColor="#333333"
+        android:backgroundTint="@color/auth_input_bg"
+        android:textColor="@color/auth_body_text"
         style="@style/Widget.AppCompat.Button.Colored"/>
 
     </LinearLayout>

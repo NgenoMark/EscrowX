@@ -12,13 +12,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    // Keep standard Material dark colors
+    primary = BrandBlueDark,
+    secondary = BrandBlueDark,
+    tertiary = BrandBlueDark,
+    background = AppDarkBackground,
+    surface = AppDarkBackground,
+    surfaceVariant = AppDarkSurfaceVariant,
+    onPrimary = AppDarkBackground,
+    onBackground = AppDarkOnSurface,
+    onSurface = AppDarkOnSurface,
+    onSurfaceVariant = AppDarkOnSurfaceVariant
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
+    primary = BrandBlue,
+    secondary = BrandBlue,
+    tertiary = BrandBlue,
     background = AppLightBackground,
     surface = AppLightBackground
 

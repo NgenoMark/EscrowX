@@ -24,10 +24,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,14 +46,18 @@ import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.ui.components.BuyerNavBar
 import mobile.project.escrowx.ui.components.BuyerNavItem
 import mobile.project.escrowx.ui.components.navigateTab
+import mobile.project.escrowx.ui.theme.BrandBlue
 import java.text.NumberFormat
-import java.util.Locale
+import java.util.*
 
 class BuyerDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
+            EscrowXTheme(
+                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                dynamicColor = false
+            ) {
                 BuyerDashboardScreen()
             }
         }
@@ -97,64 +104,147 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                 drawerContainerColor = colorScheme.surface,
                 drawerShape = RoundedCornerShape(16.dp)
             ) {
+                // Drawer Header
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF00236F))
+                        .background(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(
+                                    BrandBlue,
+                                    BrandBlue.copy(alpha = 0.8f)
+                                )
+                            )
+                        )
                         .padding(24.dp)
                 ) {
                     Column {
                         Box(
                             modifier = Modifier
-                                .size(60.dp)
+                                .size(64.dp)
                                 .clip(CircleShape)
                                 .background(Color.White.copy(alpha = 0.2f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Person, contentDescription = "Profile", tint = Color.White, modifier = Modifier.size(32.dp))
+                            Icon(
+                                Icons.Default.Person,
+                                contentDescription = "Profile",
+                                tint = Color.White,
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
                         Spacer(modifier = Modifier.height(12.dp))
-                        Text(text = displayName, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(text = session.getEmail() ?: "user@escrowx.com", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                        Text(
+                            text = displayName,
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 0.3.sp
+                        )
+                        Text(
+                            text = session.getEmail() ?: "user@escrowx.com",
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 13.sp
+                        )
                     }
                 }
+
+                // Drawer Items
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                    label = { Text("Settings", fontWeight = FontWeight.Medium) },
+                    icon = {
+                        Icon(
+                            Icons.Default.Person,
+                            contentDescription = "Profile",
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    label = {
+                        Text(
+                            "My Profile",
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.onSurface
+                        )
+                    },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        context.startActivity(Intent(context, ProfileActivity::class.java))
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+
+                NavigationDrawerItem(
+                    icon = {
+                        Icon(
+                            Icons.Default.Settings,
+                            contentDescription = "Settings",
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    label = {
+                        Text(
+                            "Settings",
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.onSurface
+                        )
+                    },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
                         context.startActivity(Intent(context, SettingsActivity::class.java))
                     },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedTextColor = Color(0xFF00236F),
-                        selectedIconColor = Color(0xFF00236F),
-                        unselectedTextColor = colorScheme.onSurface,
-                        unselectedIconColor = colorScheme.onSurfaceVariant
-                    )
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
+
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.Default.Info, contentDescription = "App Info") },
-                    label = { Text("App Info", fontWeight = FontWeight.Medium) },
+                    icon = {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = "App Info",
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    label = {
+                        Text(
+                            "App Info",
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.onSurface
+                        )
+                    },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
-                        Toast.makeText(context, "EscrowX v1.0.0\nSecure mobile escrow for safer transactions", Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            context,
+                            "EscrowX v1.0.0\nSecure mobile escrow for safer transactions",
+                            Toast.LENGTH_LONG
+                        ).show()
                     },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedTextColor = Color(0xFF00236F),
-                        selectedIconColor = Color(0xFF00236F),
-                        unselectedTextColor = colorScheme.onSurface,
-                        unselectedIconColor = colorScheme.onSurfaceVariant
-                    )
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
+
                 Spacer(modifier = Modifier.weight(1f))
-                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = Color.LightGray)
+
+                HorizontalDivider(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    color = colorScheme.outlineVariant
+                )
+
                 NavigationDrawerItem(
-                    icon = { Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Logout", tint = Color(0xFFBA1A1A)) },
-                    label = { Text("Logout", fontWeight = FontWeight.Medium, color = Color(0xFFBA1A1A)) },
+                    icon = {
+                        Icon(
+                            Icons.AutoMirrored.Filled.Logout,
+                            contentDescription = "Logout",
+                            tint = Color(0xFFDC2626)
+                        )
+                    },
+                    label = {
+                        Text(
+                            "Logout",
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFDC2626)
+                        )
+                    },
                     selected = false,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -163,20 +253,17 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         context.startActivity(Intent(context, LoginActivity::class.java))
                         (context as? BuyerDashboardActivity)?.finishAffinity()
                     },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    colors = NavigationDrawerItemDefaults.colors(
-                        selectedTextColor = Color(0xFFBA1A1A),
-                        selectedIconColor = Color(0xFFBA1A1A),
-                        unselectedTextColor = Color(0xFFBA1A1A),
-                        unselectedIconColor = Color(0xFFBA1A1A)
-                    )
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
+
                 Text(
                     text = "EscrowX v1.0",
-                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
                     fontSize = 12.sp,
                     color = colorScheme.onSurfaceVariant,
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    textAlign = TextAlign.Center
                 )
             }
         }
@@ -185,20 +272,44 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
             containerColor = colorScheme.background,
             topBar = {
                 TopAppBar(
-                    title = { Text("EscrowX", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = colorScheme.primary) },
+                    title = {
+                        Text(
+                            "EscrowX",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colorScheme.primary,
+                            letterSpacing = 0.5.sp
+                        )
+                    },
                     navigationIcon = {
                         IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                            Icon(Icons.Default.Menu, contentDescription = "Menu", tint = colorScheme.primary)
+                            Icon(
+                                Icons.Default.Menu,
+                                contentDescription = "Menu",
+                                tint = colorScheme.primary
+                            )
                         }
                     },
                     actions = {
-                        IconButton(onClick = { }) {
-                            Icon(Icons.Default.NotificationsNone, contentDescription = "Notifications", tint = colorScheme.primary)
+                        IconButton(onClick = {
+                            Toast.makeText(context, "Notifications coming soon", Toast.LENGTH_SHORT).show()
+                        }) {
+                            Badge(
+                                containerColor = Color(0xFFDC2626),
+                                modifier = Modifier.offset(x = 4.dp, y = (-4).dp)
+                            ) {
+                                Text("3", fontSize = 9.sp, color = Color.White)
+                            }
+                            Icon(
+                                Icons.Default.NotificationsNone,
+                                contentDescription = "Notifications",
+                                tint = colorScheme.primary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = colorScheme.surface,
-                        titleContentColor = colorScheme.primary
+                        scrolledContainerColor = colorScheme.surface
                     )
                 )
             },
@@ -225,13 +336,23 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
             when (selectedTab) {
                 0 -> HomeTabContent(padding, context, displayName)
                 1 -> {
-                    Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                        Text("Opening Transactions...")
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
                 2 -> {
-                    Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                        Text("Opening Profile...")
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(padding),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -245,10 +366,6 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
     val brandPrimary = colorScheme.primary
-    val brandSurface = colorScheme.background
-    val brandCard = colorScheme.surface
-    val brandTextPrimary = colorScheme.onSurface
-    val brandTextSecondary = colorScheme.onSurfaceVariant
 
     var realIncomingTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
     var sellerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
@@ -357,63 +474,157 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .background(brandSurface)
+            .background(colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .padding(horizontal = 20.dp, vertical = 16.dp)
     ) {
-        // Welcome header
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(text = "Welcome back, $displayName", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
-                Text(text = "Manage your escrows securely from one place.", fontSize = 13.sp, color = brandTextSecondary)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 2) How It Works
+        // Welcome Section
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = brandCard),
-            border = BorderStroke(1.dp, Color(0xFFD8E3FF)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = BorderStroke(
+                1.dp,
+                colorScheme.outlineVariant.copy(alpha = 0.3f)
+            )
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("How EscrowX Works", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
-                Text("1. Create or receive an escrow request.", fontSize = 13.sp, color = brandTextSecondary)
-                Text("2. Review details and accept the transaction.", fontSize = 13.sp, color = brandTextSecondary)
-                Text("3. Funds stay secure until completion terms are met.", fontSize = 13.sp, color = brandTextSecondary)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
+            ) {
+                Text(
+                    text = "Welcome back, 👋",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = displayName,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    letterSpacing = 0.3.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Manage your escrows securely from one place.",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // 3) Transactions Awaiting Acceptance
+        // Quick Stats
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            QuickStatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.Pending,
+                title = "Pending",
+                value = "${awaitingAcceptanceItems.size}",
+                color = Color(0xFFF59E0B),
+                colorScheme = colorScheme
+            )
+            QuickStatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.CheckCircle,
+                title = "Active",
+                value = "0",
+                color = Color(0xFF10B981),
+                colorScheme = colorScheme
+            )
+            QuickStatCard(
+                modifier = Modifier.weight(1f),
+                icon = Icons.Default.History,
+                title = "Completed",
+                value = "0",
+                color = BrandBlue,
+                colorScheme = colorScheme
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // How It Works Section
+        DashboardSectionHeader(title = "How EscrowX Works")
+        Spacer(Modifier.height(12.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = BorderStroke(
+                1.dp,
+                colorScheme.outlineVariant.copy(alpha = 0.3f)
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                HowItWorksStep(
+                    number = 1,
+                    title = "Create or Receive",
+                    description = "Create an escrow request or receive one from a seller"
+                )
+                HorizontalDivider(color = colorScheme.outlineVariant.copy(alpha = 0.3f))
+                HowItWorksStep(
+                    number = 2,
+                    title = "Review & Accept",
+                    description = "Review transaction details and accept the escrow"
+                )
+                HorizontalDivider(color = colorScheme.outlineVariant.copy(alpha = 0.3f))
+                HowItWorksStep(
+                    number = 3,
+                    title = "Secure Completion",
+                    description = "Funds stay secure until all terms are met"
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Transactions Awaiting Acceptance
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Transactions Awaiting Acceptance", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
-            OutlinedButton(
+            DashboardSectionHeader(title = "Awaiting Acceptance")
+            TextButton(
                 onClick = {
                     val intent = Intent(context, TransactionsActivity::class.java).apply {
                         putExtra("ROLE", "BUYER")
                     }
                     context.startActivity(intent)
                 },
-                shape = RoundedCornerShape(50),
-                border = BorderStroke(1.dp, Color(0xFFBCD0FF)),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = brandPrimary),
-                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 0.dp),
-                modifier = Modifier.height(34.dp)
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = brandPrimary
+                )
             ) {
-                Text("View all", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "View All",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Icon(
+                    Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
             }
         }
 
@@ -421,17 +632,61 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         when {
             isLoadingReal -> {
-                Box(modifier = Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = brandPrimary)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(140.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            color = brandPrimary,
+                            strokeWidth = 3.dp
+                        )
+                        Text(
+                            "Loading transactions...",
+                            fontSize = 13.sp,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
             realError != null -> {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF0F0)), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(realError!!, color = Color.Red)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = { loadRealIncoming() }, colors = ButtonDefaults.buttonColors(containerColor = brandPrimary)) {
-                            Text("Retry")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            modifier = Modifier.size(40.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            realError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Button(
+                            onClick = { loadRealIncoming() },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = brandPrimary
+                            ),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("Retry", color = Color.White)
                         }
                     }
                 }
@@ -439,14 +694,48 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
             awaitingAcceptanceItems.isEmpty() -> {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEAF0FF)),
-                    border = BorderStroke(1.dp, Color(0xFFD2E0FF))
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = colorScheme.surface
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        colorScheme.outlineVariant.copy(alpha = 0.3f)
+                    )
                 ) {
-                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.CheckCircle, null, tint = brandPrimary, modifier = Modifier.size(40.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("No transactions awaiting acceptance", fontSize = 14.sp, color = brandTextSecondary)
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(brandPrimary.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(32.dp),
+                                tint = brandPrimary
+                            )
+                        }
+                        Text(
+                            "All Clear!",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            "No transactions awaiting your acceptance",
+                            fontSize = 14.sp,
+                            color = colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
@@ -464,7 +753,11 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                                 }
                             },
                             onDecline = {
-                                Toast.makeText(context, "Decline action not enabled on this screen yet.", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(
+                                    context,
+                                    "Decline action not enabled on this screen yet.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
                             }
                         )
                     }
@@ -474,17 +767,63 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 4) Logistics Section Placeholder
+        // Logistics Section
+        DashboardSectionHeader(title = "Logistics")
+        Spacer(Modifier.height(12.dp))
+
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = brandCard),
-            border = BorderStroke(1.dp, Color(0xFFD8E3FF)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = BorderStroke(
+                1.dp,
+                colorScheme.outlineVariant.copy(alpha = 0.3f)
+            )
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Logistics", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = brandTextPrimary)
-                Text("Logistics details will be added here in the next update.", fontSize = 13.sp, color = brandTextSecondary)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(brandPrimary.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.LocalShipping,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = brandPrimary
+                    )
+                }
+                Spacer(Modifier.width(16.dp))
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        "Shipping & Delivery",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colorScheme.onSurface
+                    )
+                    Text(
+                        "Logistics details will be added here in the next update",
+                        fontSize = 13.sp,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+                Icon(
+                    Icons.Default.Info,
+                    contentDescription = null,
+                    tint = colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -492,7 +831,119 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
     }
 }
 
-// ===================== COMPOSABLES (FULL IMPLEMENTATIONS) =====================
+@Composable
+fun DashboardSectionHeader(title: String) {
+    val colorScheme = MaterialTheme.colorScheme
+    Text(
+        text = title.uppercase(Locale.getDefault()),
+        fontSize = 12.sp,
+        fontWeight = FontWeight.Bold,
+        color = colorScheme.onSurfaceVariant,
+        letterSpacing = 1.2.sp
+    )
+}
+
+@Composable
+fun QuickStatCard(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    title: String,
+    value: String,
+    color: Color,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = modifier
+            .height(80.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    title,
+                    fontSize = 11.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = color
+                )
+            }
+            Text(
+                value,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+fun HowItWorksStep(
+    number: Int,
+    title: String,
+    description: String
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(colorScheme.primary.copy(alpha = 0.1f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = number.toString(),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorScheme.primary
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                title,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium,
+                color = colorScheme.onSurface
+            )
+            Text(
+                description,
+                fontSize = 13.sp,
+                color = colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+// ===================== COMPOSABLES =====================
 
 @Composable
 fun IncomingRequestCard(
@@ -500,87 +951,144 @@ fun IncomingRequestCard(
     onAccept: () -> Unit,
     onDecline: () -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Card(
-        modifier = Modifier.width(324.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, Color(0xFFD8E3FF)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        modifier = Modifier
+            .width(340.dp)
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "PENDING YOUR ACTION",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFFB7791F),
-                    letterSpacing = 0.5.sp
-                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color(0xFFFEF3C7)
+                ) {
+                    Text(
+                        "PENDING YOUR ACTION",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF92400E),
+                        letterSpacing = 0.8.sp,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
                 Text(
                     "KES ${request.amount}",
-                    fontSize = 20.sp,
+                    fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF002066)
+                    color = colorScheme.primary
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+
+            // Seller Info
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
+                        .size(52.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFEAF0FF)),
+                        .background(colorScheme.primary.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         Icons.Default.Store,
                         contentDescription = "Store",
-                        tint = Color(0xFF002066),
-                        modifier = Modifier.size(24.dp)
+                        tint = colorScheme.primary,
+                        modifier = Modifier.size(26.dp)
                     )
                 }
                 Column {
                     Text(
                         request.sellerName,
-                        fontSize = 14.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color(0xFF151C27)
+                        color = colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                     Text(
                         request.itemTitle,
-                        fontSize = 12.sp,
-                        color = Color(0xFF475569)
+                        fontSize = 13.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+
+            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 OutlinedButton(
                     onClick = onDecline,
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xFFBA1A1A)),
-                    border = BorderStroke(1.dp, Color(0xFFBA1A1A))
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    ),
+                    border = BorderStroke(
+                        1.5.dp,
+                        MaterialTheme.colorScheme.error
+                    )
                 ) {
-                    Text("Decline", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        "Decline",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
                 Button(
                     onClick = onAccept,
-                    modifier = Modifier.weight(1f).height(46.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF002066), contentColor = Color.White)
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(48.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colorScheme.primary,
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 2.dp,
+                        pressedElevation = 0.dp
+                    )
                 ) {
-                    Text("Accept", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Accept",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
@@ -601,19 +1109,37 @@ fun ActiveEscrowCard(
     timeLeftText: String,
     onTrackClick: () -> Unit
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+
     Card(
-        modifier = Modifier.width(280.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        modifier = Modifier
+            .width(300.dp)
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(shape = RoundedCornerShape(4.dp), color = topStatusColor) {
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = topStatusColor
+                ) {
                     Text(
                         text = topStatus,
                         fontSize = 10.sp,
@@ -622,9 +1148,14 @@ fun ActiveEscrowCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
-                Text(text = amountText, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
+                Text(
+                    text = amountText,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.primary
+                )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+
             Surface(
                 shape = RoundedCornerShape(4.dp),
                 color = bottomStatusColor,
@@ -638,33 +1169,35 @@ fun ActiveEscrowCard(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFF0F0F0)),
+                        .background(colorScheme.primary.copy(alpha = 0.1f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = partyIcon,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = Color(0xFF00236F)
+                        modifier = Modifier.size(18.dp),
+                        tint = colorScheme.primary
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = partyName,
-                    fontSize = 13.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.Black
+                    color = colorScheme.onSurface
                 )
             }
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = Color(0xFFEEEEEE))
-            Spacer(modifier = Modifier.height(8.dp))
+
+            HorizontalDivider(
+                color = colorScheme.outlineVariant.copy(alpha = 0.3f)
+            )
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -674,27 +1207,31 @@ fun ActiveEscrowCard(
                     Icon(
                         Icons.Default.Timer,
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp),
-                        tint = Color.Gray
+                        modifier = Modifier.size(16.dp),
+                        tint = colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = timeLeftText, fontSize = 11.sp, color = Color.Gray)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = timeLeftText,
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceVariant
+                    )
                 }
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.clickable { onTrackClick() }
+                TextButton(
+                    onClick = onTrackClick,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = colorScheme.primary
+                    )
                 ) {
                     Text(
                         text = "Track",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = Color(0xFF00236F)
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
                     )
                     Icon(
                         Icons.AutoMirrored.Filled.KeyboardArrowRight,
                         contentDescription = "Track",
-                        modifier = Modifier.size(14.dp),
-                        tint = Color(0xFF00236F)
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -712,80 +1249,87 @@ fun TransactionListItem(
     icon: ImageVector,
     iconColor: Color
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     val statusColor = when {
         status.equals("COMPLETED", ignoreCase = true) -> Color(0xFF10B981)
         status.equals("IN DELIVERY", ignoreCase = true) -> Color(0xFFF59E0B)
         status.equals("FUNDS HELD", ignoreCase = true) -> Color(0xFF3B82F6)
         status.equals("UNDER REVIEW", ignoreCase = true) -> Color(0xFFDC2626)
-        else -> Color(0xFF00236F)
+        else -> colorScheme.primary
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .wrapContentHeight(),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(44.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFFF0F0F0)),
+                    .background(iconColor.copy(alpha = 0.1f)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
                     tint = iconColor,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(24.dp)
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = title,
                     fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Black
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onSurface
                 )
                 Text(
                     text = subtitle,
-                    fontSize = 11.sp,
-                    color = Color.Gray
+                    fontSize = 12.sp,
+                    color = colorScheme.onSurfaceVariant
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
                     text = amount,
-                    fontSize = 14.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00236F)
+                    color = colorScheme.primary
                 )
-                Spacer(modifier = Modifier.height(2.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Surface(
-                    shape = RoundedCornerShape(4.dp),
-                    color = statusColor.copy(alpha = 0.1f)
+                    shape = RoundedCornerShape(50),
+                    color = statusColor.copy(alpha = 0.12f)
                 ) {
                     Text(
                         text = status,
-                        fontSize = 9.sp,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Medium,
                         color = statusColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
                 }
                 Text(
                     text = date,
                     fontSize = 10.sp,
-                    color = Color.Gray
+                    color = colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -803,7 +1347,15 @@ data class IncomingRequestItem(
 @Preview(showBackground = true, widthDp = 428, heightDp = 920)
 @Composable
 fun BuyerDashboardPreview() {
-    MaterialTheme {
+    EscrowXTheme(darkTheme = false) {
+        BuyerDashboardScreen()
+    }
+}
+
+@Preview(showBackground = true, widthDp = 428, heightDp = 920)
+@Composable
+fun BuyerDashboardPreviewDark() {
+    EscrowXTheme(darkTheme = true) {
         BuyerDashboardScreen()
     }
 }

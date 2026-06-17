@@ -11,7 +11,10 @@ import android.widget.ImageButton
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.ComponentActivity
+import androidx.core.content.ContextCompat
 import android.text.method.HideReturnsTransformationMethod
 import android.text.method.PasswordTransformationMethod
 import kotlinx.coroutines.CoroutineScope
@@ -52,7 +55,19 @@ class SignUpActivity : ComponentActivity() {
         }
 
         val roles = arrayOf("BUYER", "SELLER")
-        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item, roles)
+        val adapter = object : ArrayAdapter<String>(this, android.R.layout.simple_spinner_item, roles) {
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getView(position, convertView, parent)
+                (view as? TextView)?.setTextColor(ContextCompat.getColor(this@SignUpActivity, R.color.auth_input_text))
+                return view
+            }
+
+            override fun getDropDownView(position: Int, convertView: View?, parent: ViewGroup): View {
+                val view = super.getDropDownView(position, convertView, parent)
+                (view as? TextView)?.setTextColor(ContextCompat.getColor(this@SignUpActivity, R.color.auth_input_text))
+                return view
+            }
+        }
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerRole.adapter = adapter
 

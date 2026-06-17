@@ -121,7 +121,7 @@ fun LinkGeneratedScreen(paymentLink: String) {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF9F9FF),
+                    containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = Color(0xFF00236F)
                 )
             )

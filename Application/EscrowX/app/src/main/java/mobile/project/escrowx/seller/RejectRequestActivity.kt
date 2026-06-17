@@ -139,7 +139,7 @@ fun RejectRequestScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF9F9FF)
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }

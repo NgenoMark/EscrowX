@@ -1,6 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="app_background_light">#F5F5F0</color>
+    <color name="brand_primary">#00236F</color>
+    <color name="brand_primary_dark">#8FB3FF</color>
+
+    <color name="auth_screen_bg">#F5F5F0</color>
+    <color name="auth_card_bg">#FFFFFF</color>
+    <color name="auth_title_text">#00236F</color>
+    <color name="auth_body_text">#1E2533</color>
+    <color name="auth_muted_text">#5C6473</color>
+    <color name="auth_link_text">#00236F</color>
+    <color name="auth_input_bg">#FFFFFF</color>
+    <color name="auth_input_text">#111827</color>
+    <color name="auth_input_hint">#6B7280</color>
+    <color name="auth_input_border">#C5CDD8</color>
+
     <color name="purple_200">#FFBB86FC</color>
     <color name="purple_500">#FF6200EE</color>
     <color name="purple_700">#FF3700B3</color>

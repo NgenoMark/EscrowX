@@ -73,6 +73,7 @@ fun RaiseDisputeScreen(
     transactionAmount: String
 ) {
     val context = LocalContext.current
+    val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
 
@@ -223,13 +224,13 @@ fun RaiseDisputeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Raise Dispute", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F)) },
+                title = { Text("Raise Dispute", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = { (context as? RaiseDisputeActivity)?.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White, titleContentColor = Color(0xFF00236F))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.background, titleContentColor = colorScheme.onSurface)
             )
         }
     ) { padding ->
@@ -237,7 +238,7 @@ fun RaiseDisputeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFFF9F9FF))
+                .background(colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
