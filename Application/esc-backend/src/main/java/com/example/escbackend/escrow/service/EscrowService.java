@@ -104,6 +104,16 @@ public class EscrowService {
 
 
     @Transactional
+    public EscrowResponse declineTransaction(UUID transactionId, UUID actorUserId){
+        EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertActorIsBuyer(transaction, actorUserId);
+        assertState(transaction,"CREATED");
+        transaction.setStatus("DECLINED");
+        return toResponse(escrowRepository.save(transaction));
+
+    }
+
+    @Transactional
     public EscrowResponse approveTransaction(UUID transactionId , UUID actorUserId){
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsBuyer(transaction, actorUserId);

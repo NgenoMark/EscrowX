@@ -433,7 +433,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
         }
     }
 
-    fun acceptTransaction(transactionId: String, onSuccess: () -> Unit) {
+    fun approveTransaction(transactionId: String, onSuccess: () -> Unit) {
         scope.launch {
             try {
                 val token = session.getAccessToken()
@@ -443,20 +443,48 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                     return@launch
                 }
                 val response = RetrofitClient.authenticated(token)
-                    .acceptTransaction(transactionId, actorUserId)
+                    .approveTransaction(transactionId, actorUserId)
                 if (response.isSuccessful) {
-                    Toast.makeText(context, "Transaction accepted!", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Transaction approved!", Toast.LENGTH_LONG).show()
                     onSuccess()
                 } else {
                     val errorBody = response.errorBody()?.string()
-                    println("Accept failed: ${response.code()} - $errorBody")
-                    Toast.makeText(context, "Accept failed: ${response.code()}", Toast.LENGTH_SHORT).show()
+                    println("Approval failed: ${response.code()} - $errorBody")
+                    Toast.makeText(context, "Approval failed: ${response.code()}", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
-                println("Error accepting transaction: ${e.message}")
-                Toast.makeText(context, "Error accepting transaction", Toast.LENGTH_SHORT).show()
+                println("Error approving transaction: ${e.message}")
+                Toast.makeText(context, "Error approving transaction", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    fun declineTransaction( transactionId: String, onSuccess:  () -> Unit){
+        scope.launch{
+            try {
+                val token = session.getAccessToken()
+                val actorUserId = session.getUserId()
+                if (token.isNullOrBlank() || actorUserId.isNullOrBlank()) {
+                    Toast.makeText(context, "Session expired", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+                val response = RetrofitClient.authenticated(token)
+                    .declineTransaction(transactionId, actorUserId)
+                if (response.isSuccessful) {
+                    Toast.makeText(context, "Transaction Declined!", Toast.LENGTH_LONG).show()
+                    onSuccess()
+                } else {
+                    val errorBody = response.errorBody()?.string()
+                    println("Decline failed: ${response.code()} - $errorBody")
+                    Toast.makeText(context, "Decline failed: ${response.code()}", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                println("Error declining transaction: ${e.message}")
+                Toast.makeText(context, "Error declining transaction", Toast.LENGTH_SHORT).show()
+            }
+
+        }
+
     }
 
     LaunchedEffect(Unit) {
@@ -754,17 +782,22 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                         IncomingRequestCard(
                             request = request,
                             onAccept = {
-                                acceptTransaction(request.id) {
+                                approveTransaction(request.id) {
                                     loadRealIncoming()
                                 }
                             },
                             onDecline = {
-                                Toast.makeText(
-                                    context,
-                                    "Decline action not enabled on this screen yet.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                declineTransaction(request.id){
+                                    loadRealIncoming()
+                                }
                             }
+//                            {
+//                                Toast.makeText(
+//                                    context,
+//                                    "Decline action not enabled on this screen yet.",
+//                                    Toast.LENGTH_SHORT
+//                                ).show()
+//                            }
                         )
                     }
                 }
@@ -1238,7 +1271,7 @@ fun IncomingRequestCard(
                     )
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        "Accept",
+                        "Approve",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
                     )

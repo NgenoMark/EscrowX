@@ -3,6 +3,7 @@ package com.example.escbackend.common.constants;
 public enum EscrowStatus {
 
     CREATED,
+    DECLINED,
     PENDING_PAYMENT,
     FUNDS_HELD,
     SELLER_ACCEPTED,

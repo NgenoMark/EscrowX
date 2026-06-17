@@ -74,6 +74,19 @@ interface AuthApiService {
     @GET("api/v1/transactions/{id}")
     suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
 
+    @POST("api/v1/transactions/{id}/decline-transaction")
+    suspend fun declineTransaction(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/approve-transaction")
+    suspend fun approveTransaction(
+        @Path("id") id:String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+
     @POST("api/v1/transactions/{id}/accept-transaction")
     suspend fun acceptTransaction(
         @Path("id") id: String,
