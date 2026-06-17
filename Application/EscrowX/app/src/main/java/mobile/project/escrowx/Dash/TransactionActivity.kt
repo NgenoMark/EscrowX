@@ -1,4 +1,5 @@
 package mobile.project.escrowx.dash
+
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
@@ -7,12 +8,20 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,9 +30,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
@@ -32,12 +47,11 @@ import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.seller.SellerTransactionDetailActivity
-import mobile.project.escrowx.ui.components.BuyerNavBar
-import mobile.project.escrowx.ui.components.BuyerNavItem
-import mobile.project.escrowx.ui.components.SellerNavBar
-import mobile.project.escrowx.ui.components.SellerNavItem
-import mobile.project.escrowx.ui.components.navigateTab
+import mobile.project.escrowx.ui.components.*
+import mobile.project.escrowx.ui.theme.BrandBlue
 import com.google.gson.Gson
+import java.text.NumberFormat
+import java.util.*
 
 class TransactionsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,7 +59,10 @@ class TransactionsActivity : ComponentActivity() {
         val sessionRole = SessionManager(this).getUserRole()
         val role = intent.getStringExtra("ROLE") ?: sessionRole ?: "BUYER"
         setContent {
-            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
+            EscrowXTheme(
+                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                dynamicColor = false
+            ) {
                 TransactionsScreen(role = role)
             }
         }
@@ -59,11 +76,22 @@ fun TransactionsScreen(role: String) {
     val session = SessionManager(context)
     val scope = rememberCoroutineScope()
     val colorScheme = MaterialTheme.colorScheme
+    val currentUserId = session.getUserId().orEmpty()
 
-    var allTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList<EscrowResponse>()) }
-    var filteredTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList<EscrowResponse>()) }
+    var allTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
+    var filteredTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
+    var sellerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
-    var selectedFilter by remember { mutableStateOf(TransactionFilter.ALL) }
+    var selectedStatusFilter by remember { mutableStateOf(TransactionFilter.ALL) }
+    var selectedPartyFilter by remember {
+        mutableStateOf(
+            when (role.uppercase()) {
+                "SELLER" -> TransactionPartyFilter.SELLER
+                "BUYER" -> TransactionPartyFilter.BUYER
+                else -> TransactionPartyFilter.ALL
+            }
+        )
+    }
     var selectedBottomTab by remember { mutableIntStateOf(1) }
 
     // Helper to create dummy transactions
@@ -114,85 +142,139 @@ fun TransactionsScreen(role: String) {
         )
     }
 
+    fun parseTransactionsFromBody(body: Any?): List<EscrowResponse> {
+        return when (body) {
+            is List<*> -> body.filterIsInstance<EscrowResponse>()
+            else -> {
+                try {
+                    val json = Gson().toJson(body)
+                    val wrapper = Gson().fromJson(json, PageResponseWrapper::class.java)
+                    wrapper.content ?: emptyList()
+                } catch (e: Exception) {
+                    println("Failed to parse wrapper: ${e.message}")
+                    emptyList()
+                }
+            }
+        }
+    }
+
     LaunchedEffect(role) {
         scope.launch {
             val token = session.getAccessToken()
             val userId = session.getUserId()
             if (token.isNullOrBlank() || userId.isNullOrBlank()) {
-                allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
+                allTransactions = (getDummyBuyerTransactions() + getDummySellerTransactions())
+                    .distinctBy { it.id }
                 isLoading = false
                 return@launch
             }
 
             try {
                 val api = RetrofitClient.authenticated(token)
-                val response = when (role.uppercase()) {
-                    "BUYER" -> api.getTransactionsByBuyer(userId, null)
-                    "SELLER" -> api.getTransactionsBySeller(userId, null)
-                    else -> error("Unknown role: $role")
-                }
-                // Debug: print raw response
-                println("Transactions API Response Code: ${response.code()}")
-                println("Transactions API raw body: ${response.body()}")
-                println("Transactions API error body: ${response.errorBody()?.string()}")
 
-                if (response.isSuccessful) {
-                    val body = response.body()
-                    // Try to extract list – assume either List<EscrowResponse> or wrapper with 'content'
-                    val transactions: List<EscrowResponse> = when (body) {
-                        is List<*> -> body.filterIsInstance<EscrowResponse>()
-                        else -> {
-                            // Attempt to extract from a wrapper (e.g., { content: [...] })
-                            try {
-                                val json = Gson().toJson(body)
-                                val wrapper = Gson().fromJson(json, PageResponseWrapper::class.java)
-                                wrapper.content ?: emptyList()
-                            } catch (e: Exception) {
-                                println("Failed to parse wrapper: ${e.message}")
-                                emptyList()
-                            }
-                        }
-                    }
-                    if (transactions.isNotEmpty()) {
-                        allTransactions = transactions
-                    } else {
-                        allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
-                    }
+                val buyerTransactions = try {
+                    val buyerResponse = api.getTransactionsByBuyer(userId, null)
+                    if (buyerResponse.isSuccessful) parseTransactionsFromBody(buyerResponse.body()) else emptyList()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+
+                val sellerTransactions = try {
+                    val sellerResponse = api.getTransactionsBySeller(userId, null)
+                    if (sellerResponse.isSuccessful) parseTransactionsFromBody(sellerResponse.body()) else emptyList()
+                } catch (_: Exception) {
+                    emptyList()
+                }
+
+                val mergedTransactions = (buyerTransactions + sellerTransactions).distinctBy { it.id }
+                allTransactions = if (mergedTransactions.isNotEmpty()) {
+                    mergedTransactions
                 } else {
-                    allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
+                    (getDummyBuyerTransactions() + getDummySellerTransactions()).distinctBy { it.id }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                allTransactions = if (role == "BUYER") getDummyBuyerTransactions() else getDummySellerTransactions()
+                allTransactions = (getDummyBuyerTransactions() + getDummySellerTransactions())
+                    .distinctBy { it.id }
             } finally {
                 isLoading = false
             }
         }
     }
 
-    LaunchedEffect(allTransactions, selectedFilter) {
-        filteredTransactions = when (selectedFilter) {
-            TransactionFilter.ALL -> allTransactions
-            TransactionFilter.COMPLETE -> allTransactions.filter { it.status.equals("COMPLETED", ignoreCase = true) }
-            TransactionFilter.INCOMPLETE -> allTransactions.filter { !it.status.equals("COMPLETED", ignoreCase = true) }
+    LaunchedEffect(allTransactions, selectedStatusFilter, selectedPartyFilter, currentUserId) {
+        val partyScoped = when (selectedPartyFilter) {
+            TransactionPartyFilter.ALL -> allTransactions
+            TransactionPartyFilter.BUYER -> allTransactions.filter { it.buyerId == currentUserId }
+            TransactionPartyFilter.SELLER -> allTransactions.filter { it.sellerId == currentUserId }
         }
+
+        filteredTransactions = when (selectedStatusFilter) {
+            TransactionFilter.ALL -> partyScoped
+            TransactionFilter.COMPLETE -> partyScoped.filter { it.status.equals("COMPLETED", ignoreCase = true) }
+            TransactionFilter.INCOMPLETE -> partyScoped.filter { !it.status.equals("COMPLETED", ignoreCase = true) }
+        }
+    }
+
+    LaunchedEffect(allTransactions) {
+        val token = session.getAccessToken()
+        if (token.isNullOrBlank() || allTransactions.isEmpty()) {
+            sellerNamesById = emptyMap()
+            return@LaunchedEffect
+        }
+
+        val api = RetrofitClient.authenticated(token)
+        val uniqueSellerIds = allTransactions.map { it.sellerId }.distinct()
+        val fetchedNames = mutableMapOf<String, String>()
+
+        uniqueSellerIds.forEach { sellerId ->
+            val fallback = "Seller ${sellerId.take(6)}"
+            val displayName = try {
+                val response = api.getUserById(sellerId)
+                if (response.isSuccessful) {
+                    response.body()?.displayName?.takeIf { it.isNotBlank() }
+                } else {
+                    null
+                }
+            } catch (_: Exception) {
+                null
+            }
+            fetchedNames[sellerId] = displayName ?: fallback
+        }
+
+        sellerNamesById = fetchedNames
     }
 
     Scaffold(
         containerColor = colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("My Transactions", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colorScheme.primary) },
+                title = {
+                    Text(
+                        "Transactions",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onSurface,
+                        letterSpacing = 0.3.sp
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = {
                         if (role == "BUYER") context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
                         else context.startActivity(Intent(context, SellerDashboardActivity::class.java))
                         (context as? TransactionsActivity)?.finish()
                     }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colorScheme.primary)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colorScheme.onSurface
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.surface)
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colorScheme.surface,
+                    scrolledContainerColor = colorScheme.surface
+                )
             )
         },
         bottomBar = {
@@ -224,55 +306,204 @@ fun TransactionsScreen(role: String) {
         }
     ) { paddingValues ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(paddingValues).background(colorScheme.background)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .background(colorScheme.background)
         ) {
+            // Create Escrow Button
             Row(
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                horizontalArrangement = Arrangement.End
             ) {
-                FilterChipButton("All", selectedFilter == TransactionFilter.ALL) { selectedFilter = TransactionFilter.ALL }
-                FilterChipButton("Complete", selectedFilter == TransactionFilter.COMPLETE) { selectedFilter = TransactionFilter.COMPLETE }
-                FilterChipButton("Incomplete", selectedFilter == TransactionFilter.INCOMPLETE) { selectedFilter = TransactionFilter.INCOMPLETE }
+                Button(
+                    onClick = {
+                        context.startActivity(Intent(context, CreateEscrowActivity::class.java))
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colorScheme.primary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 2.dp,
+                        pressedElevation = 0.dp
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Add,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color.White
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Create Escrow",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White
+                    )
+                }
             }
 
-            Text(
-                "${filteredTransactions.size} transaction${if (filteredTransactions.size != 1) "s" else ""}",
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
-                fontSize = 12.sp,
-                color = colorScheme.onSurfaceVariant
-            )
+            // Filters Section
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TransactionFilters(
+                    selectedStatusFilter = selectedStatusFilter,
+                    onStatusFilterChange = { selectedStatusFilter = it },
+                    selectedPartyFilter = selectedPartyFilter,
+                    onPartyFilterChange = { selectedPartyFilter = it },
+                    colorScheme = colorScheme
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+            }
+
+            // Transaction Count
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "${filteredTransactions.size} transaction${if (filteredTransactions.size != 1) "s" else ""} found",
+                    fontSize = 12.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+                if (filteredTransactions.isNotEmpty()) {
+                    Text(
+                        "Showing ${filteredTransactions.size} of ${allTransactions.size}",
+                        fontSize = 11.sp,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
 
             when {
                 isLoading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator(color = colorScheme.primary)
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                color = colorScheme.primary,
+                                strokeWidth = 3.dp,
+                                modifier = Modifier.size(48.dp)
+                            )
+                            Text(
+                                "Loading transactions...",
+                                fontSize = 14.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 filteredTransactions.isEmpty() -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.Receipt, null, modifier = Modifier.size(64.dp), tint = colorScheme.onSurfaceVariant)
-                            Spacer(Modifier.height(16.dp))
-                            Text("No transactions found", color = colorScheme.onSurfaceVariant)
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(16.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(CircleShape)
+                                    .background(colorScheme.primary.copy(alpha = 0.1f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.ReceiptLong,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp),
+                                    tint = colorScheme.primary
+                                )
+                            }
+                            Text(
+                                "No Transactions Found",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                "Create your first escrow transaction to get started",
+                                fontSize = 14.sp,
+                                color = colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 32.dp)
+                            )
+                            Button(
+                                onClick = {
+                                    context.startActivity(Intent(context, CreateEscrowActivity::class.java))
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = colorScheme.primary
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = Color.White
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    "Create Escrow",
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
                         }
                     }
                 }
                 else -> {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(
+                            start = 16.dp,
+                            end = 16.dp,
+                            top = 8.dp,
+                            bottom = 80.dp
+                        ),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(filteredTransactions) { transaction ->
-                            TransactionCard(
+                            val transactionRole = when {
+                                transaction.sellerId == currentUserId -> "SELLER"
+                                transaction.buyerId == currentUserId -> "BUYER"
+                                else -> role
+                            }
+                            val sellerName = sellerNamesById[transaction.sellerId] ?: "Seller ${transaction.sellerId.take(6)}"
+                            ModernTransactionCard(
                                 transaction = transaction,
-                                role = role,
+                                sellerName = sellerName,
+                                role = transactionRole,
                                 onViewDetails = {
-                                    if (role == "BUYER") {
+                                    if (transactionRole == "BUYER") {
                                         val intent = Intent(context, BuyerTransactionDetailActivity::class.java).apply {
                                             putExtra("TRANSACTION_ID", transaction.id)
                                             putExtra("PRODUCT_NAME", transaction.title)
-                                            putExtra("SELLER_NAME", "Seller")
+                                            putExtra("SELLER_NAME", sellerName)
                                             putExtra("AMOUNT", transaction.amount.toString())
                                             putExtra("ORDER_ID", transaction.reference)
                                             putExtra("DATE", transaction.createdAt.take(10))
@@ -320,100 +551,227 @@ fun TransactionsScreen(role: String) {
 }
 
 @Composable
-fun FilterChipButton(text: String, selected: Boolean, onClick: () -> Unit) {
+fun TransactionFilterChip(
+    text: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
     val colorScheme = MaterialTheme.colorScheme
+
     Surface(
         onClick = onClick,
-        shape = RoundedCornerShape(99.dp),
+        shape = RoundedCornerShape(50),
         color = if (selected) colorScheme.primary else colorScheme.surface,
-        border = BorderStroke(1.dp, if (selected) Color.Transparent else colorScheme.outlineVariant),
-        modifier = Modifier.wrapContentSize()
+        border = BorderStroke(
+            1.dp,
+            if (selected) Color.Transparent else colorScheme.outlineVariant
+        ),
+        modifier = Modifier.wrapContentSize(),
+        shadowElevation = if (selected) 2.dp else 0.dp
     ) {
-        Text(
-            text = text,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            color = if (selected) colorScheme.onPrimary else colorScheme.onSurface,
-            fontSize = 13.sp
-        )
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = if (selected) colorScheme.onPrimary else colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (selected) colorScheme.onPrimary else colorScheme.onSurface
+            )
+        }
     }
 }
 
 @Composable
-fun TransactionCard(
-    transaction: EscrowResponse,
-    role: String,
-    onViewDetails: () -> Unit,
-    onRaiseDispute: () -> Unit
+fun TransactionFilters(
+    selectedStatusFilter: TransactionFilter,
+    onStatusFilterChange: (TransactionFilter) -> Unit,
+    selectedPartyFilter: TransactionPartyFilter,
+    onPartyFilterChange: (TransactionPartyFilter) -> Unit,
+    colorScheme: ColorScheme
 ) {
-    val colorScheme = MaterialTheme.colorScheme
-    val statusColor = when {
-        transaction.status.equals("COMPLETED", ignoreCase = true) -> Color(0xFF10B981)
-        transaction.status.equals("IN_DELIVERY", ignoreCase = true) -> Color(0xFFF59E0B)
-        transaction.status.equals("FUNDS_HELD", ignoreCase = true) -> Color(0xFF3B82F6)
-        transaction.status.equals("CREATED", ignoreCase = true) -> Color(0xFF6B7280)
-        transaction.status.equals("CANCELLED", ignoreCase = true) -> Color(0xFFEF4444)
-        else -> Color(0xFF6B7280)
-    }
-
-    val formattedDate = try {
-        val parts = transaction.createdAt.split("T")
-        val dateParts = parts[0].split("-")
-        "${dateParts[2]}/${dateParts[1]}/${dateParts[0]}"
-    } catch (_: Exception) {
-        transaction.createdAt
-    }
+    var isExpanded by remember { mutableStateOf(false) }
+    val activeFiltersCount =
+        (if (selectedStatusFilter != TransactionFilter.ALL) 1 else 0) +
+            (if (selectedPartyFilter != TransactionPartyFilter.ALL) 1 else 0)
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        ),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(8.dp).background(statusColor, RoundedCornerShape(2.dp)))
-                    Spacer(Modifier.width(8.dp))
-                    Text(transaction.status, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = statusColor)
-                }
-                Text(formattedDate, fontSize = 12.sp, color = colorScheme.onSurfaceVariant)
-            }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(transaction.title, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
-                Text("KES ${transaction.amount.toInt()}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = colorScheme.primary)
-            }
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider(thickness = 1.dp, color = colorScheme.outlineVariant)
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-                horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
-                    modifier = Modifier.clickable { onViewDetails() }.padding(horizontal = 12.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Icon(Icons.Default.Visibility, null, modifier = Modifier.size(20.dp), tint = colorScheme.primary)
-                    Spacer(Modifier.width(4.dp))
-                    Text("Details", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = colorScheme.primary)
+                    Icon(
+                        Icons.Default.FilterList,
+                        contentDescription = "Filters",
+                        modifier = Modifier.size(20.dp),
+                        tint = colorScheme.primary
+                    )
+                    Text(
+                        text = "Filters",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface
+                    )
+
+                    if (activeFiltersCount > 0) {
+                        Surface(
+                            shape = CircleShape,
+                            color = colorScheme.primary
+                        ) {
+                            Text(
+                                text = activeFiltersCount.toString(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
-                if (!transaction.status.equals("CANCELLED", ignoreCase = true)) {
-                    Row(
-                        modifier = Modifier.clickable { onRaiseDispute() }.padding(horizontal = 12.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.ReportProblem, null, modifier = Modifier.size(20.dp), tint = Color(0xFFEF4444))
-                        Spacer(Modifier.width(4.dp))
-                        Text("Dispute", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color(0xFFEF4444))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!isExpanded && activeFiltersCount > 0) {
+                        Text(
+                            text = getActiveFilterSummary(selectedStatusFilter, selectedPartyFilter),
+                            fontSize = 11.sp,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.widthIn(max = 120.dp)
+                        )
+                    }
+
+                    Icon(
+                        if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (isExpanded) "Collapse filters" else "Expand filters",
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically(
+                    animationSpec = tween(
+                        durationMillis = 300,
+                        easing = FastOutSlowInEasing
+                    )
+                ) + fadeIn(
+                    animationSpec = tween(durationMillis = 300)
+                ),
+                exit = shrinkVertically(
+                    animationSpec = tween(
+                        durationMillis = 250,
+                        easing = FastOutSlowInEasing
+                    )
+                ) + fadeOut(
+                    animationSpec = tween(durationMillis = 200)
+                )
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    HorizontalDivider(
+                        color = colorScheme.outlineVariant.copy(alpha = 0.2f),
+                        thickness = 0.5.dp
+                    )
+
+                    FilterGroup(
+                        title = "Status",
+                        options = listOf(
+                            FilterOption("All", Icons.Default.List, TransactionFilter.ALL),
+                            FilterOption("Complete", Icons.Default.CheckCircle, TransactionFilter.COMPLETE),
+                            FilterOption("Incomplete", Icons.Default.Pending, TransactionFilter.INCOMPLETE)
+                        ),
+                        selectedOption = selectedStatusFilter,
+                        onOptionSelected = { onStatusFilterChange(it) },
+                        colorScheme = colorScheme
+                    )
+
+                    HorizontalDivider(
+                        color = colorScheme.outlineVariant.copy(alpha = 0.15f),
+                        thickness = 0.5.dp
+                    )
+
+                    FilterGroup(
+                        title = "Role",
+                        options = listOf(
+                            FilterOption("All", Icons.Default.People, TransactionPartyFilter.ALL),
+                            FilterOption("Buyer", Icons.Default.ShoppingCart, TransactionPartyFilter.BUYER),
+                            FilterOption("Seller", Icons.Default.Storefront, TransactionPartyFilter.SELLER)
+                        ),
+                        selectedOption = selectedPartyFilter,
+                        onOptionSelected = { onPartyFilterChange(it) },
+                        colorScheme = colorScheme
+                    )
+
+                    if (activeFiltersCount > 0) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    onStatusFilterChange(TransactionFilter.ALL)
+                                    onPartyFilterChange(TransactionPartyFilter.ALL)
+                                },
+                                colors = ButtonDefaults.textButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Icon(
+                                    Icons.Default.Clear,
+                                    contentDescription = "Clear filters",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    "Clear All Filters",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -421,7 +779,448 @@ fun TransactionCard(
     }
 }
 
-enum class TransactionFilter { ALL, COMPLETE, INCOMPLETE }
+@Composable
+fun <T> FilterGroup(
+    title: String,
+    options: List<FilterOption<T>>,
+    selectedOption: T,
+    onOptionSelected: (T) -> Unit,
+    colorScheme: ColorScheme
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = title.uppercase(Locale.getDefault()),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorScheme.onSurfaceVariant,
+            letterSpacing = 1.2.sp,
+            modifier = Modifier.padding(start = 4.dp)
+        )
 
-// Helper wrapper class for paginated responses
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { option ->
+                FilterChipCompact(
+                    text = option.label,
+                    icon = option.icon,
+                    selected = option.value == selectedOption,
+                    onClick = { onOptionSelected(option.value) },
+                    colorScheme = colorScheme
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FilterChipCompact(
+    text: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+    colorScheme: ColorScheme
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = if (selected) colorScheme.primary else colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            if (selected) Color.Transparent else colorScheme.outlineVariant.copy(alpha = 0.5f)
+        ),
+        modifier = Modifier.wrapContentSize(),
+        shadowElevation = if (selected) 2.dp else 0.dp
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = if (selected) colorScheme.onPrimary else colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.width(5.dp))
+            Text(
+                text = text,
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                color = if (selected) colorScheme.onPrimary else colorScheme.onSurface
+            )
+        }
+    }
+}
+
+data class FilterOption<T>(
+    val label: String,
+    val icon: ImageVector,
+    val value: T
+)
+
+fun getActiveFilterSummary(
+    statusFilter: TransactionFilter,
+    partyFilter: TransactionPartyFilter
+): String {
+    val parts = mutableListOf<String>()
+    if (statusFilter != TransactionFilter.ALL) {
+        parts.add(statusFilter.name.lowercase(Locale.getDefault()))
+    }
+    if (partyFilter != TransactionPartyFilter.ALL) {
+        parts.add(partyFilter.name.lowercase(Locale.getDefault()))
+    }
+    return parts.joinToString(" • ")
+}
+
+@Composable
+fun ModernTransactionCard(
+    transaction: EscrowResponse,
+    sellerName: String,
+    role: String,
+    onViewDetails: () -> Unit,
+    onRaiseDispute: () -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val isCompleted = transaction.status.equals("COMPLETED", ignoreCase = true)
+    val isCancelled = transaction.status.equals("CANCELLED", ignoreCase = true)
+
+    val statusConfig = getStatusConfig(transaction.status, colorScheme)
+    val formattedDate = formatDate(transaction.createdAt)
+    val formattedAmount = NumberFormat.getIntegerInstance(Locale.getDefault())
+        .format(transaction.amount.toInt())
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .clickable { onViewDetails() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 4.dp
+        ),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Header: Status & Reference
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Status Badge
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = statusConfig.backgroundColor,
+                    modifier = Modifier
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(5.dp)
+                                .clip(CircleShape)
+                                .background(statusConfig.dotColor)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = statusConfig.label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = statusConfig.textColor,
+                            letterSpacing = 0.3.sp
+                        )
+                    }
+                }
+
+                // Reference
+                Text(
+                    text = "Ref: ${transaction.reference?.take(8) ?: transaction.id.take(8)}",
+                    fontSize = 10.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium,
+                    fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                )
+            }
+
+            // Product Info
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                // Product Icon
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(colorScheme.primary.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Default.ShoppingBag,
+                        contentDescription = null,
+                        modifier = Modifier.size(24.dp),
+                        tint = colorScheme.primary
+                    )
+                }
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = transaction.title,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = sellerName,
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // Divider
+            HorizontalDivider(
+                color = colorScheme.outlineVariant.copy(alpha = 0.2f),
+                thickness = 0.5.dp
+            )
+
+            // Transaction Details
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                TransactionDetailChip(
+                    icon = Icons.Default.Money,
+                    label = "Amount",
+                    value = "KES $formattedAmount",
+                    colorScheme = colorScheme
+                )
+                TransactionDetailChip(
+                    icon = Icons.Default.CalendarToday,
+                    label = "Date",
+                    value = formattedDate,
+                    colorScheme = colorScheme
+                )
+                TransactionDetailChip(
+                    icon = if (role == "BUYER") Icons.Default.ShoppingCart else Icons.Default.Storefront,
+                    label = "Role",
+                    value = role,
+                    colorScheme = colorScheme
+                )
+            }
+
+            // Action Buttons
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Button(
+                    onClick = onViewDetails,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colorScheme.primary,
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 1.dp,
+                        pressedElevation = 0.dp
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Visibility,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        "Details",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
+                if (!isCompleted && !isCancelled) {
+                    OutlinedButton(
+                        onClick = onRaiseDispute,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = BorderStroke(
+                            1.5.dp,
+                            MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
+                        )
+                    ) {
+                        Icon(
+                            Icons.Default.ReportProblem,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            "Dispute",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TransactionDetailChip(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    colorScheme: ColorScheme
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(14.dp),
+            tint = colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = label,
+            fontSize = 9.sp,
+            color = colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium,
+            letterSpacing = 0.3.sp
+        )
+    }
+}
+
+data class StatusConfig(
+    val label: String,
+    val dotColor: Color,
+    val textColor: Color,
+    val backgroundColor: Color
+)
+
+fun getStatusConfig(status: String, colorScheme: ColorScheme): StatusConfig {
+    return when (status.uppercase()) {
+        "COMPLETED" -> StatusConfig(
+            label = "Completed",
+            dotColor = Color(0xFF10B981),
+            textColor = Color(0xFF10B981),
+            backgroundColor = Color(0xFF10B981).copy(alpha = 0.12f)
+        )
+        "IN_DELIVERY" -> StatusConfig(
+            label = "In Delivery",
+            dotColor = Color(0xFFF59E0B),
+            textColor = Color(0xFFF59E0B),
+            backgroundColor = Color(0xFFF59E0B).copy(alpha = 0.12f)
+        )
+        "FUNDS_HELD" -> StatusConfig(
+            label = "Funds Held",
+            dotColor = Color(0xFF3B82F6),
+            textColor = Color(0xFF3B82F6),
+            backgroundColor = Color(0xFF3B82F6).copy(alpha = 0.12f)
+        )
+        "CREATED" -> StatusConfig(
+            label = "Created",
+            dotColor = Color(0xFF6B7280),
+            textColor = Color(0xFF6B7280),
+            backgroundColor = Color(0xFF6B7280).copy(alpha = 0.12f)
+        )
+        "CANCELLED" -> StatusConfig(
+            label = "Cancelled",
+            dotColor = Color(0xFFEF4444),
+            textColor = Color(0xFFEF4444),
+            backgroundColor = Color(0xFFEF4444).copy(alpha = 0.12f)
+        )
+        "DELIVERED" -> StatusConfig(
+            label = "Delivered",
+            dotColor = Color(0xFF8B5CF6),
+            textColor = Color(0xFF8B5CF6),
+            backgroundColor = Color(0xFF8B5CF6).copy(alpha = 0.12f)
+        )
+        else -> StatusConfig(
+            label = status,
+            dotColor = colorScheme.onSurfaceVariant,
+            textColor = colorScheme.onSurfaceVariant,
+            backgroundColor = colorScheme.onSurfaceVariant.copy(alpha = 0.12f)
+        )
+    }
+}
+
+fun formatDate(dateString: String): String {
+    return try {
+        val parts = dateString.split("T")
+        val dateParts = parts[0].split("-")
+        val month = when (dateParts[1].toInt()) {
+            1 -> "Jan"; 2 -> "Feb"; 3 -> "Mar"; 4 -> "Apr"; 5 -> "May"; 6 -> "Jun"
+            7 -> "Jul"; 8 -> "Aug"; 9 -> "Sep"; 10 -> "Oct"; 11 -> "Nov"; 12 -> "Dec"
+            else -> dateParts[1]
+        }
+        "$month ${dateParts[2]}, ${dateParts[0]}"
+    } catch (_: Exception) {
+        dateString
+    }
+}
+
+enum class TransactionFilter { ALL, COMPLETE, INCOMPLETE }
+enum class TransactionPartyFilter { ALL, BUYER, SELLER }
+
 data class PageResponseWrapper(val content: List<EscrowResponse>?)
+
+@Preview(showBackground = true, widthDp = 428, heightDp = 920)
+@Composable
+fun TransactionsScreenPreview() {
+    EscrowXTheme(darkTheme = false) {
+        TransactionsScreen(role = "BUYER")
+    }
+}
+
+@Preview(showBackground = true, widthDp = 428, heightDp = 920)
+@Composable
+fun TransactionsScreenPreviewDark() {
+    EscrowXTheme(darkTheme = true) {
+        TransactionsScreen(role = "BUYER")
+    }
+}
