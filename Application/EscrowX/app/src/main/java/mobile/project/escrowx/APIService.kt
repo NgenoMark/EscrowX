@@ -124,6 +124,24 @@ interface AuthApiService {
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
 
+    @POST("api/v1/payments/escrows/{escrowId}/stk-push")
+    suspend fun initiateStkPush(
+        @Path("escrowId") escrowId: String,
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Body request: InitiateStkPushRequest
+    ): Response<InitiateStkPushResponse>
+
+    @GET("api/v1/payments/{paymentId}")
+    suspend fun getPayment(
+        @Path("paymentId") paymentId: String
+    ): Response<PaymentResponse>
+
+    @POST("api/v1/payments/escrows/{escrowId}/release")
+    suspend fun releasePayout(
+        @Path("escrowId") escrowId: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<ReleasePayoutResponse>
+
     // DISPUTE ENDPOINTS
     @POST("api/v1/disputes")
     suspend fun raiseDispute(
@@ -270,6 +288,43 @@ data class DisputeResponse(
     val category: String,
     val status: String,
     val createdAt: String
+)
+
+data class InitiateStkPushRequest(
+    val phoneNumber: String
+)
+
+data class InitiateStkPushResponse(
+    val paymentId: String,
+    val escrowId: String?,
+    val status: String?,
+    val checkoutRequestId: String?,
+    val merchantRequestId: String?,
+    val message: String?
+)
+
+data class PaymentResponse(
+    val paymentId: String,
+    val escrowId: String?,
+    val amount: Double?,
+    val currency: String?,
+    val status: String,
+    val phoneNumber: String?,
+    val checkoutRequestId: String?,
+    val merchantRequestId: String?,
+    val mpesaReceiptNumber: String?,
+    val paidAt: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+data class ReleasePayoutResponse(
+    val payoutId: String,
+    val escrowId: String,
+    val status: String,
+    val conversationId: String?,
+    val originatorConversationId: String?,
+    val message: String?
 )
 
 // Additional auth DTOs (if not already present elsewhere)
