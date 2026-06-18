@@ -48,6 +48,7 @@ class TransactionDetailsActivity : ComponentActivity() {
         val businessName = intent.getStringExtra("BUSINESS_NAME") ?: sellerName
         val itemTitle = intent.getStringExtra("ITEM_TITLE") ?: "Wireless Mouse"
         val amount = intent.getStringExtra("AMOUNT") ?: "8,200"
+        val currentStatus = intent.getStringExtra("STATUS") ?: "CREATED"
 
         setContent {
             EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
@@ -56,7 +57,8 @@ class TransactionDetailsActivity : ComponentActivity() {
                     sellerName = sellerName,
                     businessName = businessName,
                     itemTitle = itemTitle,
-                    amount = amount
+                    amount = amount,
+                    currentStatus = currentStatus
                 )
             }
         }
@@ -70,7 +72,8 @@ fun TransactionDetailsScreen(
     sellerName: String,
     businessName: String,
     itemTitle: String,
-    amount: String
+    amount: String,
+    currentStatus: String
 ) {
     val context = LocalContext.current
     val session = SessionManager(context)
@@ -90,6 +93,12 @@ fun TransactionDetailsScreen(
     var deliveryMethodExpanded by remember { mutableStateOf(false) }
     val deliveryMethods = listOf("Courier", "In-Person", "Digital")
     var selectedDeliveryMethod by remember { mutableStateOf(deliveryMethods[0]) }
+
+    // Escrow state flow dropdown (constrained to backend-allowed transitions only)
+    val normalizedCurrentStatus = remember(currentStatus) { normalizeEscrowStatus(currentStatus) }
+    val allowedNextStates = remember(normalizedCurrentStatus) { getAllowedNextStatuses(normalizedCurrentStatus) }
+    var stateDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedNextState by remember(normalizedCurrentStatus) { mutableStateOf<String?>(null) }
 
     // Load buyer profile to get address
     LaunchedEffect(Unit) {
@@ -262,6 +271,100 @@ fun TransactionDetailsScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                             Icon(Icons.Default.CheckCircle, null, modifier = Modifier.size(18.dp), tint = Color(0xFF006C49))
                             Text("24-hour inspection period after delivery.", fontSize = 13.sp, color = Color(0xFF444651))
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Escrow State Flow Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(1.dp, Color(0xFFC5C5D3)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "Escrow State Flow",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color(0xFF151C27)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        "Only backend-allowed transitions can be selected.",
+                        fontSize = 12.sp,
+                        color = Color(0xFF757682)
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = prettyEscrowState(normalizedCurrentStatus),
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Current State") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Flag, contentDescription = null)
+                        },
+                        shape = RoundedCornerShape(8.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00236F),
+                            unfocusedBorderColor = Color(0xFFC5C5D3)
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    ExposedDropdownMenuBox(
+                        expanded = stateDropdownExpanded,
+                        onExpandedChange = { if (allowedNextStates.isNotEmpty()) stateDropdownExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedNextState?.let { prettyEscrowState(it) }
+                                ?: if (allowedNextStates.isEmpty()) "No further transitions"
+                                else "Select next allowed state",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            label = { Text("Next State") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = stateDropdownExpanded)
+                            },
+                            shape = RoundedCornerShape(8.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF00236F),
+                                unfocusedBorderColor = Color(0xFFC5C5D3)
+                            ),
+                            enabled = allowedNextStates.isNotEmpty()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = stateDropdownExpanded,
+                            onDismissRequest = { stateDropdownExpanded = false }
+                        ) {
+                            allowedNextStates.forEach { next ->
+                                DropdownMenuItem(
+                                    text = { Text(prettyEscrowState(next)) },
+                                    onClick = {
+                                        selectedNextState = next
+                                        stateDropdownExpanded = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            Icons.Default.TrendingFlat,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                )
+                            }
                         }
                     }
                 }
@@ -521,6 +624,36 @@ fun TransactionDetailsScreen(
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
+}
+
+private val ESCROW_STATE_TRANSITIONS: Map<String, List<String>> = mapOf(
+    "CREATED" to listOf("DECLINED", "PENDING_PAYMENT", "CANCELLED", "EXPIRED"),
+    "PENDING_PAYMENT" to listOf("FUNDS_HELD", "CANCELLED"),
+    "FUNDS_HELD" to listOf("SELLER_ACCEPTED", "DISPUTED"),
+    "SELLER_ACCEPTED" to listOf("IN_DELIVERY", "DISPUTED"),
+    "IN_DELIVERY" to listOf("SELLER_DELIVERED", "DISPUTED"),
+    "SELLER_DELIVERED" to listOf("BUYER_CONFIRMED_DELIVERED", "DISPUTED"),
+    "BUYER_CONFIRMED_DELIVERED" to listOf("RELEASE_PENDING", "DISPUTED"),
+    "RELEASE_PENDING" to listOf("RELEASE_PROCESSING"),
+    "RELEASE_PROCESSING" to listOf("RELEASE_FAILED", "COMPLETED"),
+    "DISPUTED" to listOf("REFUND_PENDING"),
+    "REFUND_PENDING" to listOf("REFUND_PROCESSING"),
+    "REFUND_PROCESSING" to listOf("REFUNDED")
+)
+
+private fun normalizeEscrowStatus(raw: String): String {
+    return raw.trim().uppercase(Locale.getDefault())
+}
+
+private fun getAllowedNextStatuses(current: String): List<String> {
+    return ESCROW_STATE_TRANSITIONS[current] ?: emptyList()
+}
+
+private fun prettyEscrowState(state: String): String {
+    return state
+        .lowercase(Locale.getDefault())
+        .split("_")
+        .joinToString(" ") { token -> token.replaceFirstChar { c -> c.titlecase(Locale.getDefault()) } }
 }
 
 @Composable

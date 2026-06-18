@@ -34,6 +34,7 @@ import mobile.project.escrowx.dash.TransactionsActivity
 import mobile.project.escrowx.ui.components.SellerNavBar
 import mobile.project.escrowx.ui.components.SellerNavItem
 import mobile.project.escrowx.ui.components.navigateTab
+import java.util.Locale
 
 class SellerTransactionDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +49,7 @@ class SellerTransactionDetailActivity : ComponentActivity() {
         val date = intent.getStringExtra("DATE") ?: "24 Oct, 2023"
         val shippingAddress = intent.getStringExtra("SHIPPING_ADDRESS") ?: "Westlands Hub, Ground Floor Wing A, Nairobi, Kenya"
         val currentStep = intent.getIntExtra("CURRENT_STEP", 1)
+        val currentStatus = intent.getStringExtra("STATUS") ?: statusFromSellerStep(currentStep)
 
         setContent {
             EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
@@ -60,7 +62,8 @@ class SellerTransactionDetailActivity : ComponentActivity() {
                     orderId = orderId,
                     date = date,
                     shippingAddress = shippingAddress,
-                    initialStep = currentStep
+                    initialStep = currentStep,
+                    initialStatus = currentStatus
                 )
             }
         }
@@ -78,11 +81,16 @@ fun TransactionDetailScreen(
     orderId: String,
     date: String,
     shippingAddress: String,
-    initialStep: Int
+    initialStep: Int,
+    initialStatus: String
 ) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     var currentStep by remember { mutableIntStateOf(initialStep) }
+    val normalizedCurrentStatus = remember(initialStatus) { normalizeSellerEscrowStatus(initialStatus) }
+    val allowedNextStates = remember(normalizedCurrentStatus) { getAllowedSellerNextStatuses(normalizedCurrentStatus) }
+    var stateDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedNextState by remember(normalizedCurrentStatus) { mutableStateOf<String?>(null) }
     var isUpdating by remember { mutableStateOf(false) }
 
     fun getNextAction(): Pair<String, String>? {
@@ -284,6 +292,80 @@ fun TransactionDetailScreen(
                             isCompleted = currentStep > 4,
                             icon = Icons.Default.LockOpen
                         )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Escrow State Flow Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+                border = BorderStroke(1.dp, Color(0xFFC5C5D3)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "ESCROW STATE FLOW",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        color = Color(0xFF444651)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = prettySellerEscrowState(normalizedCurrentStatus),
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Current State") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Flag, contentDescription = null)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    ExposedDropdownMenuBox(
+                        expanded = stateDropdownExpanded,
+                        onExpandedChange = { if (allowedNextStates.isNotEmpty()) stateDropdownExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedNextState?.let { prettySellerEscrowState(it) }
+                                ?: if (allowedNextStates.isEmpty()) "No further transitions"
+                                else "Select next allowed state",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            label = { Text("Next State") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = stateDropdownExpanded)
+                            },
+                            enabled = allowedNextStates.isNotEmpty()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = stateDropdownExpanded,
+                            onDismissRequest = { stateDropdownExpanded = false }
+                        ) {
+                            allowedNextStates.forEach { next ->
+                                DropdownMenuItem(
+                                    text = { Text(prettySellerEscrowState(next)) },
+                                    onClick = {
+                                        selectedNextState = next
+                                        stateDropdownExpanded = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.TrendingFlat, contentDescription = null)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -511,4 +593,43 @@ fun TransactionDetailBottomNavigation() {
             }
         }
     )
+}
+
+private fun statusFromSellerStep(step: Int): String {
+    return when (step) {
+        1 -> "FUNDS_HELD"
+        2 -> "IN_DELIVERY"
+        3 -> "SELLER_DELIVERED"
+        else -> "COMPLETED"
+    }
+}
+
+private val SELLER_ESCROW_STATE_TRANSITIONS: Map<String, List<String>> = mapOf(
+    "CREATED" to listOf("DECLINED", "PENDING_PAYMENT", "CANCELLED", "EXPIRED"),
+    "PENDING_PAYMENT" to listOf("FUNDS_HELD", "CANCELLED"),
+    "FUNDS_HELD" to listOf("SELLER_ACCEPTED", "DISPUTED"),
+    "SELLER_ACCEPTED" to listOf("IN_DELIVERY", "DISPUTED"),
+    "IN_DELIVERY" to listOf("SELLER_DELIVERED", "DISPUTED"),
+    "SELLER_DELIVERED" to listOf("BUYER_CONFIRMED_DELIVERED", "DISPUTED"),
+    "BUYER_CONFIRMED_DELIVERED" to listOf("RELEASE_PENDING", "DISPUTED"),
+    "RELEASE_PENDING" to listOf("RELEASE_PROCESSING"),
+    "RELEASE_PROCESSING" to listOf("RELEASE_FAILED", "COMPLETED"),
+    "DISPUTED" to listOf("REFUND_PENDING"),
+    "REFUND_PENDING" to listOf("REFUND_PROCESSING"),
+    "REFUND_PROCESSING" to listOf("REFUNDED")
+)
+
+private fun normalizeSellerEscrowStatus(raw: String): String {
+    return raw.trim().uppercase(Locale.getDefault())
+}
+
+private fun getAllowedSellerNextStatuses(current: String): List<String> {
+    return SELLER_ESCROW_STATE_TRANSITIONS[current] ?: emptyList()
+}
+
+private fun prettySellerEscrowState(state: String): String {
+    return state
+        .lowercase(Locale.getDefault())
+        .split("_")
+        .joinToString(" ") { token -> token.replaceFirstChar { c -> c.titlecase(Locale.getDefault()) } }
 }

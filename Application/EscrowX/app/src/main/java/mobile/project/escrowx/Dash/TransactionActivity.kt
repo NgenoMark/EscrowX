@@ -495,6 +495,7 @@ fun TransactionsScreen(role: String) {
                                             putExtra("ORDER_ID", transaction.reference)
                                             putExtra("DATE", transaction.createdAt.take(10))
                                             putExtra("SHIPPING_ADDRESS", transaction.deliveryAddress)
+                                            putExtra("STATUS", transaction.status)
                                             putExtra("CURRENT_STEP", currentStep)
                                         }
                                         context.startActivity(intent)

@@ -36,6 +36,7 @@ import mobile.project.escrowx.dash.BuyerDashboardActivity
 import mobile.project.escrowx.ui.components.BuyerNavBar
 import mobile.project.escrowx.ui.components.BuyerNavItem
 import mobile.project.escrowx.ui.components.navigateTab
+import java.util.Locale
 
 class BuyerTransactionDetailActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,10 +86,28 @@ fun BuyerTransactionDetailScreen(
     val session = SessionManager(context)
     var currentStatus by remember { mutableStateOf(initialStatus) }
     var isUpdating by remember { mutableStateOf(false) }
-    var canConfirmReceipt by remember { mutableStateOf(initialStatus.equals("DELIVERED", ignoreCase = true)) }
-    var canCancel by remember {
-        mutableStateOf(initialStatus in listOf("CREATED", "FUNDS_HELD", "SELLER_ACCEPTED", "IN_DELIVERY"))
+    var canConfirmReceipt by remember {
+        mutableStateOf(
+            initialStatus.equals("DELIVERED", ignoreCase = true) ||
+                initialStatus.equals("SELLER_DELIVERED", ignoreCase = true)
+        )
     }
+    var canCancel by remember {
+        mutableStateOf(
+            normalizeBuyerEscrowStatus(initialStatus) in listOf(
+                "CREATED",
+                "PENDING_PAYMENT",
+                "FUNDS_HELD",
+                "SELLER_ACCEPTED",
+                "IN_DELIVERY"
+            )
+        )
+    }
+
+    val normalizedCurrentStatus = remember(currentStatus) { normalizeBuyerEscrowStatus(currentStatus) }
+    val allowedNextStates = remember(normalizedCurrentStatus) { getAllowedBuyerNextStatuses(normalizedCurrentStatus) }
+    var stateDropdownExpanded by remember { mutableStateOf(false) }
+    var selectedNextState by remember(normalizedCurrentStatus) { mutableStateOf<String?>(null) }
 
     fun getStatusStep(): Int {
         return when {
@@ -96,6 +115,10 @@ fun BuyerTransactionDetailScreen(
             currentStatus.equals("SELLER_ACCEPTED", ignoreCase = true) -> 1
             currentStatus.equals("IN_DELIVERY", ignoreCase = true) -> 2
             currentStatus.equals("DELIVERED", ignoreCase = true) -> 3
+            currentStatus.equals("SELLER_DELIVERED", ignoreCase = true) -> 3
+            currentStatus.equals("BUYER_CONFIRMED_DELIVERED", ignoreCase = true) -> 4
+            currentStatus.equals("RELEASE_PENDING", ignoreCase = true) -> 4
+            currentStatus.equals("RELEASE_PROCESSING", ignoreCase = true) -> 4
             currentStatus.equals("COMPLETED", ignoreCase = true) -> 4
             else -> 1
         }
@@ -107,6 +130,10 @@ fun BuyerTransactionDetailScreen(
             currentStatus.equals("SELLER_ACCEPTED", ignoreCase = true) -> "Seller Accepted"
             currentStatus.equals("IN_DELIVERY", ignoreCase = true) -> "In Delivery"
             currentStatus.equals("DELIVERED", ignoreCase = true) -> "Delivered - Confirm Receipt"
+            currentStatus.equals("SELLER_DELIVERED", ignoreCase = true) -> "Seller Delivered"
+            currentStatus.equals("BUYER_CONFIRMED_DELIVERED", ignoreCase = true) -> "Buyer Confirmed"
+            currentStatus.equals("RELEASE_PENDING", ignoreCase = true) -> "Release Pending"
+            currentStatus.equals("RELEASE_PROCESSING", ignoreCase = true) -> "Release Processing"
             currentStatus.equals("COMPLETED", ignoreCase = true) -> "Completed"
             else -> currentStatus
         }
@@ -117,6 +144,8 @@ fun BuyerTransactionDetailScreen(
             currentStatus.equals("FUNDS_HELD", ignoreCase = true) -> Color(0xFF00236F)
             currentStatus.equals("IN_DELIVERY", ignoreCase = true) -> Color(0xFFF59E0B)
             currentStatus.equals("DELIVERED", ignoreCase = true) -> Color(0xFF10B981)
+            currentStatus.equals("SELLER_DELIVERED", ignoreCase = true) -> Color(0xFF10B981)
+            currentStatus.equals("BUYER_CONFIRMED_DELIVERED", ignoreCase = true) -> Color(0xFF006C49)
             currentStatus.equals("COMPLETED", ignoreCase = true) -> Color(0xFF006C49)
             else -> Color(0xFF444651)
         }
@@ -136,7 +165,7 @@ fun BuyerTransactionDetailScreen(
                 // TODO: Uncomment when backend endpoint is ready
                 // val response = RetrofitClient.authenticated(token).confirmReceipt(transactionId, buyerId)
                 Toast.makeText(context, "Receipt confirmed! Funds released to seller.", Toast.LENGTH_LONG).show()
-                currentStatus = "COMPLETED"
+                currentStatus = "BUYER_CONFIRMED_DELIVERED"
                 canConfirmReceipt = false
                 canCancel = false
             } catch (e: Exception) {
@@ -342,6 +371,80 @@ fun BuyerTransactionDetailScreen(
                             isCompleted = currentStep > 4,
                             icon = Icons.Default.LockOpen
                         )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Escrow State Flow Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+                border = BorderStroke(1.dp, Color(0xFFC5C5D3)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        "ESCROW STATE FLOW",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        color = Color(0xFF444651)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = prettyBuyerEscrowState(normalizedCurrentStatus),
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Current State") },
+                        leadingIcon = {
+                            Icon(Icons.Default.Flag, contentDescription = null)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    ExposedDropdownMenuBox(
+                        expanded = stateDropdownExpanded,
+                        onExpandedChange = { if (allowedNextStates.isNotEmpty()) stateDropdownExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedNextState?.let { prettyBuyerEscrowState(it) }
+                                ?: if (allowedNextStates.isEmpty()) "No further transitions"
+                                else "Select next allowed state",
+                            onValueChange = {},
+                            readOnly = true,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(),
+                            label = { Text("Next State") },
+                            trailingIcon = {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = stateDropdownExpanded)
+                            },
+                            enabled = allowedNextStates.isNotEmpty()
+                        )
+
+                        ExposedDropdownMenu(
+                            expanded = stateDropdownExpanded,
+                            onDismissRequest = { stateDropdownExpanded = false }
+                        ) {
+                            allowedNextStates.forEach { next ->
+                                DropdownMenuItem(
+                                    text = { Text(prettyBuyerEscrowState(next)) },
+                                    onClick = {
+                                        selectedNextState = next
+                                        stateDropdownExpanded = false
+                                    },
+                                    leadingIcon = {
+                                        Icon(Icons.Default.TrendingFlat, contentDescription = null)
+                                    }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -562,4 +665,34 @@ fun BuyerTransactionDetailBottomNavigation() {
             }
         }
     )
+}
+
+private val BUYER_ESCROW_STATE_TRANSITIONS: Map<String, List<String>> = mapOf(
+    "CREATED" to listOf("DECLINED", "PENDING_PAYMENT", "CANCELLED", "EXPIRED"),
+    "PENDING_PAYMENT" to listOf("FUNDS_HELD", "CANCELLED"),
+    "FUNDS_HELD" to listOf("SELLER_ACCEPTED", "DISPUTED"),
+    "SELLER_ACCEPTED" to listOf("IN_DELIVERY", "DISPUTED"),
+    "IN_DELIVERY" to listOf("SELLER_DELIVERED", "DISPUTED"),
+    "SELLER_DELIVERED" to listOf("BUYER_CONFIRMED_DELIVERED", "DISPUTED"),
+    "BUYER_CONFIRMED_DELIVERED" to listOf("RELEASE_PENDING", "DISPUTED"),
+    "RELEASE_PENDING" to listOf("RELEASE_PROCESSING"),
+    "RELEASE_PROCESSING" to listOf("RELEASE_FAILED", "COMPLETED"),
+    "DISPUTED" to listOf("REFUND_PENDING"),
+    "REFUND_PENDING" to listOf("REFUND_PROCESSING"),
+    "REFUND_PROCESSING" to listOf("REFUNDED")
+)
+
+private fun normalizeBuyerEscrowStatus(raw: String): String {
+    return raw.trim().uppercase(Locale.getDefault())
+}
+
+private fun getAllowedBuyerNextStatuses(current: String): List<String> {
+    return BUYER_ESCROW_STATE_TRANSITIONS[current] ?: emptyList()
+}
+
+private fun prettyBuyerEscrowState(state: String): String {
+    return state
+        .lowercase(Locale.getDefault())
+        .split("_")
+        .joinToString(" ") { token -> token.replaceFirstChar { c -> c.titlecase(Locale.getDefault()) } }
 }
