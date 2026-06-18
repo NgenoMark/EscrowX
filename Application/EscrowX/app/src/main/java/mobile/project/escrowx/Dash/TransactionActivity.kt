@@ -211,8 +211,8 @@ fun TransactionsScreen(role: String) {
 
         filteredTransactions = when (selectedStatusFilter) {
             TransactionFilter.ALL -> partyScoped
-            TransactionFilter.COMPLETE -> partyScoped.filter { it.status.equals("COMPLETED", ignoreCase = true) }
-            TransactionFilter.INCOMPLETE -> partyScoped.filter { !it.status.equals("COMPLETED", ignoreCase = true) }
+            TransactionFilter.COMPLETE -> partyScoped.filter { isTerminalEscrowState(it.status) }
+            TransactionFilter.INCOMPLETE -> partyScoped.filter { !isTerminalEscrowState(it.status) }
         }
     }
 
@@ -470,22 +470,22 @@ fun TransactionsScreen(role: String) {
                                         val intent = Intent(context, BuyerTransactionDetailActivity::class.java).apply {
                                             putExtra("TRANSACTION_ID", transaction.id)
                                             putExtra("PRODUCT_NAME", transaction.title)
+                                            putExtra("PRODUCT_DESCRIPTION", transaction.productDescription)
                                             putExtra("SELLER_NAME", sellerName)
                                             putExtra("AMOUNT", transaction.amount.toString())
                                             putExtra("ORDER_ID", transaction.reference)
                                             putExtra("DATE", transaction.createdAt.take(10))
+                                            putExtra(
+                                                "DELIVERY_DATE",
+                                                transaction.deliveryDueAt.takeIf { it.isNotBlank() }?.take(10)
+                                                    ?: transaction.createdAt.take(10)
+                                            )
                                             putExtra("SHIPPING_ADDRESS", transaction.deliveryAddress)
                                             putExtra("STATUS", transaction.status)
                                         }
                                         context.startActivity(intent)
                                     } else {
-                                        val currentStep = when (transaction.status.uppercase()) {
-                                            "FUNDS_HELD" -> 1
-                                            "IN_DELIVERY" -> 2
-                                            "DELIVERED" -> 3
-                                            "COMPLETED" -> 4
-                                            else -> 1
-                                        }
+                                        val currentStep = sellerStepForStatus(transaction.status)
                                         val intent = Intent(context, SellerTransactionDetailActivity::class.java).apply {
                                             putExtra("TRANSACTION_ID", transaction.id)
                                             putExtra("PRODUCT_NAME", transaction.title)
@@ -966,8 +966,8 @@ fun ModernTransactionCard(
     onRaiseDispute: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val isCompleted = transaction.status.equals("COMPLETED", ignoreCase = true)
-    val isCancelled = transaction.status.equals("CANCELLED", ignoreCase = true)
+    val isTerminal = isTerminalEscrowState(transaction.status)
+    val canRaiseDispute = hasAcceptedTransitionPath(transaction.status) && !isTerminal
 
     val statusConfig = getStatusConfig(transaction.status, colorScheme)
     val formattedDate = formatDate(transaction.createdAt)
@@ -1148,7 +1148,7 @@ fun ModernTransactionCard(
                     )
                 }
 
-                if (!isCompleted && !isCancelled) {
+                if (canRaiseDispute) {
                     OutlinedButton(
                         onClick = onRaiseDispute,
                         modifier = Modifier
@@ -1224,7 +1224,7 @@ data class StatusConfig(
 )
 
 fun getStatusConfig(status: String, colorScheme: ColorScheme): StatusConfig {
-    return when (status.uppercase()) {
+    return when (normalizeEscrowStatus(status)) {
         "COMPLETED" -> StatusConfig(
             label = "Completed",
             dotColor = Color(0xFF10B981),
@@ -1251,15 +1251,75 @@ fun getStatusConfig(status: String, colorScheme: ColorScheme): StatusConfig {
         )
         "CANCELLED" -> StatusConfig(
             label = "Cancelled",
-            dotColor = Color(0xFFEF4444),
-            textColor = Color(0xFFEF4444),
-            backgroundColor = Color(0xFFEF4444).copy(alpha = 0.12f)
+            dotColor = Color(0xFF6B7280),
+            textColor = Color(0xFF6B7280),
+            backgroundColor = Color(0xFF6B7280).copy(alpha = 0.12f)
+        )
+        "DECLINED" -> StatusConfig(
+            label = "Declined",
+            dotColor = Color(0xFF6B7280),
+            textColor = Color(0xFF6B7280),
+            backgroundColor = Color(0xFF6B7280).copy(alpha = 0.12f)
+        )
+        "EXPIRED" -> StatusConfig(
+            label = "Expired",
+            dotColor = Color(0xFF6B7280),
+            textColor = Color(0xFF6B7280),
+            backgroundColor = Color(0xFF6B7280).copy(alpha = 0.12f)
+        )
+        "REFUNDED" -> StatusConfig(
+            label = "Refunded",
+            dotColor = Color(0xFF006C49),
+            textColor = Color(0xFF006C49),
+            backgroundColor = Color(0xFF006C49).copy(alpha = 0.12f)
         )
         "DELIVERED" -> StatusConfig(
             label = "Delivered",
             dotColor = Color(0xFF8B5CF6),
             textColor = Color(0xFF8B5CF6),
             backgroundColor = Color(0xFF8B5CF6).copy(alpha = 0.12f)
+        )
+        "PENDING_PAYMENT" -> StatusConfig(
+            label = "Pending Payment",
+            dotColor = Color(0xFFF59E0B),
+            textColor = Color(0xFFF59E0B),
+            backgroundColor = Color(0xFFF59E0B).copy(alpha = 0.12f)
+        )
+        "RELEASE_PENDING" -> StatusConfig(
+            label = "Release Pending",
+            dotColor = Color(0xFF7C3AED),
+            textColor = Color(0xFF7C3AED),
+            backgroundColor = Color(0xFF7C3AED).copy(alpha = 0.12f)
+        )
+        "RELEASE_PROCESSING" -> StatusConfig(
+            label = "Release Processing",
+            dotColor = Color(0xFF7C3AED),
+            textColor = Color(0xFF7C3AED),
+            backgroundColor = Color(0xFF7C3AED).copy(alpha = 0.12f)
+        )
+        "RELEASE_FAILED" -> StatusConfig(
+            label = "Release Failed",
+            dotColor = Color(0xFFBA1A1A),
+            textColor = Color(0xFFBA1A1A),
+            backgroundColor = Color(0xFFBA1A1A).copy(alpha = 0.12f)
+        )
+        "DISPUTED" -> StatusConfig(
+            label = "Disputed",
+            dotColor = Color(0xFFBA1A1A),
+            textColor = Color(0xFFBA1A1A),
+            backgroundColor = Color(0xFFBA1A1A).copy(alpha = 0.12f)
+        )
+        "REFUND_PENDING" -> StatusConfig(
+            label = "Refund Pending",
+            dotColor = Color(0xFFBA1A1A),
+            textColor = Color(0xFFBA1A1A),
+            backgroundColor = Color(0xFFBA1A1A).copy(alpha = 0.12f)
+        )
+        "REFUND_PROCESSING" -> StatusConfig(
+            label = "Refund Processing",
+            dotColor = Color(0xFFBA1A1A),
+            textColor = Color(0xFFBA1A1A),
+            backgroundColor = Color(0xFFBA1A1A).copy(alpha = 0.12f)
         )
         else -> StatusConfig(
             label = status,
@@ -1289,6 +1349,45 @@ enum class TransactionFilter { ALL, COMPLETE, INCOMPLETE }
 enum class TransactionPartyFilter { ALL, BUYER, SELLER }
 
 data class PageResponseWrapper(val content: List<EscrowResponse>?)
+
+private val ESCROW_STATE_TRANSITIONS: Map<String, List<String>> = mapOf(
+    "CREATED" to listOf("DECLINED", "PENDING_PAYMENT", "CANCELLED", "EXPIRED"),
+    "PENDING_PAYMENT" to listOf("FUNDS_HELD", "CANCELLED"),
+    "FUNDS_HELD" to listOf("IN_DELIVERY", "DISPUTED"),
+    "IN_DELIVERY" to listOf("DELIVERED", "DISPUTED"),
+    "DELIVERED" to listOf("RELEASE_PENDING", "DISPUTED"),
+    "RELEASE_PENDING" to listOf("RELEASE_PROCESSING", "DISPUTED"),
+    "RELEASE_PROCESSING" to listOf("RELEASE_FAILED", "COMPLETED"),
+    "RELEASE_FAILED" to listOf("RELEASE_PROCESSING", "DISPUTED"),
+    "DISPUTED" to listOf("REFUND_PENDING", "RELEASE_PENDING"),
+    "REFUND_PENDING" to listOf("REFUND_PROCESSING"),
+    "REFUND_PROCESSING" to listOf("REFUNDED")
+)
+
+private val TERMINAL_ESCROW_STATES: Set<String> = setOf(
+    "COMPLETED",
+    "DECLINED",
+    "CANCELLED",
+    "REFUNDED",
+    "EXPIRED"
+)
+
+private fun normalizeEscrowStatus(status: String?): String = status?.trim().orEmpty().uppercase(Locale.getDefault())
+
+private fun isTerminalEscrowState(status: String?): Boolean = normalizeEscrowStatus(status) in TERMINAL_ESCROW_STATES
+
+private fun hasAcceptedTransitionPath(status: String?): Boolean =
+    normalizeEscrowStatus(status) in ESCROW_STATE_TRANSITIONS.keys
+
+private fun sellerStepForStatus(status: String?): Int {
+    return when (normalizeEscrowStatus(status)) {
+        "CREATED", "PENDING_PAYMENT", "FUNDS_HELD" -> 1
+        "IN_DELIVERY" -> 2
+        "DELIVERED", "RELEASE_PENDING", "RELEASE_PROCESSING", "RELEASE_FAILED" -> 3
+        in TERMINAL_ESCROW_STATES -> 4
+        else -> 1
+    }
+}
 
 @Preview(showBackground = true, widthDp = 428, heightDp = 920)
 @Composable
