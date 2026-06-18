@@ -106,6 +106,9 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
         drawerState = drawerState,
         drawerContent = {
             ModalDrawerSheet(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(300.dp),
                 drawerContainerColor = colorScheme.surface,
                 drawerShape = RoundedCornerShape(16.dp)
             ) {
@@ -154,7 +157,54 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     }
                 }
 
-                // Drawer Items
+                // Drawer Items (streamlined)
+                NavigationDrawerItem(
+                    icon = {
+                        Icon(
+                            Icons.Default.Dashboard,
+                            contentDescription = "Dashboard",
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    label = {
+                        Text(
+                            "Dashboard",
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.onSurface
+                        )
+                    },
+                    selected = true,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+
+                NavigationDrawerItem(
+                    icon = {
+                        Icon(
+                            Icons.Default.ReceiptLong,
+                            contentDescription = "Transactions",
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    label = {
+                        Text(
+                            "Transactions",
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.onSurface
+                        )
+                    },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        context.startActivity(Intent(context, TransactionsActivity::class.java).apply {
+                            putExtra("ROLE", "BUYER")
+                        })
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+
                 NavigationDrawerItem(
                     icon = {
                         Icon(
@@ -197,33 +247,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     onClick = {
                         scope.launch { drawerState.close() }
                         context.startActivity(Intent(context, SettingsActivity::class.java))
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-
-                NavigationDrawerItem(
-                    icon = {
-                        Icon(
-                            Icons.Default.Info,
-                            contentDescription = "App Info",
-                            tint = colorScheme.onSurfaceVariant
-                        )
-                    },
-                    label = {
-                        Text(
-                            "App Info",
-                            fontWeight = FontWeight.Medium,
-                            color = colorScheme.onSurface
-                        )
-                    },
-                    selected = false,
-                    onClick = {
-                        scope.launch { drawerState.close() }
-                        Toast.makeText(
-                            context,
-                            "EscrowX v1.0.0\nSecure mobile escrow for safer transactions",
-                            Toast.LENGTH_LONG
-                        ).show()
                     },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
@@ -299,12 +322,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         IconButton(onClick = {
                             Toast.makeText(context, "Notifications coming soon", Toast.LENGTH_SHORT).show()
                         }) {
-                            Badge(
-                                containerColor = Color(0xFFDC2626),
-                                modifier = Modifier.offset(x = 4.dp, y = (-4).dp)
-                            ) {
-                                Text("3", fontSize = 9.sp, color = Color.White)
-                            }
                             Icon(
                                 Icons.Default.NotificationsNone,
                                 contentDescription = "Notifications",
