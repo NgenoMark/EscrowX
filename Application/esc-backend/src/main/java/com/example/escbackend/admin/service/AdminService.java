@@ -1,11 +1,14 @@
 package com.example.escbackend.admin.service;
 
 
+import com.example.escbackend.admin.dto.EscrowLedgerEntryAdminDto;
 import com.example.escbackend.admin.dto.PaymentIntentAdminDto;
 import com.example.escbackend.admin.dto.PayoutAdminDto;
 import com.example.escbackend.common.exception.ApiException;
+import com.example.escbackend.payment.entity.EscrowLedgerEntryEntity;
 import com.example.escbackend.payment.entity.PaymentIntentEntity;
 import com.example.escbackend.payment.entity.PayoutEntity;
+import com.example.escbackend.payment.repository.EscrowLedgerEntryRepository;
 import com.example.escbackend.payment.repository.PaymentIntentRepository;
 import com.example.escbackend.payment.repository.PayoutRepository;
 import com.example.escbackend.user.service.AdminAuthorizationService;
@@ -19,15 +22,18 @@ import java.util.UUID;
 public class AdminService {
 	private final PaymentIntentRepository paymentIntentRepository;
 	private final PayoutRepository payoutRepository;
+ private final EscrowLedgerEntryRepository escrowLedgerEntryRepository;
 	private final AdminAuthorizationService adminAuthorizationService;
 
 	public AdminService(
 		PaymentIntentRepository paymentIntentRepository,
 		PayoutRepository payoutRepository,
+	EscrowLedgerEntryRepository escrowLedgerEntryRepository,
 		AdminAuthorizationService adminAuthorizationService
 	) {
 		this.paymentIntentRepository = paymentIntentRepository;
 		this.payoutRepository = payoutRepository;
+	this.escrowLedgerEntryRepository = escrowLedgerEntryRepository;
 		this.adminAuthorizationService = adminAuthorizationService;
 	}
 
@@ -58,6 +64,20 @@ public class AdminService {
 			.orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Payout not found"));
 		return toPayoutDto(payout);
 	}
+
+	 public List<EscrowLedgerEntryAdminDto> getAllLedgerEntries(UUID actorUserId) {
+		adminAuthorizationService.requireAdminOrSuperAdmin(requireActorUserId(actorUserId));
+		return escrowLedgerEntryRepository.findAll().stream()
+		 .map(this::toLedgerDto)
+		 .toList();
+	 }
+
+	 public EscrowLedgerEntryAdminDto getLedgerEntryById(UUID actorUserId, UUID ledgerEntryId) {
+		adminAuthorizationService.requireAdminOrSuperAdmin(requireActorUserId(actorUserId));
+		EscrowLedgerEntryEntity ledgerEntry = escrowLedgerEntryRepository.findById(ledgerEntryId)
+		 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Ledger entry not found"));
+		return toLedgerDto(ledgerEntry);
+	 }
 
 	private UUID requireActorUserId(UUID actorUserId) {
 		if (actorUserId == null) {
@@ -116,5 +136,21 @@ public class AdminService {
 			payout.getUpdatedAt()
 		);
 	}
+
+		 private EscrowLedgerEntryAdminDto toLedgerDto(EscrowLedgerEntryEntity ledgerEntry) {
+		  UUID transactionId = ledgerEntry.getTransaction() != null ? ledgerEntry.getTransaction().getId() : null;
+
+		  return new EscrowLedgerEntryAdminDto(
+		   ledgerEntry.getId(),
+		   transactionId,
+		   ledgerEntry.getEntryType(),
+		   ledgerEntry.getDirection(),
+		   ledgerEntry.getAmount(),
+		   ledgerEntry.getCurrency(),
+		   ledgerEntry.getReferenceId(),
+		   ledgerEntry.getReferenceType(),
+		   ledgerEntry.getCreatedAt()
+		  );
+		 }
     
 }

@@ -1,5 +1,6 @@
 package com.example.escbackend.admin.controller;
 
+import com.example.escbackend.admin.dto.EscrowLedgerEntryAdminDto;
 import com.example.escbackend.admin.dto.PaymentIntentAdminDto;
 import com.example.escbackend.admin.dto.PayoutAdminDto;
 import com.example.escbackend.admin.service.AdminService;
@@ -58,6 +59,21 @@ public class AdminController {
 		@PathVariable UUID id
 	) {
 		return adminService.getPayoutById(actorUserId, id);
+	}
+
+	@GetMapping("/ledger-entries")
+	public List<EscrowLedgerEntryAdminDto> getAllLedgerEntries(
+		@RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId
+	) {
+		return adminService.getAllLedgerEntries(actorUserId);
+	}
+
+	@GetMapping("/ledger-entries/{id}")
+	public EscrowLedgerEntryAdminDto getLedgerEntryById(
+		@RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId,
+		@PathVariable UUID id
+	) {
+		return adminService.getLedgerEntryById(actorUserId, id);
 	}
 
 	@GetMapping("/audit-logs/all-logs")
