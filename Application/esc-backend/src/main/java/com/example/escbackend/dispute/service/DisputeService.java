@@ -9,6 +9,7 @@ import com.example.escbackend.dispute.entity.DisputeEntity;
 import com.example.escbackend.dispute.repository.DisputeRepository;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository; // Assumed repository name
+import com.example.escbackend.escrow.service.TransactionStatusHistoryService;
 import com.example.escbackend.audit.entity.AuditLogEntity;
 import com.example.escbackend.audit.repository.AuditLogRepository;
 import com.example.escbackend.user.entity.UserEntity;
@@ -33,18 +34,21 @@ public class DisputeService {
     private final UserRepository userRepository;
     private final AdminAuthorizationService authz;
     private final AuditLogRepository auditRepo;
+    private final TransactionStatusHistoryService transactionStatusHistoryService;
 
     public DisputeService(
             DisputeRepository disputeRepository,
             EscrowRepository escrowRepository,
             UserRepository userRepository,
             AdminAuthorizationService authz,
-            AuditLogRepository auditRepo) {
+            AuditLogRepository auditRepo,
+            TransactionStatusHistoryService transactionStatusHistoryService) {
         this.disputeRepository = disputeRepository;
         this.escrowRepository = escrowRepository;
         this.userRepository = userRepository;
         this.authz = authz;
         this.auditRepo = auditRepo;
+        this.transactionStatusHistoryService = transactionStatusHistoryService;
     }
 
     @Transactional
@@ -87,8 +91,12 @@ public class DisputeService {
         dispute = disputeRepository.save(dispute);
 
         // 6. Push Escrow transaction status to DISPUTED
-        transaction.setStatus(EscrowStatus.DISPUTED.name());
-        escrowRepository.save(transaction);
+        updateEscrowStatus(
+            transaction,
+            EscrowStatus.DISPUTED.name(),
+            actorUserId,
+            "Dispute raised: " + request.getCategory()
+        );
 
         saveAudit(actorUserId, "CREATE_DISPUTE", dispute.getId(),
                 "Dispute raised under category: " + request.getCategory());
@@ -239,5 +247,17 @@ public class DisputeService {
         log.setEntityId(entityId);
         log.setMetadata(Map.of("reason", reason));
         auditRepo.save(log);
+    }
+
+    private void updateEscrowStatus(
+            EscrowTransaction transaction,
+            String newStatus,
+            UUID changedBy,
+            String reason
+    ) {
+        String fromStatus = transaction.getStatus();
+        transaction.setStatus(newStatus);
+        EscrowTransaction saved = escrowRepository.save(transaction);
+        transactionStatusHistoryService.recordStatusChange(saved, fromStatus, newStatus, changedBy, reason);
     }
 }

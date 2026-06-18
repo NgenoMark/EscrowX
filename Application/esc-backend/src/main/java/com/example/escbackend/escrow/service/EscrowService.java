@@ -28,12 +28,15 @@ public class EscrowService {
 
     private final EscrowRepository escrowRepository;
     private final UserRepository userRepository;
+    private final TransactionStatusHistoryService transactionStatusHistoryService;
 
     public EscrowService(
             EscrowRepository escrowRepository,
-            UserRepository userRepository) {
+            UserRepository userRepository,
+            TransactionStatusHistoryService transactionStatusHistoryService) {
         this.escrowRepository = escrowRepository;
         this.userRepository = userRepository;
+        this.transactionStatusHistoryService = transactionStatusHistoryService;
     }
 
     @Transactional
@@ -69,6 +72,13 @@ public class EscrowService {
         transaction.setAutoReleaseAt(request.getDeliveryDueAt());
 
         EscrowTransaction saved = escrowRepository.save(transaction);
+        transactionStatusHistoryService.recordStatusChange(
+            saved,
+            null,
+            saved.getStatus(),
+            request.getBuyerId(),
+            "Transaction created"
+        );
         return toResponse(saved);
     }
 
@@ -108,8 +118,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsBuyer(transaction, actorUserId);
         assertState(transaction,"CREATED");
-        transaction.setStatus("DECLINED");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "DECLINED", actorUserId, "Buyer declined transaction");
 
     }
 
@@ -118,8 +127,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsBuyer(transaction, actorUserId);
         assertState(transaction, "CREATED");
-        transaction.setStatus("PENDING_PAYMENT");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "PENDING_PAYMENT", actorUserId, "Buyer approved transaction");
     }
 
     @Transactional
@@ -127,8 +135,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsSeller(transaction, actorUserId);
         assertState(transaction, "FUNDS_HELD");
-        transaction.setStatus("SELLER_ACCEPTED");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "SELLER_ACCEPTED", actorUserId, "Seller accepted transaction");
     }
 
     @Transactional
@@ -136,8 +143,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsSeller(transaction, actorUserId);
         assertState(transaction, "SELLER_ACCEPTED");
-        transaction.setStatus("IN_DELIVERY");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "IN_DELIVERY", actorUserId, "Seller marked in delivery");
     }
 
     @Transactional
@@ -145,8 +151,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsSeller(transaction, actorUserId);
         assertState(transaction, "IN_DELIVERY");
-        transaction.setStatus("SELLER_DELIVERED");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "SELLER_DELIVERED", actorUserId, "Seller confirmed delivery");
     }
     
     @Transactional
@@ -154,8 +159,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsBuyer(transaction , actorUserId);
         assertState(transaction , "SELLER_DELIVERED");
-        transaction.setStatus("BUYER_CONFIRMED_DELIVERED");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "BUYER_CONFIRMED_DELIVERED", actorUserId, "Buyer confirmed delivery");
     }
 
     @Transactional
@@ -163,8 +167,7 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsBuyer(transaction, actorUserId);
         assertState(transaction, "BUYER_CONFIRMED_DELIVERED");
-        transaction.setStatus("RELEASE_PENDING");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "RELEASE_PENDING", actorUserId, "Buyer confirmed receipt");
     }
 
     @Transactional
@@ -181,8 +184,7 @@ public class EscrowService {
             );
         }
 
-        transaction.setStatus("CANCELLED");
-        return toResponse(escrowRepository.save(transaction));
+        return updateTransactionStatus(transaction, "CANCELLED", actorUserId, "Transaction cancelled");
     }
 
     public Page<EscrowResponse> listTransactions(
@@ -307,5 +309,18 @@ public class EscrowService {
         if (!"ADMIN".equals(actor.getRole().name()) && !"SUPER_ADMIN".equals(actor.getRole().name())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only buyer, seller, admin, or super admin can cancel");
         }
+    }
+
+    private EscrowResponse updateTransactionStatus(
+        EscrowTransaction transaction,
+        String newStatus,
+        UUID changedBy,
+        String reason
+    ) {
+        String fromStatus = transaction.getStatus();
+        transaction.setStatus(newStatus);
+        EscrowTransaction saved = escrowRepository.save(transaction);
+        transactionStatusHistoryService.recordStatusChange(saved, fromStatus, newStatus, changedBy, reason);
+        return toResponse(saved);
     }
 }

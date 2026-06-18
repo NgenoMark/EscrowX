@@ -23,9 +23,10 @@ public class PaymentController {
     @PostMapping("/escrows/{escrowId}/stk-push")
     public InitiateStkPushResponse initiateStkPush(
         @PathVariable UUID escrowId,
+        @RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId,
         @Valid @RequestBody InitiateStkPushRequest request
     ) {
-        return paymentService.initiateStkPush(escrowId, request);
+        return paymentService.initiateStkPush(escrowId, request, actorUserId);
     }
 
     @GetMapping("/{paymentId}")
@@ -34,7 +35,10 @@ public class PaymentController {
     }
 
     @PostMapping("/escrows/{escrowId}/release")
-    public ReleasePayoutResponse releaseToSeller(@PathVariable UUID escrowId) {
-        return paymentService.releaseToSeller(escrowId);
+    public ReleasePayoutResponse releaseToSeller(
+        @PathVariable UUID escrowId,
+        @RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId
+    ) {
+        return paymentService.releaseToSeller(escrowId, actorUserId);
     }
 }
