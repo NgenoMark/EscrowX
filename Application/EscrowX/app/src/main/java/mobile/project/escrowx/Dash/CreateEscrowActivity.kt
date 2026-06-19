@@ -269,7 +269,7 @@ fun UnifiedCreateEscrowScreen(role: String) {
                     sellerId = sellerId,
                     title = itemName,
                     productDescription = description.trim(),
-                    amount = parsedAmount,
+                    amount = totalAmount,
                     deliveryAddress = selectedUserAddress.trim(),
                     deliveryDueAt = deliveryDueAt
                 )
