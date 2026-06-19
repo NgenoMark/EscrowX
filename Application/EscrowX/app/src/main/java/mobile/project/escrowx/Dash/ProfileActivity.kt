@@ -67,9 +67,7 @@ class ProfileActivity : ComponentActivity() {
                 darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
                 dynamicColor = false
             ) {
-                ProfileScreenContent(
-                    onThemeChanged = { recreate() }
-                )
+                ProfileScreenContent()
             }
         }
     }
@@ -77,7 +75,7 @@ class ProfileActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProfileScreenContent(onThemeChanged: () -> Unit = {}) {
+fun ProfileScreenContent() {
     val context = LocalContext.current
     val session = SessionManager(context)
     val scope = rememberCoroutineScope()
@@ -444,18 +442,6 @@ fun ProfileScreenContent(onThemeChanged: () -> Unit = {}) {
 
                         item {
                             Spacer(Modifier.height(24.dp))
-                        }
-
-                        item {
-                            SectionHeader(title = "Security & Privacy")
-                        }
-
-                        item {
-                            Spacer(Modifier.height(12.dp))
-                        }
-
-                        item {
-                            SecuritySettings(onThemeChanged = onThemeChanged)
                         }
 
                         item {
