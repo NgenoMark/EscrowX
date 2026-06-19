@@ -345,11 +345,11 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     },
                     actions = {
                         IconButton(onClick = {
-                            Toast.makeText(context, "Notifications coming soon", Toast.LENGTH_SHORT).show()
+                            context.startActivity(Intent(context, ProfileActivity::class.java))
                         }) {
                             Icon(
-                                Icons.Default.NotificationsNone,
-                                contentDescription = "Notifications",
+                                Icons.Default.Person,
+                                contentDescription = "Profile",
                                 tint = colorScheme.primary
                             )
                         }

@@ -87,7 +87,6 @@ fun SellerDashboardScreen() {
     var buyerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedBottomTab by remember { mutableIntStateOf(0) }
-    var profileMenuExpanded by remember { mutableStateOf(false) }
 
     val sellerName = userProfile?.businessName?.takeIf { it.isNotBlank() }
         ?: userProfile?.displayName?.takeIf { it.isNotBlank() }
@@ -224,17 +223,10 @@ fun SellerDashboardScreen() {
                     sellerInitials = sellerInitials,
                     unreadCount = unreadCount,
                     onMenuClick = { scope.launch { drawerState.open() } },
-                    onProfileClick = { profileMenuExpanded = true },
-                    onNotificationClick = { /* Handle notifications */ },
-                    onProfileMenuDismiss = { profileMenuExpanded = false },
-                    onNavigateToProfile = {
-                        profileMenuExpanded = false
+                    onProfileClick = {
                         context.startActivity(Intent(context, ProfileActivity::class.java))
                     },
-                    onNavigateToSettings = {
-                        profileMenuExpanded = false
-                        context.startActivity(Intent(context, SettingsActivity::class.java))
-                    },
+                    onNotificationClick = { /* Handle notifications */ },
                     colorScheme = colorScheme
                 )
             },
@@ -635,13 +627,8 @@ fun ImprovedTopAppBar(
     onMenuClick: () -> Unit,
     onProfileClick: () -> Unit,
     onNotificationClick: () -> Unit,
-    onProfileMenuDismiss: () -> Unit,
-    onNavigateToProfile: () -> Unit,
-    onNavigateToSettings: () -> Unit,
     colorScheme: ColorScheme
 ) {
-    var profileMenuExpanded by remember { mutableStateOf(false) }
-
     TopAppBar(
         title = {
             Text(
@@ -688,74 +675,19 @@ fun ImprovedTopAppBar(
             }
 
             // Profile Avatar
-            Box {
-                IconButton(onClick = { profileMenuExpanded = true }) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFDCE2F3)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = sellerInitials,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF00236F)
-                        )
-                    }
-                }
-
-                DropdownMenu(
-                    expanded = profileMenuExpanded,
-                    onDismissRequest = {
-                        profileMenuExpanded = false
-                        onProfileMenuDismiss()
-                    },
-                    shape = RoundedCornerShape(12.dp),
-                    containerColor = colorScheme.surface,
+            IconButton(onClick = onProfileClick) {
+                Box(
                     modifier = Modifier
-                        .width(200.dp)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color(0xFFDCE2F3)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                "Profile",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        onClick = {
-                            profileMenuExpanded = false
-                            onNavigateToProfile()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                "Settings",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        },
-                        leadingIcon = {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        },
-                        onClick = {
-                            profileMenuExpanded = false
-                            onNavigateToSettings()
-                        }
+                    Text(
+                        text = sellerInitials,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00236F)
                     )
                 }
             }
