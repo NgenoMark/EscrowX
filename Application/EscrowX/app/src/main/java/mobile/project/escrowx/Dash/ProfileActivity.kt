@@ -1,6 +1,7 @@
 package mobile.project.escrowx.dash
 
 import android.Manifest
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -311,7 +312,21 @@ fun ProfileScreenContent(onThemeChanged: () -> Unit = {}) {
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { (context as? ProfileActivity)?.finish() }) {
+                    IconButton(onClick = {
+                        val activity = context as? Activity
+                        if (activity != null) {
+                            if (activity.isTaskRoot) {
+                                val fallbackTarget = if (isSeller) {
+                                    SellerDashboardActivity::class.java
+                                } else {
+                                    BuyerDashboardActivity::class.java
+                                }
+                                navigateTab(context, fallbackTarget)
+                            } else {
+                                activity.finish()
+                            }
+                        }
+                    }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
