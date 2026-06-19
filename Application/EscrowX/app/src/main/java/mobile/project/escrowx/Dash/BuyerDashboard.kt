@@ -251,6 +251,31 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                 )
 
+                NavigationDrawerItem(
+                    icon = {
+                        Icon(
+                            Icons.Default.AccountBalance,
+                            contentDescription = "Track Finances",
+                            tint = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    label = {
+                        Text(
+                            "Track Finances",
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.onSurface
+                        )
+                    },
+                    selected = false,
+                    onClick = {
+                        scope.launch { drawerState.close() }
+                        context.startActivity(Intent(context, TrackFinancesActivity::class.java).apply {
+                            putExtra("ROLE", "BUYER")
+                        })
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
+
                 Spacer(modifier = Modifier.weight(1f))
 
                 HorizontalDivider(

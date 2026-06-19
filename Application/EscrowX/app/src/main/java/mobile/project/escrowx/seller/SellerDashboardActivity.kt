@@ -44,6 +44,7 @@ import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.dash.CreateEscrowActivity
 import mobile.project.escrowx.dash.ProfileActivity
 import mobile.project.escrowx.dash.SettingsActivity
+import mobile.project.escrowx.dash.TrackFinancesActivity
 import mobile.project.escrowx.dash.TransactionsActivity
 import mobile.project.escrowx.ui.components.SellerNavBar
 import mobile.project.escrowx.ui.components.SellerNavItem
@@ -197,6 +198,12 @@ fun SellerDashboardScreen() {
                 onNavigateToSettings = {
                     scope.launch { drawerState.close() }
                     context.startActivity(Intent(context, SettingsActivity::class.java))
+                },
+                onNavigateToTrackFinances = {
+                    scope.launch { drawerState.close() }
+                    context.startActivity(Intent(context, TrackFinancesActivity::class.java).apply {
+                        putExtra("ROLE", "SELLER")
+                    })
                 },
                 onLogout = {
                     scope.launch { drawerState.close() }
@@ -378,6 +385,7 @@ fun ImprovedSellerDrawerContent(
     onNavigateToTransactions: () -> Unit,
     onNavigateToProfile: () -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToTrackFinances: () -> Unit,
     onLogout: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -507,6 +515,17 @@ fun ImprovedSellerDrawerContent(
             }
         )
 
+        DrawerMenuItem(
+            icon = Icons.Default.AccountBalance,
+            label = "Track Finances",
+            isSelected = selectedItem == DrawerNavItem.FINANCES,
+            onClick = {
+                selectedItem = DrawerNavItem.FINANCES
+                onCloseDrawer()
+                onNavigateToTrackFinances()
+            }
+        )
+
         Spacer(modifier = Modifier.weight(1f))
 
         // Version info
@@ -604,7 +623,7 @@ fun DrawerMenuItem(
     }
 }
 
-enum class DrawerNavItem { HOME, TRANSACTIONS, PROFILE, SETTINGS }
+enum class DrawerNavItem { HOME, TRANSACTIONS, PROFILE, SETTINGS, FINANCES }
 
 // ===== IMPROVED TOP APP BAR =====
 

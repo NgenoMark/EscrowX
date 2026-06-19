@@ -113,6 +113,11 @@
             android:screenOrientation="unspecified" />
 
         <activity
+            android:name=".dash.TrackFinancesActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
             android:name=".dash.PaymentActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
