@@ -500,14 +500,6 @@ fun TransactionsScreen(role: String) {
                                         }
                                         context.startActivity(intent)
                                     }
-                                },
-                                onRaiseDispute = {
-                                    val intent = Intent(context, RaiseDisputeActivity::class.java).apply {
-                                        putExtra("TRANSACTION_ID", transaction.id)
-                                        putExtra("TRANSACTION_TITLE", transaction.title)
-                                        putExtra("TRANSACTION_AMOUNT", transaction.amount.toString())
-                                    }
-                                    context.startActivity(intent)
                                 }
                             )
                         }
@@ -962,12 +954,9 @@ fun ModernTransactionCard(
     transaction: EscrowResponse,
     sellerName: String,
     role: String,
-    onViewDetails: () -> Unit,
-    onRaiseDispute: () -> Unit
+    onViewDetails: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
-    val isTerminal = isTerminalEscrowState(transaction.status)
-    val canRaiseDispute = hasAcceptedTransitionPath(transaction.status) && !isTerminal
 
     val statusConfig = getStatusConfig(transaction.status, colorScheme)
     val formattedDate = formatDate(transaction.createdAt)
@@ -1146,35 +1135,6 @@ fun ModernTransactionCard(
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium
                     )
-                }
-
-                if (canRaiseDispute) {
-                    OutlinedButton(
-                        onClick = onRaiseDispute,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        border = BorderStroke(
-                            1.5.dp,
-                            MaterialTheme.colorScheme.error.copy(alpha = 0.5f)
-                        )
-                    ) {
-                        Icon(
-                            Icons.Default.ReportProblem,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "Dispute",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
                 }
             }
         }

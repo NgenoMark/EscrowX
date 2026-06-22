@@ -38,8 +38,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.DisputeDetailsResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.dash.DisputeDetailsActivity
 import mobile.project.escrowx.dash.ProfileActivity
 import mobile.project.escrowx.dash.TransactionsActivity
 import mobile.project.escrowx.ui.components.SellerNavBar
@@ -116,6 +118,7 @@ fun SellerTransactionDetailScreen(
     var isRefreshing by remember { mutableStateOf(false) }
     var isPollingPayment by remember { mutableStateOf(false) }
     var showBuyerInfo by remember { mutableStateOf(false) }
+    var disputeDetails by remember { mutableStateOf<DisputeDetailsResponse?>(null) }
 
     val parsedAmount = displayAmount.replace(",", "").toDoubleOrNull() ?: 0.0
     val formattedAmount = NumberFormat.getCurrencyInstance(Locale("en", "KE"))
@@ -261,6 +264,7 @@ fun SellerTransactionDetailScreen(
             try {
                 isRefreshing = true
                 val token = session.getAccessToken()
+                val sellerId = session.getUserId()
                 if (token.isNullOrBlank()) {
                     if (showToast) {
                         Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_SHORT).show()
@@ -284,6 +288,17 @@ fun SellerTransactionDetailScreen(
                 displayShippingAddress = txn.deliveryAddress
                 displayOrderId = txn.reference ?: displayOrderId
                 displayDate = txn.createdAt.take(10)
+
+                if (!sellerId.isNullOrBlank()) {
+                    val disputeResp = api.getDisputeByTransactionId(sellerId, transactionId)
+                    disputeDetails = if (disputeResp.isSuccessful) {
+                        disputeResp.body()
+                    } else if (disputeResp.code() == 404) {
+                        null
+                    } else {
+                        disputeDetails
+                    }
+                }
 
                 if (showToast) {
                     Toast.makeText(context, "🔄 Transaction updated", Toast.LENGTH_SHORT).show()
@@ -349,8 +364,22 @@ fun SellerTransactionDetailScreen(
         refreshSellerTransactionData(showToast = false)
     }
 
+    fun viewDispute() {
+        val intent = Intent(context, DisputeDetailsActivity::class.java).apply {
+            putExtra("DISPUTE_ID", disputeDetails?.id ?: "")
+            putExtra("TRANSACTION_ID", transactionId)
+        }
+        context.startActivity(intent)
+    }
+
     val nextAction = getNextAction()
     val isCompleted = normalizedCurrentStatus in listOf("COMPLETED", "CANCELLED", "DECLINED", "REFUNDED", "EXPIRED")
+    val hasDisputeHistory = disputeDetails != null || normalizedCurrentStatus in listOf(
+        "DISPUTED",
+        "REFUND_PENDING",
+        "REFUND_PROCESSING",
+        "REFUNDED"
+    )
     val statusConfig = getStatusConfig()
     val currentStepIndex = getStatusStep()
 
@@ -470,6 +499,8 @@ fun SellerTransactionDetailScreen(
                     onMessageBuyer = {
                         Toast.makeText(context, "💬 Message buyer coming soon", Toast.LENGTH_SHORT).show()
                     },
+                    showViewDispute = hasDisputeHistory,
+                    onViewDispute = { viewDispute() },
                     colorScheme = colorScheme
                 )
             }
@@ -1214,6 +1245,8 @@ fun SellerActionsCard(
     isPollingPayment: Boolean,
     onAction: (String) -> Unit,
     onMessageBuyer: () -> Unit,
+    showViewDispute: Boolean,
+    onViewDispute: () -> Unit,
     colorScheme: ColorScheme
 ) {
     Card(
@@ -1308,6 +1341,33 @@ fun SellerActionsCard(
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Medium
                 )
+            }
+
+            if (showViewDispute) {
+                OutlinedButton(
+                    onClick = onViewDispute,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !isUpdating,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = Color(0xFFDC2626)
+                    ),
+                    border = BorderStroke(1.5.dp, Color(0xFFDC2626).copy(alpha = 0.6f))
+                ) {
+                    Icon(
+                        Icons.Default.Visibility,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "View Dispute",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
         }
     }

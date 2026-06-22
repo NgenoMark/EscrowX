@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.DisputeDetailsResponse
 import mobile.project.escrowx.InitiateStkPushRequest
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
@@ -119,6 +120,7 @@ fun BuyerTransactionDetailScreen(
     var phoneLocalPart by remember { mutableStateOf("") }
     var isPollingPayment by remember { mutableStateOf(false) }
     var showStatusTimeline by remember { mutableStateOf(false) }
+    var disputeDetails by remember { mutableStateOf<DisputeDetailsResponse?>(null) }
 
     val statusUpper = remember(currentStatus) { currentStatus.trim().uppercase() }
     val parsedAmount = displayAmount.replace(",", "").toDoubleOrNull() ?: 0.0
@@ -267,6 +269,7 @@ fun BuyerTransactionDetailScreen(
             try {
                 isRefreshing = true
                 val token = session.getAccessToken()
+                val buyerId = session.getUserId()
                 if (token.isNullOrBlank()) {
                     if (showToast) {
                         Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_SHORT).show()
@@ -291,6 +294,17 @@ fun BuyerTransactionDetailScreen(
                 displayShippingAddress = txn.deliveryAddress
                 displayDeliveryDate = txn.deliveryDueAt.takeIf { it.isNotBlank() }?.take(10) ?: displayDeliveryDate
                 displayOrderId = txn.reference ?: displayOrderId
+
+                if (!buyerId.isNullOrBlank()) {
+                    val disputeResp = api.getDisputeByTransactionId(buyerId, transactionId)
+                    disputeDetails = if (disputeResp.isSuccessful) {
+                        disputeResp.body()
+                    } else if (disputeResp.code() == 404) {
+                        null
+                    } else {
+                        disputeDetails
+                    }
+                }
 
                 if (showToast) {
                     Toast.makeText(context, "Transaction updated", Toast.LENGTH_SHORT).show()
@@ -409,19 +423,34 @@ fun BuyerTransactionDetailScreen(
         context.startActivity(intent)
     }
 
+    fun viewDispute() {
+        val intent = Intent(context, DisputeDetailsActivity::class.java).apply {
+            putExtra("DISPUTE_ID", disputeDetails?.id ?: "")
+            putExtra("TRANSACTION_ID", transactionId)
+        }
+        context.startActivity(intent)
+    }
+
     LaunchedEffect(transactionId) {
         refreshTransactionData(showToast = false)
     }
 
     // ===================== BUTTON STATES =====================
     val cancelEnabled = statusUpper == "CREATED" || statusUpper == "PENDING_PAYMENT"
-    val disputeEnabled = statusUpper in listOf(
+    val hasDisputeHistory = disputeDetails != null || statusUpper in listOf(
+        "DISPUTED",
+        "REFUND_PENDING",
+        "REFUND_PROCESSING",
+        "REFUNDED"
+    )
+
+    val disputeEnabled = (statusUpper in listOf(
         "FUNDS_HELD",
         "SELLER_ACCEPTED",
         "IN_DELIVERY",
         "SELLER_DELIVERED",
         "BUYER_CONFIRMED_DELIVERED"
-    )
+    )) && !hasDisputeHistory
 
     val primaryAction: Pair<String, String>? = when (statusUpper) {
         "SELLER_DELIVERED" -> "Confirm Delivery" to "BUYER_CONFIRMED_DELIVERED"
@@ -548,6 +577,8 @@ fun BuyerTransactionDetailScreen(
                         updateTransactionState("CANCELLED", "Transaction cancelled")
                     },
                     onDispute = { raiseDispute() },
+                    showViewDispute = hasDisputeHistory,
+                    onViewDispute = { viewDispute() },
                     onPay = { showPayDialog = true },
                     colorScheme = colorScheme
                 )
@@ -1223,6 +1254,8 @@ fun ActionsCard(
     onPrimaryAction: (String, String) -> Unit,
     onCancel: () -> Unit,
     onDispute: () -> Unit,
+    showViewDispute: Boolean,
+    onViewDispute: () -> Unit,
     onPay: () -> Unit,
     colorScheme: ColorScheme
 ) {
@@ -1379,6 +1412,29 @@ fun ActionsCard(
                 )
                 Spacer(Modifier.width(8.dp))
                 Text("Raise Dispute", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+            }
+
+            if (showViewDispute) {
+                OutlinedButton(
+                    onClick = onViewDispute,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    enabled = !isUpdating,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = colorScheme.primary
+                    ),
+                    border = BorderStroke(1.5.dp, colorScheme.primary.copy(alpha = 0.6f))
+                ) {
+                    Icon(
+                        Icons.Default.Visibility,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("View Dispute", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                }
             }
         }
     }
