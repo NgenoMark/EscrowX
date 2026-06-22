@@ -47,6 +47,18 @@ public class DisputeController {
     }
 
     /**
+     * Get dispute details by transaction id.
+     * Accessible by: Involved Buyer, Involved Seller, or Admins.
+     */
+    @GetMapping("/disputes/transaction/{transactionId}")
+    public ResponseEntity<DisputeDetailsResponse> getByTransactionId(
+            @PathVariable UUID transactionId,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return ResponseEntity.ok(disputeService.getByTransactionId(transactionId, actorUserId));
+    }
+
+    /**
      * Assign an administrator to manage an open dispute case.
      * Accessible by: Admins / SuperAdmins.
      */

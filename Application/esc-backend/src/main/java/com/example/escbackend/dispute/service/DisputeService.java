@@ -197,6 +197,23 @@ public class DisputeService {
         DisputeEntity dispute = disputeRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute records not found."));
 
+        ensureDisputeAccess(dispute, actorUserId);
+
+        return mapToDetailsResponse(dispute);
+        }
+
+        @Transactional(readOnly = true)
+        public DisputeDetailsResponse getByTransactionId(UUID transactionId, UUID actorUserId) {
+        DisputeEntity dispute = disputeRepository.findByTransactionId(transactionId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute records not found."));
+
+        ensureDisputeAccess(dispute, actorUserId);
+
+        return mapToDetailsResponse(dispute);
+        }
+
+        private void ensureDisputeAccess(DisputeEntity dispute, UUID actorUserId) {
+
         // Security check: Only the involved buyer, seller, or an administrator can pull
         // this information
         boolean isAdmin = userRepository.findById(actorUserId)
@@ -209,8 +226,6 @@ public class DisputeService {
         if (!isAdmin && !isPartToTransaction) {
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have authorization to view this dispute case.");
         }
-
-        return mapToDetailsResponse(dispute);
     }
 
     public Page<DisputeSummaryResponse> listDisputes(String status, int page, int size, UUID adminUserId) {
