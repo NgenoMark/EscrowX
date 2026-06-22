@@ -12,6 +12,7 @@ data class UserDetailsResponse(
     @SerializedName("businessName") val businessName: String? = null,
     @SerializedName("address") val address: String? = null,
     @SerializedName("shopLocation") val shopLocation: String? = null,
+    @SerializedName(value = "avatarUrl", alternate = ["avatar_url"]) val avatarUrl: String? = null,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String? = null
 )

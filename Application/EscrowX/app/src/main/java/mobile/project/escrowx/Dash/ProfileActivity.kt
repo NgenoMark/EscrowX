@@ -30,10 +30,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.painter.BitmapPainter
-import androidx.compose.ui.graphics.painter.ColorPainter
-import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -44,6 +40,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import coil.compose.AsyncImage
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.R
@@ -55,9 +55,13 @@ import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.ui.components.*
 import mobile.project.escrowx.ui.theme.*
+import com.yalantis.ucrop.UCrop
 import java.io.File
+import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.*
+
+private const val MAX_PROFILE_IMAGE_BYTES = 5L * 1024L * 1024L
 
 class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,6 +98,8 @@ fun ProfileScreenContent() {
     var shopLocation by remember { mutableStateOf("") }
 
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
+    var profileImageUrl by remember { mutableStateOf<String?>(null) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
     var isSaving by remember { mutableStateOf(false) }
     var saveButtonText by remember { mutableStateOf("Save Changes") }
     var isSaveSuccess by remember { mutableStateOf(false) }
@@ -120,6 +126,7 @@ fun ProfileScreenContent() {
                         businessName = userProfile?.businessName ?: ""
                         address = userProfile?.address ?: ""
                         shopLocation = userProfile?.shopLocation ?: ""
+                        profileImageUrl = RetrofitClient.resolveApiUrl(userProfile?.avatarUrl)
                     } else {
                         errorMessage = "Failed to load profile: ${response.code()}"
                     }
@@ -158,7 +165,8 @@ fun ProfileScreenContent() {
                     phone = phoneNumber.takeIf { it.isNotBlank() },
                     businessName = businessName.takeIf { it.isNotBlank() },
                     address = if (isSeller) null else address.takeIf { it.isNotBlank() },
-                    shopLocation = if (isSeller) shopLocation.takeIf { it.isNotBlank() } else null
+                    shopLocation = if (isSeller) shopLocation.takeIf { it.isNotBlank() } else null,
+                    avatarUrl = RetrofitClient.toBackendRelativePath(profileImageUrl)
                 )
 
                 val response = RetrofitClient.authenticated(token).updateProfile(userId, request)
@@ -194,6 +202,66 @@ fun ProfileScreenContent() {
         }
     }
 
+    fun uploadSelectedProfileImage(uri: Uri) {
+        scope.launch {
+            try {
+                val token = session.getAccessToken()
+                val userId = session.getUserId()
+                if (token.isNullOrBlank() || userId.isNullOrBlank()) {
+                    Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val file = uriToTempFile(context, uri, "profile_upload")
+                if (file == null || !file.exists()) {
+                    Toast.makeText(context, "Unable to process selected image", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                if (file.length() > MAX_PROFILE_IMAGE_BYTES) {
+                    Toast.makeText(context, "Image is too large. Maximum allowed size is 5MB.", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
+                val body = file.asRequestBody("image/*".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("file", file.name, body)
+                val response = RetrofitClient.authenticated(token).uploadProfileImage(part, userId)
+                if (response.isSuccessful && response.body() != null) {
+                    val uploadedUrl = response.body()!!.url
+                    val backendAvatarPath = RetrofitClient.toBackendRelativePath(uploadedUrl)
+                    val updateResponse = RetrofitClient.authenticated(token).updateProfile(
+                        userId,
+                        UpdateProfileRequest(avatarUrl = backendAvatarPath)
+                    )
+
+                    if (updateResponse.isSuccessful && updateResponse.body() != null) {
+                        profileImageUrl = RetrofitClient.resolveApiUrl(backendAvatarPath)
+                        profileImageUri = uri
+                        userProfile = updateResponse.body()
+                        Toast.makeText(context, "Profile image uploaded", Toast.LENGTH_SHORT).show()
+                    } else {
+                        val updateError = updateResponse.errorBody()?.string()?.take(220)
+                        Toast.makeText(
+                            context,
+                            updateError ?: "Image uploaded but failed to save profile picture",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                } else {
+                    val rawError = response.errorBody()?.string()?.take(260)
+                    val message = if ((response.code() == 413) || (rawError?.contains("Maximum upload size exceeded", ignoreCase = true) == true)) {
+                        "Image is too large. Maximum allowed size is 5MB."
+                    } else {
+                        rawError ?: "Failed to upload profile image"
+                    }
+                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Image upload error: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     // Camera & gallery launchers
     val cameraPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -208,18 +276,46 @@ fun ProfileScreenContent() {
         return File.createTempFile(imageFileName, ".jpg", storageDir)
     }
 
+    val cropLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val data = result.data
+        if (result.resultCode == Activity.RESULT_OK && data != null) {
+            val croppedUri = UCrop.getOutput(data)
+            if (croppedUri != null) {
+                uploadSelectedProfileImage(croppedUri)
+            } else {
+                Toast.makeText(context, "Could not read cropped image", Toast.LENGTH_SHORT).show()
+            }
+        } else if (result.resultCode == UCrop.RESULT_ERROR && data != null) {
+            val error = UCrop.getError(data)
+            Toast.makeText(
+                context,
+                "Image edit failed: ${error?.message ?: "Unknown error"}",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
+
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
-        if (success) Toast.makeText(context, "Photo taken (save not implemented)", Toast.LENGTH_SHORT).show()
+        if (success) {
+            pendingCameraUri?.let { capturedUri ->
+                launchCropEditor(context, capturedUri) { cropIntent ->
+                    cropLauncher.launch(cropIntent)
+                }
+            }
+        }
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            profileImageUri = it
-            Toast.makeText(context, "Image selected", Toast.LENGTH_SHORT).show()
+            launchCropEditor(context, it) { cropIntent ->
+                cropLauncher.launch(cropIntent)
+            }
         }
     }
 
@@ -228,6 +324,7 @@ fun ProfileScreenContent() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             val photoFile = createImageFile()
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+            pendingCameraUri = uri
             cameraLauncher.launch(uri)
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -406,6 +503,7 @@ fun ProfileScreenContent() {
                                 fullName = fullName,
                                 role = userProfile?.role ?: "BUYER",
                                 profileImageUri = profileImageUri,
+                                profileImageUrl = profileImageUrl,
                                 onEditClick = { onEditImageClick() }
                             )
                         }
@@ -496,6 +594,7 @@ fun ProfileHero(
     fullName: String,
     role: String,
     profileImageUri: Uri?,
+    profileImageUrl: String?,
     onEditClick: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
@@ -555,9 +654,15 @@ fun ProfileHero(
                     .background(colorScheme.surface)
             ) {
                 if (profileImageUri != null) {
-                    val painter = rememberImagePainter(profileImageUri)
-                    androidx.compose.foundation.Image(
-                        painter = painter,
+                    AsyncImage(
+                        model = profileImageUri,
+                        contentDescription = "Profile Photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } else if (!profileImageUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = profileImageUrl,
                         contentDescription = "Profile Photo",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
@@ -1304,19 +1409,58 @@ fun ProfileBottomNavigationBar(userRole: String) {
     }
 }
 
-@Composable
-fun rememberImagePainter(uri: Uri): Painter {
-    val context = LocalContext.current
-    val bitmap = remember(uri) {
-        try {
-            context.contentResolver.openInputStream(uri)?.use { stream ->
-                android.graphics.BitmapFactory.decodeStream(stream)
+fun uriToTempFile(context: Context, uri: Uri, filePrefix: String): File? {
+    return try {
+        val input = context.contentResolver.openInputStream(uri) ?: return null
+        val file = File.createTempFile(filePrefix, ".jpg", context.cacheDir)
+        input.use { inputStream ->
+            FileOutputStream(file).use { output ->
+                inputStream.copyTo(output)
             }
-        } catch (_: Exception) { null }
+        }
+        file
+    } catch (_: Exception) {
+        null
     }
-    return remember(bitmap) {
-        if (bitmap != null) BitmapPainter(bitmap.asImageBitmap()) else ColorPainter(Color.Gray)
+}
+
+fun isImageWithinLimit(context: Context, uri: Uri, maxBytes: Long): Boolean {
+    return try {
+        val size = context.contentResolver.openAssetFileDescriptor(uri, "r")?.use { it.length }
+        if (size == null || size < 0L) {
+            // If size can't be resolved from descriptor, allow upload and enforce again from temp file.
+            true
+        } else {
+            size <= maxBytes
+        }
+    } catch (_: Exception) {
+        true
     }
+}
+
+fun launchCropEditor(context: Context, sourceUri: Uri, onIntentReady: (Intent) -> Unit) {
+    val destinationFile = File(
+        context.cacheDir,
+        "profile_cropped_${System.currentTimeMillis()}.jpg"
+    )
+    val destinationUri = Uri.fromFile(destinationFile)
+
+    val options = UCrop.Options().apply {
+        setCompressionQuality(92)
+        setFreeStyleCropEnabled(true)
+        setToolbarTitle("Edit Profile Photo")
+        setHideBottomControls(false)
+        setShowCropFrame(true)
+        setShowCropGrid(true)
+    }
+
+    val cropIntent = UCrop.of(sourceUri, destinationUri)
+        .withAspectRatio(1f, 1f)
+        .withMaxResultSize(1080, 1080)
+        .withOptions(options)
+        .getIntent(context)
+
+    onIntentReady(cropIntent)
 }
 
 fun formatDateString(dateString: String): String {
