@@ -1,22 +1,21 @@
 package mobile.project.escrowx.dash
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.DisputeDetailsResponse
@@ -99,6 +99,7 @@ fun DisputeDetailsScreen(
     var dispute by remember { mutableStateOf<DisputeDetailsResponse?>(null) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var previewImageUrl by remember { mutableStateOf<String?>(null) }
 
     fun loadDispute() {
         scope.launch {
@@ -284,17 +285,12 @@ fun DisputeDetailsScreen(
                                     ) {
                                         Text("Evidence Images", fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface)
                                         evidence.forEachIndexed { index, url ->
+                                            val resolvedUrl = RetrofitClient.resolveApiUrl(url) ?: url
                                             EvidenceImageCard(
                                                 index = index + 1,
-                                                url = url,
+                                                url = resolvedUrl,
                                                 onOpen = {
-                                                    try {
-                                                        context.startActivity(
-                                                            Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                                                        )
-                                                    } catch (_: Exception) {
-                                                        Toast.makeText(context, "Unable to open evidence URL", Toast.LENGTH_SHORT).show()
-                                                    }
+                                                    previewImageUrl = resolvedUrl
                                                 },
                                                 colorScheme = colorScheme
                                             )
@@ -308,6 +304,28 @@ fun DisputeDetailsScreen(
                             Spacer(modifier = Modifier.height(20.dp))
                         }
                     }
+                }
+            }
+        }
+
+        if (!previewImageUrl.isNullOrBlank()) {
+            Dialog(onDismissRequest = { previewImageUrl = null }) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.9f))
+                        .clickable { previewImageUrl = null },
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = previewImageUrl,
+                        contentDescription = "Evidence preview",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                            .clip(RoundedCornerShape(14.dp)),
+                        contentScale = ContentScale.Fit
+                    )
                 }
             }
         }

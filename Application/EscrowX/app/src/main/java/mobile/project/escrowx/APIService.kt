@@ -10,6 +10,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import mobile.project.escrowx.auth.*
 import mobile.project.escrowx.dash.DashboardResponse
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 interface AuthApiService {
@@ -179,6 +180,38 @@ interface AuthApiService {
 
 object RetrofitClient {
     private const val BASE_URL = "https://mullets-handset-pampered.ngrok-free.dev"
+
+    fun getBaseUrl(): String = BASE_URL
+
+    fun resolveApiUrl(urlOrPath: String?): String? {
+        val value = urlOrPath?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+
+        val parsedPath = try {
+            URI(value).path
+        } catch (_: Exception) {
+            null
+        }
+
+        if (!parsedPath.isNullOrBlank() && parsedPath.startsWith("/uploads/")) {
+            return BASE_URL.removeSuffix("/") + parsedPath
+        }
+
+        return when {
+            value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+            value.startsWith("/") -> BASE_URL.removeSuffix("/") + value
+            else -> BASE_URL.removeSuffix("/") + "/" + value
+        }
+    }
+
+    fun toBackendRelativePath(urlOrPath: String?): String? {
+        val value = urlOrPath?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val base = BASE_URL.removeSuffix("/")
+        return if (value.startsWith(base, ignoreCase = true)) {
+            value.removePrefix(base).ifBlank { "/" }
+        } else {
+            value
+        }
+    }
 
     private val loggingInterceptor: HttpLoggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
