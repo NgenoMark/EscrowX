@@ -2,6 +2,7 @@ package mobile.project.escrowx
 
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.MultipartBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.Response
@@ -51,6 +52,13 @@ interface AuthApiService {
         @Path("id") userId: String,
         @Body request: UpdateProfileRequest
     ): Response<UserDetailsResponse>
+
+    @Multipart
+    @POST("api/v1/uploads/users/profile")
+    suspend fun uploadProfileImage(
+        @Part file: MultipartBody.Part,
+        @Query("userId") userId: String?
+    ): Response<UploadImageResponse>
 
     // DASHBOARD ENDPOINT (if available)
     @GET("api/v1/dashboard/summary")
@@ -149,8 +157,24 @@ interface AuthApiService {
         @Body request: RaiseDisputeRequest
     ): Response<DisputeResponse>
 
+    @Multipart
+    @POST("api/v1/uploads/disputes")
+    suspend fun uploadDisputeImage(
+        @Part file: MultipartBody.Part,
+        @Query("referenceId") referenceId: String?
+    ): Response<UploadImageResponse>
+
     @GET("api/v1/disputes/{id}")
-    suspend fun getDisputeById(@Path("id") id: String): Response<DisputeResponse>
+    suspend fun getDisputeById(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") id: String
+    ): Response<DisputeDetailsResponse>
+
+    @GET("api/v1/disputes/transaction/{transactionId}")
+    suspend fun getDisputeByTransactionId(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("transactionId") transactionId: String
+    ): Response<DisputeDetailsResponse>
 }
 
 object RetrofitClient {
@@ -262,7 +286,8 @@ data class UpdateProfileRequest(
     val phone: String? = null,
     val businessName: String? = null,
     val address: String? = null,          // ✅ match backend field name
-    val shopLocation: String? = null
+    val shopLocation: String? = null,
+    val avatarUrl: String? = null
 )
 
 // Dispute related
@@ -278,7 +303,8 @@ enum class DisputeCategory {
 data class RaiseDisputeRequest(
     val transactionId: String,
     val category: String,
-    val description: String
+    val description: String,
+    val evidenceUrls: List<String> = emptyList()
 )
 
 data class DisputeResponse(
@@ -287,7 +313,29 @@ data class DisputeResponse(
     val raisedById: String,
     val category: String,
     val status: String,
+    val evidenceUrls: List<String>? = null,
     val createdAt: String
+)
+
+data class DisputeDetailsResponse(
+    val id: String,
+    val transactionId: String,
+    val transactionReference: String? = null,
+    val raisedById: String,
+    val raisedByName: String? = null,
+    val category: String,
+    val description: String? = null,
+    val status: String,
+    val assignedAdminId: String? = null,
+    val resolution: String? = null,
+    val resolvedAt: String? = null,
+    val evidenceUrls: List<String>? = null,
+    val createdAt: String,
+    val updatedAt: String? = null
+)
+
+data class UploadImageResponse(
+    val url: String
 )
 
 data class InitiateStkPushRequest(
