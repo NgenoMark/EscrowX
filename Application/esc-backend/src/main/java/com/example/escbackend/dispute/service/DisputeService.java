@@ -5,7 +5,9 @@ import com.example.escbackend.common.constants.EscrowStatus; // Assumed name for
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.dispute.dto.*;
+import com.example.escbackend.dispute.entity.DisputeEvidenceEntity;
 import com.example.escbackend.dispute.entity.DisputeEntity;
+import com.example.escbackend.dispute.repository.DisputeEvidenceRepository;
 import com.example.escbackend.dispute.repository.DisputeRepository;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository; // Assumed repository name
@@ -23,6 +25,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -30,6 +33,7 @@ import java.util.UUID;
 public class DisputeService {
 
     private final DisputeRepository disputeRepository;
+    private final DisputeEvidenceRepository disputeEvidenceRepository;
     private final EscrowRepository escrowRepository;
     private final UserRepository userRepository;
     private final AdminAuthorizationService authz;
@@ -38,12 +42,14 @@ public class DisputeService {
 
     public DisputeService(
             DisputeRepository disputeRepository,
+            DisputeEvidenceRepository disputeEvidenceRepository,
             EscrowRepository escrowRepository,
             UserRepository userRepository,
             AdminAuthorizationService authz,
             AuditLogRepository auditRepo,
             TransactionStatusHistoryService transactionStatusHistoryService) {
         this.disputeRepository = disputeRepository;
+        this.disputeEvidenceRepository = disputeEvidenceRepository;
         this.escrowRepository = escrowRepository;
         this.userRepository = userRepository;
         this.authz = authz;
@@ -89,6 +95,20 @@ public class DisputeService {
         dispute.setStatus(DisputeStatus.OPEN);
 
         dispute = disputeRepository.save(dispute);
+
+        if (request.getEvidenceUrls() != null && !request.getEvidenceUrls().isEmpty()) {
+            for (String evidenceUrl : request.getEvidenceUrls()) {
+                if (evidenceUrl == null || evidenceUrl.isBlank()) {
+                    continue;
+                }
+                DisputeEvidenceEntity evidence = new DisputeEvidenceEntity();
+                evidence.setDispute(dispute);
+                evidence.setUploadedBy(raisedBy);
+                evidence.setFileUrl(evidenceUrl.trim());
+                evidence.setNote("Uploaded during dispute creation");
+                disputeEvidenceRepository.save(evidence);
+            }
+        }
 
         // 6. Push Escrow transaction status to DISPUTED
         updateEscrowStatus(
@@ -221,6 +241,12 @@ public class DisputeService {
     }
 
     private DisputeDetailsResponse mapToDetailsResponse(DisputeEntity dispute) {
+        List<String> evidenceUrls = disputeEvidenceRepository
+            .findByDisputeIdOrderByCreatedAtAsc(dispute.getId())
+            .stream()
+            .map(DisputeEvidenceEntity::getFileUrl)
+            .toList();
+
         return DisputeDetailsResponse.builder()
                 .id(dispute.getId())
                 .transactionId(dispute.getTransaction().getId())
@@ -234,6 +260,7 @@ public class DisputeService {
                 .assignedAdminId(dispute.getAssignedAdmin() != null ? dispute.getAssignedAdmin().getId() : null)
                 .resolution(dispute.getResolution())
                 .resolvedAt(dispute.getResolvedAt())
+                .evidenceUrls(evidenceUrls)
                 .createdAt(dispute.getCreatedAt())
                 .updatedAt(dispute.getUpdatedAt())
                 .build();

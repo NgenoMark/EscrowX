@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.UUID;
 
 
@@ -28,6 +29,7 @@ public class DisputeDetailsResponse {
     private UUID assignedAdminId;
     private String resolution;
     private OffsetDateTime resolvedAt;
+    private List<String> evidenceUrls;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
 }
