@@ -178,6 +178,9 @@ public class UserService {
             profile.setAddress(request.getAddress());
         }
 
+        userRepository.save(user);
+        profileRepository.save(profile);
+
         return mapper.toUpdateUserResponse(user , profile);
     }
 

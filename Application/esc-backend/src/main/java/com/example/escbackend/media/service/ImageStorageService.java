@@ -16,6 +16,8 @@ import java.util.UUID;
 @Service
 public class ImageStorageService {
 
+    private static final long MAX_IMAGE_BYTES = 5L * 1024L * 1024L;
+
     private final Path baseUploadPath;
 
     public ImageStorageService(@Value("${escrowx.upload.base-dir:src/main/resources/static/uploads}") String baseDir) {
@@ -43,6 +45,10 @@ public class ImageStorageService {
     private String storeFile(MultipartFile file, Path targetDir, String urlPrefix) {
         if (file == null || file.isEmpty()) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Image file is required.");
+        }
+
+        if (file.getSize() > MAX_IMAGE_BYTES) {
+            throw new ApiException(HttpStatus.PAYLOAD_TOO_LARGE, "Image is too large. Maximum allowed size is 5MB.");
         }
 
         try {

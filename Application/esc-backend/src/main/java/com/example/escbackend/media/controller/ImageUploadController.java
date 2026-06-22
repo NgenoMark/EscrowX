@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 @RestController
 @RequestMapping("/api/v1/uploads")
@@ -29,10 +28,7 @@ public class ImageUploadController {
             @RequestParam(required = false) String referenceId
     ) {
         String relativeUrl = imageStorageService.storeDisputeImage(file, referenceId);
-        String absoluteUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-            .path(relativeUrl)
-            .toUriString();
-        return UploadImageResponse.builder().url(absoluteUrl).build();
+        return UploadImageResponse.builder().url(relativeUrl).build();
     }
 
     @PostMapping(value = "/users/profile", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -41,9 +37,6 @@ public class ImageUploadController {
             @RequestParam(required = false) String userId
     ) {
         String relativeUrl = imageStorageService.storeUserProfileImage(file, userId);
-        String absoluteUrl = ServletUriComponentsBuilder.fromCurrentContextPath()
-            .path(relativeUrl)
-            .toUriString();
-        return UploadImageResponse.builder().url(absoluteUrl).build();
+        return UploadImageResponse.builder().url(relativeUrl).build();
     }
 }
