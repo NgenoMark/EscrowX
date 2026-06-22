@@ -36,7 +36,7 @@ public class SecurityConfig {
                         ).permitAll()
                         // Permit your API endpoints
                         .requestMatchers("/api/v1/**").permitAll()
-                        // Everything else requires authentication (good practice to keep your configuration realistic)
+                        // Everything else requires authentication
                         .anyRequest().authenticated()
                 );
         return http.build();
@@ -45,13 +45,24 @@ public class SecurityConfig {
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
+
+        // Match your Angular local development origin
         config.setAllowedOrigins(List.of("http://localhost:4200"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-Actor-User-Id"));
+
+        // Added "ngrok-skip-browser-warning" to allow the bypass header through
+        config.setAllowedHeaders(List.of(
+                "Authorization",
+                "Content-Type",
+                "X-Actor-User-Id",
+                "ngrok-skip-browser-warning"
+        ));
+
         config.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/api/v1/**", config);
+        // Changed from "/api/v1/**" to "/**" to safeguard root/redirect requests from CORS blocks
+        source.registerCorsConfiguration("/**", config);
         return source;
     }
 
