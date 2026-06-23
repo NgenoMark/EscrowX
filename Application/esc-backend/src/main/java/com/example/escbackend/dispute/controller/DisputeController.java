@@ -58,6 +58,24 @@ public class DisputeController {
         return ResponseEntity.ok(disputeService.getByTransactionId(transactionId, actorUserId));
     }
 
+    @PostMapping("/disputes/{id}/evidence")
+    public ResponseEntity<DisputeDetailsResponse> addEvidence(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+            @Valid @RequestBody DisputeEvidenceUpdateRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.addEvidence(id, actorUserId, request));
+    }
+
+    @PostMapping("/disputes/{id}/evidence/remove")
+    public ResponseEntity<DisputeDetailsResponse> removeEvidence(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+            @Valid @RequestBody DisputeEvidenceUpdateRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.removeEvidence(id, actorUserId, request));
+    }
+
     /**
      * Assign an administrator to manage an open dispute case.
      * Accessible by: Admins / SuperAdmins.

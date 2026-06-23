@@ -176,6 +176,20 @@ interface AuthApiService {
         @Header("X-Actor-User-Id") actorUserId: String,
         @Path("transactionId") transactionId: String
     ): Response<DisputeDetailsResponse>
+
+    @POST("api/v1/disputes/{id}/evidence")
+    suspend fun addDisputeEvidence(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") disputeId: String,
+        @Body request: UpdateDisputeEvidenceRequest
+    ): Response<DisputeDetailsResponse>
+
+    @POST("api/v1/disputes/{id}/evidence/remove")
+    suspend fun removeDisputeEvidence(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") disputeId: String,
+        @Body request: UpdateDisputeEvidenceRequest
+    ): Response<DisputeDetailsResponse>
 }
 
 object RetrofitClient {
@@ -369,6 +383,10 @@ data class DisputeDetailsResponse(
 
 data class UploadImageResponse(
     val url: String
+)
+
+data class UpdateDisputeEvidenceRequest(
+    val evidenceUrl: String
 )
 
 data class InitiateStkPushRequest(

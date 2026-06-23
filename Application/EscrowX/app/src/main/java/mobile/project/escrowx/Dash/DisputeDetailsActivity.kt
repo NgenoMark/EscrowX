@@ -1,9 +1,12 @@
 package mobile.project.escrowx.dash
 
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -39,9 +42,15 @@ import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.DisputeDetailsResponse
 import mobile.project.escrowx.RetrofitClient
+import mobile.project.escrowx.UpdateDisputeEvidenceRequest
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import java.io.File
+import java.io.FileOutputStream
 import java.util.Locale
 
 class DisputeDetailsActivity : ComponentActivity() {
@@ -78,7 +87,97 @@ fun DisputeDetailsScreen(
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var previewImageUrl by remember { mutableStateOf<String?>(null) }
     var selectedImageIndex by remember { mutableStateOf(0) }
+    var isUpdatingEvidence by remember { mutableStateOf(false) }
     val evidence = dispute?.evidenceUrls.orEmpty()
+
+    val addEvidenceLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris: List<Uri> ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val token = session.getAccessToken()
+            val actorUserId = session.getUserId()
+            val activeDisputeId = dispute?.id?.toString().orEmpty().ifBlank { disputeId }
+
+            if (token.isNullOrBlank() || actorUserId.isNullOrBlank() || activeDisputeId.isBlank()) {
+                Toast.makeText(context, "Unable to add evidence right now", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            isUpdatingEvidence = true
+            try {
+                val api = RetrofitClient.authenticated(token)
+                var successCount = 0
+
+                uris.forEach { uri ->
+                    val file = uriToTempFileDisputeDetails(context.cacheDir, context.contentResolver.openInputStream(uri), "dispute_extra_evidence")
+                    if (file != null && file.exists()) {
+                        val body = file.asRequestBody("image/*".toMediaTypeOrNull())
+                        val part = MultipartBody.Part.createFormData("file", file.name, body)
+                        val uploadResponse = api.uploadDisputeImage(part, dispute?.transactionId)
+
+                        if (uploadResponse.isSuccessful && uploadResponse.body() != null) {
+                            val uploadedPath = RetrofitClient.toBackendRelativePath(uploadResponse.body()!!.url)
+                                ?: uploadResponse.body()!!.url
+                            val addResponse = api.addDisputeEvidence(
+                                actorUserId,
+                                activeDisputeId,
+                                UpdateDisputeEvidenceRequest(evidenceUrl = uploadedPath)
+                            )
+                            if (addResponse.isSuccessful) {
+                                dispute = addResponse.body() ?: dispute
+                                successCount++
+                            }
+                        }
+                    }
+                }
+
+                if (successCount > 0) {
+                    Toast.makeText(context, "Added $successCount evidence image(s)", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(context, "Failed to add evidence images", Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Add evidence error: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                isUpdatingEvidence = false
+            }
+        }
+    }
+
+    fun removeEvidenceImage(rawEvidenceUrl: String) {
+        scope.launch {
+            val token = session.getAccessToken()
+            val actorUserId = session.getUserId()
+            val activeDisputeId = dispute?.id?.toString().orEmpty().ifBlank { disputeId }
+
+            if (token.isNullOrBlank() || actorUserId.isNullOrBlank() || activeDisputeId.isBlank()) {
+                Toast.makeText(context, "Unable to remove evidence right now", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            isUpdatingEvidence = true
+            try {
+                val requestUrl = RetrofitClient.toBackendRelativePath(rawEvidenceUrl) ?: rawEvidenceUrl
+                val response = RetrofitClient.authenticated(token).removeDisputeEvidence(
+                    actorUserId,
+                    activeDisputeId,
+                    UpdateDisputeEvidenceRequest(evidenceUrl = requestUrl)
+                )
+                if (response.isSuccessful && response.body() != null) {
+                    dispute = response.body()
+                    Toast.makeText(context, "Evidence removed", Toast.LENGTH_SHORT).show()
+                } else {
+                    val err = response.errorBody()?.string()?.take(200) ?: "Failed to remove evidence"
+                    Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "Remove evidence error: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                isUpdatingEvidence = false
+            }
+        }
+    }
 
     fun loadDispute() {
         scope.launch {
@@ -221,17 +320,18 @@ fun DisputeDetailsScreen(
                         }
 
                         // ===== EVIDENCE SECTION =====
-                        if (evidence.isNotEmpty()) {
-                            item {
-                                EvidenceSection(
-                                    evidence = evidence,
-                                    onImageClick = { url, index ->
-                                        previewImageUrl = url
-                                        selectedImageIndex = index
-                                    },
-                                    colorScheme = colorScheme
-                                )
-                            }
+                        item {
+                            EvidenceSection(
+                                evidence = evidence,
+                                canModify = !isResolved && !isUpdatingEvidence,
+                                onAddEvidence = { addEvidenceLauncher.launch("image/*") },
+                                onDeleteImage = { rawUrl -> removeEvidenceImage(rawUrl) },
+                                onImageClick = { url, index ->
+                                    previewImageUrl = url
+                                    selectedImageIndex = index
+                                },
+                                colorScheme = colorScheme
+                            )
                         }
 
                         // ===== TIMELINE =====
@@ -662,6 +762,9 @@ fun DescriptionCard(
 @Composable
 fun EvidenceSection(
     evidence: List<String>,
+    canModify: Boolean,
+    onAddEvidence: () -> Unit,
+    onDeleteImage: (String) -> Unit,
     onImageClick: (String, Int) -> Unit,
     colorScheme: ColorScheme
 ) {
@@ -716,30 +819,52 @@ fun EvidenceSection(
                 }
             }
 
+            if (canModify) {
+                OutlinedButton(
+                    onClick = onAddEvidence,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Upload Another Image")
+                }
+            }
+
             // Evidence Grid
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                evidence.chunked(2).forEach { rowItems ->
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        rowItems.forEachIndexed { index, url ->
-                            val globalIndex = evidence.indexOf(url)
-                            val resolvedUrl = RetrofitClient.resolveApiUrl(url) ?: url
-                            EvidenceThumbnail(
-                                url = resolvedUrl,
-                                index = globalIndex + 1,
-                                total = evidence.size,
-                                onClick = { onImageClick(resolvedUrl, globalIndex) },
-                                modifier = Modifier.weight(1f),
-                                colorScheme = colorScheme
-                            )
-                        }
-                        // Fill empty space if odd number
-                        if (rowItems.size == 1) {
-                            Spacer(modifier = Modifier.weight(1f))
+            if (evidence.isEmpty()) {
+                Text(
+                    text = "No evidence images yet.",
+                    color = colorScheme.onSurfaceVariant,
+                    fontSize = 13.sp
+                )
+            } else {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    evidence.chunked(2).forEach { rowItems ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowItems.forEach { rawUrl ->
+                                val globalIndex = evidence.indexOf(rawUrl)
+                                val resolvedUrl = RetrofitClient.resolveApiUrl(rawUrl) ?: rawUrl
+                                EvidenceThumbnail(
+                                    url = resolvedUrl,
+                                    index = globalIndex + 1,
+                                    total = evidence.size,
+                                    canDelete = canModify,
+                                    onDelete = { onDeleteImage(rawUrl) },
+                                    onClick = { onImageClick(resolvedUrl, globalIndex) },
+                                    modifier = Modifier.weight(1f),
+                                    colorScheme = colorScheme
+                                )
+                            }
+                            // Fill empty space if odd number
+                            if (rowItems.size == 1) {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
                         }
                     }
                 }
@@ -753,6 +878,8 @@ fun EvidenceThumbnail(
     url: String,
     index: Int,
     total: Int,
+    canDelete: Boolean,
+    onDelete: () -> Unit,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     colorScheme: ColorScheme
@@ -792,6 +919,24 @@ fun EvidenceThumbnail(
                     color = Color.White,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
+            }
+
+            if (canDelete) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(6.dp)
+                        .clickable { onDelete() },
+                    shape = CircleShape,
+                    color = Color.Black.copy(alpha = 0.6f)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Delete evidence",
+                        tint = Color.White,
+                        modifier = Modifier.padding(6.dp).size(14.dp)
+                    )
+                }
             }
 
             // View button overlay
@@ -1210,5 +1355,20 @@ private fun formatDisputeDate(dateString: String): String {
 fun DisputeDetailsScreenPreview() {
     EscrowXTheme(darkTheme = false) {
         // Preview with mock data would go here
+    }
+}
+
+private fun uriToTempFileDisputeDetails(cacheDir: File, inputStream: java.io.InputStream?, filePrefix: String): File? {
+    if (inputStream == null) return null
+    return try {
+        val file = File.createTempFile(filePrefix, ".jpg", cacheDir)
+        inputStream.use { input ->
+            FileOutputStream(file).use { output ->
+                input.copyTo(output)
+            }
+        }
+        file
+    } catch (_: Exception) {
+        null
     }
 }

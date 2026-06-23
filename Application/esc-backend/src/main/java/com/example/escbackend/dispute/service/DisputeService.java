@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -192,6 +193,61 @@ public class DisputeService {
         return mapToDetailsResponse(dispute);
     }
 
+        @Transactional
+        public DisputeDetailsResponse addEvidence(UUID disputeId, UUID actorUserId, DisputeEvidenceUpdateRequest request) {
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        ensureDisputeAccess(dispute, actorUserId);
+        ensureDisputeOpenForEvidenceChanges(dispute);
+
+        UserEntity actor = userRepository.findById(actorUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User entity not found."));
+
+        String normalizedUrl = request.getEvidenceUrl().trim();
+
+        boolean alreadyExists = disputeEvidenceRepository
+            .findByDisputeIdOrderByCreatedAtAsc(disputeId)
+            .stream()
+            .map(DisputeEvidenceEntity::getFileUrl)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .anyMatch(normalizedUrl::equals);
+
+        if (alreadyExists) {
+            throw new ApiException(HttpStatus.CONFLICT, "Evidence image is already attached to this dispute.");
+        }
+
+        DisputeEvidenceEntity evidence = new DisputeEvidenceEntity();
+        evidence.setDispute(dispute);
+        evidence.setUploadedBy(actor);
+        evidence.setFileUrl(normalizedUrl);
+        evidence.setNote("Uploaded from dispute details");
+        disputeEvidenceRepository.save(evidence);
+
+        saveAudit(actorUserId, "ADD_DISPUTE_EVIDENCE", disputeId, "Added evidence from dispute details.");
+        return mapToDetailsResponse(dispute);
+        }
+
+        @Transactional
+        public DisputeDetailsResponse removeEvidence(UUID disputeId, UUID actorUserId, DisputeEvidenceUpdateRequest request) {
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        ensureDisputeAccess(dispute, actorUserId);
+        ensureDisputeOpenForEvidenceChanges(dispute);
+
+        String normalizedUrl = request.getEvidenceUrl().trim();
+        DisputeEvidenceEntity evidence = disputeEvidenceRepository
+            .findFirstByDisputeIdAndFileUrl(disputeId, normalizedUrl)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Evidence image not found on this dispute."));
+
+        disputeEvidenceRepository.delete(evidence);
+
+        saveAudit(actorUserId, "REMOVE_DISPUTE_EVIDENCE", disputeId, "Removed evidence from dispute details.");
+        return mapToDetailsResponse(dispute);
+        }
+
     @Transactional(readOnly = true)
     public DisputeDetailsResponse getById(UUID id, UUID actorUserId) {
         DisputeEntity dispute = disputeRepository.findById(id)
@@ -225,6 +281,12 @@ public class DisputeService {
 
         if (!isAdmin && !isPartToTransaction) {
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have authorization to view this dispute case.");
+        }
+    }
+
+    private void ensureDisputeOpenForEvidenceChanges(DisputeEntity dispute) {
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || dispute.getStatus() == DisputeStatus.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot modify evidence for a closed dispute.");
         }
     }
 
