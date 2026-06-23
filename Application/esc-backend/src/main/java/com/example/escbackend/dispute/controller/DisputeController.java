@@ -110,6 +110,15 @@ public class DisputeController {
         return ResponseEntity.ok(disputeService.resolveDispute(id, adminUserId, request));
     }
 
+    @PostMapping("/admin/disputes/{id}/action-required")
+    public ResponseEntity<DisputeDetailsResponse> assignActionRequired(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID adminUserId,
+            @Valid @RequestBody DisputeActionRequiredRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.assignActionRequired(id, adminUserId, request));
+    }
+
     /**
      * Retrieve a paginated list of disputes across the platform.
      * Accessible by: Admins / SuperAdmins.

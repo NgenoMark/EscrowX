@@ -197,6 +197,13 @@ interface AuthApiService {
         @Path("id") disputeId: String,
         @Body request: CloseDisputeRequest
     ): Response<DisputeDetailsResponse>
+
+    @POST("api/v1/admin/disputes/{id}/action-required")
+    suspend fun assignDisputeActionRequired(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") disputeId: String,
+        @Body request: ActionRequiredRequest
+    ): Response<DisputeDetailsResponse>
 }
 
 object RetrofitClient {
@@ -398,6 +405,10 @@ data class UpdateDisputeEvidenceRequest(
 
 data class CloseDisputeRequest(
     val reason: String? = null
+)
+
+data class ActionRequiredRequest(
+    val action: String
 )
 
 data class InitiateStkPushRequest(

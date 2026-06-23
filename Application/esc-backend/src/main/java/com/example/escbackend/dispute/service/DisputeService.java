@@ -193,6 +193,40 @@ public class DisputeService {
         return mapToDetailsResponse(dispute);
     }
 
+    @Transactional
+    public DisputeDetailsResponse assignActionRequired(
+            UUID disputeId,
+            UUID adminUserId,
+            DisputeActionRequiredRequest request
+    ) {
+        authz.requireAdminOrSuperAdmin(adminUserId);
+
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || dispute.getStatus() == DisputeStatus.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot assign action for a closed dispute.");
+        }
+
+        if (dispute.getAssignedAdmin() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "No admin is assigned to this dispute yet.");
+        }
+
+        if (!dispute.getAssignedAdmin().getId().equals(adminUserId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Only the assigned admin can assign required action for this dispute.");
+        }
+
+        String sellerAction = request.getAction().trim();
+        dispute.setStatus(DisputeStatus.ACTION_REQUIRED);
+        dispute.setResolution(sellerAction);
+        dispute.setResolvedAt(null);
+        disputeRepository.save(dispute);
+
+        saveAudit(adminUserId, "ASSIGN_ACTION_REQUIRED", disputeId, sellerAction);
+        return mapToDetailsResponse(dispute);
+    }
+
         @Transactional
         public DisputeDetailsResponse closeDispute(UUID disputeId, UUID actorUserId, DisputeCloseRequest request) {
         DisputeEntity dispute = disputeRepository.findById(disputeId)
