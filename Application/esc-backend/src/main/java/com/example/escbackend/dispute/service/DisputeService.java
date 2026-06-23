@@ -133,9 +133,9 @@ public class DisputeService {
     }
 
     @Transactional
-    public DisputeDetailsResponse assignAdmin(UUID disputeId, UUID adminUserId) {
+    public DisputeDetailsResponse assignAdmin(UUID disputeId, UUID adminUserId, DisputeAssignAdminRequest request) {
         // 1. Restrict to Admin/SuperAdmin
-        authz.requireAdminOrSuperAdmin(adminUserId);
+        UserEntity actor = authz.requireAdminOrSuperAdmin(adminUserId);
 
         DisputeEntity dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
@@ -144,16 +144,51 @@ public class DisputeService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot assign an admin to a closed dispute.");
         }
 
-        UserEntity admin = userRepository.findById(adminUserId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Admin user not found."));
+        UUID assigneeId = (request != null && request.getAssigneeAdminId() != null)
+            ? request.getAssigneeAdminId()
+            : adminUserId;
 
-        dispute.setAssignedAdmin(admin);
+        UserEntity assignee = userRepository.findById(assigneeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Assignee admin user not found."));
+
+        if (assignee.getRole() != UserRole.ADMIN && assignee.getRole() != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Assignee must have ADMIN or SUPER_ADMIN role.");
+        }
+
+        UUID previousAdminId = dispute.getAssignedAdmin() != null ? dispute.getAssignedAdmin().getId() : null;
+
+        dispute.setAssignedAdmin(assignee);
         dispute.setStatus(DisputeStatus.UNDER_REVIEW);
         disputeRepository.save(dispute);
 
-        saveAudit(adminUserId, "ASSIGN_DISPUTE_ADMIN", disputeId, "Admin assigned to dispute case.");
+        String assignmentNote;
+        if (previousAdminId == null) {
+            assignmentNote = String.format(
+                "Assigned admin %s by %s",
+                assignee.getId(),
+                actor.getId()
+            );
+        } else {
+            assignmentNote = String.format(
+                "Reassigned dispute from %s to %s by %s",
+                previousAdminId,
+                assignee.getId(),
+                actor.getId()
+            );
+        }
+
+        saveAudit(adminUserId, "ASSIGN_DISPUTE_ADMIN", disputeId, assignmentNote);
 
         return mapToDetailsResponse(dispute);
+    }
+
+    @Transactional
+    public DisputeDetailsResponse reassignAdmin(UUID disputeId, UUID adminUserId, DisputeAssignAdminRequest request) {
+        if (request == null || request.getAssigneeAdminId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "assigneeAdminId is required for reassign.");
+        }
+
+        return assignAdmin(disputeId, adminUserId, request);
     }
 
     @Transactional

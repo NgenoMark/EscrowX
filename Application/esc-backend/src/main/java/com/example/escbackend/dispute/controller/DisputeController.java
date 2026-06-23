@@ -92,9 +92,19 @@ public class DisputeController {
     @PatchMapping("/admin/disputes/{id}/assign")
     public ResponseEntity<DisputeDetailsResponse> assignAdmin(
             @PathVariable UUID id,
-            @RequestHeader("X-Actor-User-Id") UUID adminUserId
+            @RequestHeader("X-Actor-User-Id") UUID adminUserId,
+            @RequestBody(required = false) DisputeAssignAdminRequest request
     ) {
-        return ResponseEntity.ok(disputeService.assignAdmin(id, adminUserId));
+        return ResponseEntity.ok(disputeService.assignAdmin(id, adminUserId, request));
+    }
+
+    @PatchMapping("/admin/disputes/{id}/reassign")
+    public ResponseEntity<DisputeDetailsResponse> reassignAdmin(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID adminUserId,
+            @RequestBody @Valid DisputeAssignAdminRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.reassignAdmin(id, adminUserId, request));
     }
 
     /**
