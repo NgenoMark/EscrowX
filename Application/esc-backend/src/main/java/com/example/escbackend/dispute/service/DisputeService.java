@@ -194,6 +194,38 @@ public class DisputeService {
     }
 
         @Transactional
+        public DisputeDetailsResponse closeDispute(UUID disputeId, UUID actorUserId, DisputeCloseRequest request) {
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || dispute.getStatus() == DisputeStatus.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Dispute is already closed.");
+        }
+
+        boolean isCreator = dispute.getRaisedBy() != null
+            && dispute.getRaisedBy().getId().equals(actorUserId);
+        boolean isAssignedAdmin = dispute.getAssignedAdmin() != null
+            && dispute.getAssignedAdmin().getId().equals(actorUserId);
+
+        if (!isCreator && !isAssignedAdmin) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                "Only the assigned admin or the dispute creator can close this dispute.");
+        }
+
+        String reason = request != null && request.getReason() != null && !request.getReason().isBlank()
+            ? request.getReason().trim()
+            : (isCreator ? "Closed by dispute creator" : "Closed by assigned admin");
+
+        dispute.setStatus(DisputeStatus.REJECTED);
+        dispute.setResolution(reason);
+        dispute.setResolvedAt(OffsetDateTime.now());
+        disputeRepository.save(dispute);
+
+        saveAudit(actorUserId, "CLOSE_DISPUTE", disputeId, reason);
+        return mapToDetailsResponse(dispute);
+        }
+
+        @Transactional
         public DisputeDetailsResponse addEvidence(UUID disputeId, UUID actorUserId, DisputeEvidenceUpdateRequest request) {
         DisputeEntity dispute = disputeRepository.findById(disputeId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));

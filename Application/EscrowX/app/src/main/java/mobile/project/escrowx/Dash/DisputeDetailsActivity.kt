@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.CloseDisputeRequest
 import mobile.project.escrowx.DisputeDetailsResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UpdateDisputeEvidenceRequest
@@ -286,6 +287,11 @@ fun DisputeDetailsScreen(
                 dispute != null -> {
                     val details = dispute!!
                     val isResolved = details.status.uppercase(Locale.getDefault()) == "RESOLVED"
+                    val actorUserId = session.getUserId()
+                    val canCloseDispute = !isResolved && (
+                        actorUserId == details.raisedById ||
+                            (!details.assignedAdminId.isNullOrBlank() && actorUserId == details.assignedAdminId)
+                        )
 
                     LazyColumn(
                         verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -349,11 +355,41 @@ fun DisputeDetailsScreen(
                         item {
                             DisputeActions(
                                 isResolved = isResolved,
+                                canCloseDispute = canCloseDispute,
                                 onContactSupport = {
                                     Toast.makeText(context, "Contact support coming soon", Toast.LENGTH_SHORT).show()
                                 },
                                 onClose = {
-                                    Toast.makeText(context, "Close dispute coming soon", Toast.LENGTH_SHORT).show()
+                                    scope.launch {
+                                        val token = session.getAccessToken()
+                                        val actorId = session.getUserId()
+                                        val activeDisputeId = details.id
+                                        if (token.isNullOrBlank() || actorId.isNullOrBlank() || activeDisputeId.isBlank()) {
+                                            Toast.makeText(context, "Unable to close dispute right now", Toast.LENGTH_SHORT).show()
+                                            return@launch
+                                        }
+
+                                        isLoading = true
+                                        try {
+                                            val response = RetrofitClient.authenticated(token).closeDispute(
+                                                actorId,
+                                                activeDisputeId,
+                                                CloseDisputeRequest(reason = null)
+                                            )
+                                            if (response.isSuccessful && response.body() != null) {
+                                                dispute = response.body()
+                                                Toast.makeText(context, "Dispute closed", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val err = response.errorBody()?.string()?.take(220)
+                                                    ?: "Failed to close dispute"
+                                                Toast.makeText(context, err, Toast.LENGTH_LONG).show()
+                                            }
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "Close dispute error: ${e.message}", Toast.LENGTH_LONG).show()
+                                        } finally {
+                                            isLoading = false
+                                        }
+                                    }
                                 },
                                 colorScheme = colorScheme
                             )
@@ -1084,6 +1120,7 @@ fun TimelineItem(
 @Composable
 fun DisputeActions(
     isResolved: Boolean,
+    canCloseDispute: Boolean,
     onContactSupport: () -> Unit,
     onClose: () -> Unit,
     colorScheme: ColorScheme
@@ -1139,28 +1176,30 @@ fun DisputeActions(
                     )
                 }
 
-                OutlinedButton(
-                    onClick = onClose,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
-                ) {
-                    Icon(
-                        Icons.Default.Close,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        "Close Dispute",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                if (canCloseDispute) {
+                    OutlinedButton(
+                        onClick = onClose,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
+                    ) {
+                        Icon(
+                            Icons.Default.Close,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Close Dispute",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
