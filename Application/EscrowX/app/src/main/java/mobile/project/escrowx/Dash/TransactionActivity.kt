@@ -50,6 +50,10 @@ import mobile.project.escrowx.seller.SellerTransactionDetailActivity
 import mobile.project.escrowx.ui.components.*
 import mobile.project.escrowx.ui.theme.BrandBlue
 import com.google.gson.Gson
+import java.time.Instant
+import java.time.LocalDateTime
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.text.NumberFormat
 import java.util.*
 
@@ -158,6 +162,15 @@ fun TransactionsScreen(role: String) {
         }
     }
 
+    fun toEpochMillis(dateTime: String?): Long {
+        if (dateTime.isNullOrBlank()) return Long.MIN_VALUE
+
+        return runCatching { Instant.parse(dateTime).toEpochMilli() }
+            .recoverCatching { OffsetDateTime.parse(dateTime).toInstant().toEpochMilli() }
+            .recoverCatching { LocalDateTime.parse(dateTime).toInstant(ZoneOffset.UTC).toEpochMilli() }
+            .getOrElse { Long.MIN_VALUE }
+    }
+
     LaunchedEffect(role) {
         scope.launch {
             val token = session.getAccessToken()
@@ -186,16 +199,20 @@ fun TransactionsScreen(role: String) {
                     emptyList()
                 }
 
-                val mergedTransactions = (buyerTransactions + sellerTransactions).distinctBy { it.id }
+                val mergedTransactions = (buyerTransactions + sellerTransactions)
+                    .distinctBy { it.id }
+                    .sortedByDescending { toEpochMillis(it.createdAt) }
                 allTransactions = if (mergedTransactions.isNotEmpty()) {
                     mergedTransactions
                 } else {
                     (getDummyBuyerTransactions() + getDummySellerTransactions()).distinctBy { it.id }
+                        .sortedByDescending { toEpochMillis(it.createdAt) }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
                 allTransactions = (getDummyBuyerTransactions() + getDummySellerTransactions())
                     .distinctBy { it.id }
+                    .sortedByDescending { toEpochMillis(it.createdAt) }
             } finally {
                 isLoading = false
             }
@@ -213,7 +230,7 @@ fun TransactionsScreen(role: String) {
             TransactionFilter.ALL -> partyScoped
             TransactionFilter.COMPLETE -> partyScoped.filter { isTerminalEscrowState(it.status) }
             TransactionFilter.INCOMPLETE -> partyScoped.filter { !isTerminalEscrowState(it.status) }
-        }
+        }.sortedByDescending { toEpochMillis(it.createdAt) }
     }
 
     LaunchedEffect(allTransactions) {
