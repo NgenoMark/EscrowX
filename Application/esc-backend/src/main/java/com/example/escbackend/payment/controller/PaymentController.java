@@ -37,7 +37,7 @@ public class PaymentController {
     @PostMapping("/escrows/{escrowId}/release")
     public ReleasePayoutResponse releaseToSeller(
         @PathVariable UUID escrowId,
-        @RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId
     ) {
         return paymentService.releaseToSeller(escrowId, actorUserId);
     }

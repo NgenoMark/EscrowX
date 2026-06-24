@@ -121,6 +121,8 @@ fun BuyerTransactionDetailScreen(
     var isPollingPayment by remember { mutableStateOf(false) }
     var showStatusTimeline by remember { mutableStateOf(false) }
     var disputeDetails by remember { mutableStateOf<DisputeDetailsResponse?>(null) }
+    val actorRole = session.getUserRole().orEmpty()
+    val isBuyerRole = actorRole.equals("BUYER", ignoreCase = true)
 
     val statusUpper = remember(currentStatus) { currentStatus.trim().uppercase() }
     val parsedAmount = displayAmount.replace(",", "").toDoubleOrNull() ?: 0.0
@@ -195,8 +197,8 @@ fun BuyerTransactionDetailScreen(
         scope.launch {
             try {
                 val token = session.getAccessToken()
-                val buyerId = session.getUserId()
-                if (token.isNullOrBlank() || buyerId.isNullOrBlank()) {
+                val actorUserId = session.getUserId()
+                if (token.isNullOrBlank() || actorUserId.isNullOrBlank()) {
                     Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_SHORT).show()
                     isUpdating = false
                     return@launch
@@ -204,8 +206,16 @@ fun BuyerTransactionDetailScreen(
 
                 val api = RetrofitClient.authenticated(token)
                 if (targetState == "RELEASE_PENDING") {
-                    val confirmResponse = api.confirmReceipt(transactionId, buyerId)
+                    val confirmResponse = api.confirmReceipt(transactionId, actorUserId)
                     if (!confirmResponse.isSuccessful || confirmResponse.body() == null) {
+                        if (confirmResponse.code() == 401 || confirmResponse.code() == 403) {
+                            Toast.makeText(
+                                context,
+                                "Only the buyer can confirm receipt before payout release.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@launch
+                        }
                         val errorMessage = confirmResponse.errorBody()?.string()?.take(200)
                         Toast.makeText(context, errorMessage ?: "Failed to authorize payout", Toast.LENGTH_LONG).show()
                         return@launch
@@ -213,8 +223,16 @@ fun BuyerTransactionDetailScreen(
 
                     currentStatus = confirmResponse.body()!!.status
 
-                    val releaseResponse = api.releasePayout(transactionId, buyerId)
+                    val releaseResponse = api.releasePayout(transactionId, actorUserId)
                     if (!releaseResponse.isSuccessful || releaseResponse.body() == null) {
+                        if (releaseResponse.code() == 401 || releaseResponse.code() == 403) {
+                            Toast.makeText(
+                                context,
+                                "Payout release is allowed only for the buyer or an admin.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                            return@launch
+                        }
                         val payoutError = releaseResponse.errorBody()?.string()?.take(220)
                         Toast.makeText(
                             context,
@@ -231,9 +249,9 @@ fun BuyerTransactionDetailScreen(
                 }
 
                 val response = when (targetState) {
-                    "BUYER_CONFIRMED_DELIVERED" -> api.buyerConfirmDelivery(transactionId, buyerId)
-                    "DECLINED" -> api.declineTransaction(transactionId, buyerId)
-                    "CANCELLED" -> api.cancelTransaction(transactionId, buyerId)
+                    "BUYER_CONFIRMED_DELIVERED" -> api.buyerConfirmDelivery(transactionId, actorUserId)
+                    "DECLINED" -> api.declineTransaction(transactionId, actorUserId)
+                    "CANCELLED" -> api.cancelTransaction(transactionId, actorUserId)
                     else -> null
                 }
 
@@ -453,9 +471,9 @@ fun BuyerTransactionDetailScreen(
     )) && !hasDisputeHistory
 
     val primaryAction: Pair<String, String>? = when (statusUpper) {
-        "SELLER_DELIVERED" -> "Confirm Delivery" to "BUYER_CONFIRMED_DELIVERED"
-        "BUYER_CONFIRMED_DELIVERED" -> "Authorize Payout" to "RELEASE_PENDING"
-        "CREATED" -> "Decline Transaction" to "DECLINED"
+        "SELLER_DELIVERED" -> if (isBuyerRole) "Confirm Delivery" to "BUYER_CONFIRMED_DELIVERED" else null
+        "BUYER_CONFIRMED_DELIVERED" -> if (isBuyerRole) "Authorize Payout" to "RELEASE_PENDING" else null
+        "CREATED" -> if (isBuyerRole) "Decline Transaction" to "DECLINED" else null
         else -> null
     }
 

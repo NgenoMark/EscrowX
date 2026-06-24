@@ -1,5 +1,6 @@
 package com.example.escbackend.payment.service;
 
+import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository;
@@ -14,9 +15,13 @@ import com.example.escbackend.payment.entity.PayoutEntity;
 import com.example.escbackend.payment.repository.PaymentCallbackRepository;
 import com.example.escbackend.payment.repository.PaymentIntentRepository;
 import com.example.escbackend.payment.repository.PayoutRepository;
+import com.example.escbackend.user.entity.UserEntity;
+import com.example.escbackend.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -24,6 +29,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -32,6 +38,8 @@ import java.util.UUID;
 @Service
 public class PaymentService {
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+    private static final String PAYOUT_STATUS_PROCESSING = "PROCESSING";
+    private static final String PAYOUT_STATUS_FAILED = "FAILED";
 
     private final EscrowRepository escrowRepository;
     private final PaymentIntentRepository paymentIntentRepository;
@@ -40,6 +48,13 @@ public class PaymentService {
     private final MpesaDarajaService mpesaDarajaService;
     private final LedgerService ledgerService;
     private final TransactionStatusHistoryService transactionStatusHistoryService;
+    private final UserRepository userRepository;
+
+    @Value("${escrowx.mpesa.reconciliation.enabled:true}")
+    private boolean reconciliationEnabled;
+
+    @Value("${escrowx.mpesa.reconciliation.max-processing-minutes:15}")
+    private long maxProcessingMinutes;
 
     public PaymentService(
             EscrowRepository escrowRepository,
@@ -48,7 +63,8 @@ public class PaymentService {
             PaymentCallbackRepository callbackRepository,
             MpesaDarajaService mpesaDarajaService,
             LedgerService ledgerService,
-            TransactionStatusHistoryService transactionStatusHistoryService
+            TransactionStatusHistoryService transactionStatusHistoryService,
+            UserRepository userRepository
     ) {
         this.escrowRepository = escrowRepository;
         this.paymentIntentRepository = paymentIntentRepository;
@@ -57,6 +73,7 @@ public class PaymentService {
         this.mpesaDarajaService = mpesaDarajaService;
         this.ledgerService = ledgerService;
         this.transactionStatusHistoryService = transactionStatusHistoryService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -146,6 +163,7 @@ public class PaymentService {
     @Transactional
     public ReleasePayoutResponse releaseToSeller(UUID escrowId, UUID actorUserId) {
         EscrowTransaction transaction = getEscrowOrThrow(escrowId);
+        assertReleaseAuthorization(transaction, actorUserId);
         assertStateIn(transaction, List.of("RELEASE_PENDING", "RELEASE_FAILED"));
 
         PayoutEntity payout = payoutRepository.findByTransactionId(escrowId)
@@ -193,6 +211,79 @@ public class PaymentService {
                 .originatorConversationId(payout.getOriginatorConversationId())
                 .message(result.responseDescription())
                 .build();
+    }
+
+    private void assertReleaseAuthorization(EscrowTransaction transaction, UUID actorUserId) {
+        if (actorUserId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing required header: X-Actor-User-Id");
+        }
+
+        if (transaction.getBuyer().getId().equals(actorUserId)) {
+            return;
+        }
+
+        UserEntity actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Actor user not found"));
+
+        if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the buyer or ADMIN/SUPER_ADMIN can authorize payout release");
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${escrowx.mpesa.reconciliation.fixed-delay-ms:60000}")
+    public void reconcileStuckProcessingPayoutsScheduled() {
+        if (!reconciliationEnabled) {
+            return;
+        }
+        int reconciled = reconcileStuckProcessingPayouts(
+                null,
+                "Scheduled reconciliation: callback timeout guard"
+        );
+        if (reconciled > 0) {
+            log.warn("Reconciled {} stale payouts that were stuck in PROCESSING.", reconciled);
+        }
+    }
+
+    @Transactional
+    public int reconcileStuckProcessingPayouts(UUID actorUserId, String reason) {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(maxProcessingMinutes);
+        List<PayoutEntity> stalePayouts = payoutRepository.findByStatusAndUpdatedAtBefore(PAYOUT_STATUS_PROCESSING, cutoff);
+
+        if (stalePayouts.isEmpty()) {
+            return 0;
+        }
+
+        int reconciledCount = 0;
+        for (PayoutEntity payout : stalePayouts) {
+            if (!PAYOUT_STATUS_PROCESSING.equals(payout.getStatus())) {
+                continue;
+            }
+
+            Map<String, Object> syntheticPayload = new HashMap<>();
+            syntheticPayload.put("source", "SYSTEM_RECONCILER");
+            syntheticPayload.put("reason", reason);
+            syntheticPayload.put("reconciledAt", OffsetDateTime.now().toString());
+            syntheticPayload.put("conversationId", payout.getConversationId());
+            syntheticPayload.put("originatorConversationId", payout.getOriginatorConversationId());
+
+            String providerEventId = StringUtils.hasText(payout.getConversationId())
+                    ? payout.getConversationId()
+                    : payout.getOriginatorConversationId();
+
+            savePaymentCallback(null, payout, "B2C_TIMEOUT_RECON", providerEventId, syntheticPayload);
+
+            payout.setStatus(PAYOUT_STATUS_FAILED);
+            payout.setResultDescription("No B2C callback received within " + maxProcessingMinutes + " minutes.");
+
+            EscrowTransaction transaction = payout.getTransaction();
+            updateEscrowStatus(transaction, "RELEASE_FAILED", actorUserId, reason);
+
+            payoutRepository.save(payout);
+            escrowRepository.save(transaction);
+            reconciledCount++;
+        }
+
+        return reconciledCount;
     }
 
     @Transactional
@@ -303,13 +394,13 @@ public class PaymentService {
         }
         PayoutEntity payout = payoutMatch.get();
 
-        if ("FAILED".equals(payout.getStatus()) || "PAID".equals(payout.getStatus())) {
+        if (PAYOUT_STATUS_FAILED.equals(payout.getStatus()) || "PAID".equals(payout.getStatus())) {
             log.info("Payout entry status index tracking target {} already marked settled. Terminating timeout task handler context.", payout.getId());
             return;
         }
 
         savePaymentCallback(null, payout, "B2C_TIMEOUT", conversationId, payload);
-        payout.setStatus("FAILED");
+        payout.setStatus(PAYOUT_STATUS_FAILED);
         payout.setResultDescription("The B2C payout operational transaction sequence timed out inside Safaricom system queues.");
 
         EscrowTransaction transaction = payout.getTransaction();
