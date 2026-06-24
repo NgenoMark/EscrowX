@@ -3,6 +3,7 @@ package com.example.escbackend.admin.controller;
 import com.example.escbackend.admin.dto.EscrowLedgerEntryAdminDto;
 import com.example.escbackend.admin.dto.PaymentIntentAdminDto;
 import com.example.escbackend.admin.dto.PayoutAdminDto;
+import com.example.escbackend.admin.dto.PayoutReconciliationResultDto;
 import com.example.escbackend.admin.service.AdminService;
 import com.example.escbackend.audit.dto.AuditLogResponse;
 import com.example.escbackend.audit.service.AuditLogService;
@@ -11,6 +12,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -74,6 +76,13 @@ public class AdminController {
 		@PathVariable UUID id
 	) {
 		return adminService.getLedgerEntryById(actorUserId, id);
+	}
+
+	@PostMapping("/payouts/reconcile-stuck-processing")
+	public PayoutReconciliationResultDto reconcileStuckProcessingPayouts(
+		@RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId
+	) {
+		return adminService.reconcileStuckProcessingPayouts(actorUserId);
 	}
 
 	@GetMapping("/audit-logs/all-logs")

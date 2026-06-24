@@ -4,6 +4,7 @@ package com.example.escbackend.admin.service;
 import com.example.escbackend.admin.dto.EscrowLedgerEntryAdminDto;
 import com.example.escbackend.admin.dto.PaymentIntentAdminDto;
 import com.example.escbackend.admin.dto.PayoutAdminDto;
+import com.example.escbackend.admin.dto.PayoutReconciliationResultDto;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.payment.entity.EscrowLedgerEntryEntity;
 import com.example.escbackend.payment.entity.PaymentIntentEntity;
@@ -11,6 +12,7 @@ import com.example.escbackend.payment.entity.PayoutEntity;
 import com.example.escbackend.payment.repository.EscrowLedgerEntryRepository;
 import com.example.escbackend.payment.repository.PaymentIntentRepository;
 import com.example.escbackend.payment.repository.PayoutRepository;
+import com.example.escbackend.payment.service.PaymentService;
 import com.example.escbackend.user.service.AdminAuthorizationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -23,17 +25,20 @@ public class AdminService {
 	private final PaymentIntentRepository paymentIntentRepository;
 	private final PayoutRepository payoutRepository;
  private final EscrowLedgerEntryRepository escrowLedgerEntryRepository;
+	private final PaymentService paymentService;
 	private final AdminAuthorizationService adminAuthorizationService;
 
 	public AdminService(
 		PaymentIntentRepository paymentIntentRepository,
 		PayoutRepository payoutRepository,
 	EscrowLedgerEntryRepository escrowLedgerEntryRepository,
+		PaymentService paymentService,
 		AdminAuthorizationService adminAuthorizationService
 	) {
 		this.paymentIntentRepository = paymentIntentRepository;
 		this.payoutRepository = payoutRepository;
 	this.escrowLedgerEntryRepository = escrowLedgerEntryRepository;
+		this.paymentService = paymentService;
 		this.adminAuthorizationService = adminAuthorizationService;
 	}
 
@@ -77,6 +82,19 @@ public class AdminService {
 		EscrowLedgerEntryEntity ledgerEntry = escrowLedgerEntryRepository.findById(ledgerEntryId)
 		 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Ledger entry not found"));
 		return toLedgerDto(ledgerEntry);
+	 }
+
+	 public PayoutReconciliationResultDto reconcileStuckProcessingPayouts(UUID actorUserId) {
+		UUID adminUserId = requireActorUserId(actorUserId);
+		adminAuthorizationService.requireAdminOrSuperAdmin(adminUserId);
+		int reconciledCount = paymentService.reconcileStuckProcessingPayouts(
+				adminUserId,
+				"Manual admin reconciliation: stale payout callback timeout"
+		);
+		return PayoutReconciliationResultDto.builder()
+				.reconciledCount(reconciledCount)
+				.message("Reconciliation completed")
+				.build();
 	 }
 
 	private UUID requireActorUserId(UUID actorUserId) {
