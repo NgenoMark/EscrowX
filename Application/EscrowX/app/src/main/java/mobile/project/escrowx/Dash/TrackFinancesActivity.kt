@@ -33,7 +33,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
-import mobile.project.escrowx.EscrowResponse
+import mobile.project.escrowx.PaymentIntentFinanceResponse
+import mobile.project.escrowx.PayoutFinanceResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.ui.theme.EscrowXTheme
@@ -102,23 +103,21 @@ fun TrackFinancesScreen(role: String, onBack: () -> Unit) {
             try {
                 val api = RetrofitClient.authenticated(token)
 
-                val asBuyer = try {
-                    val response = api.getTransactionsByBuyer(userId, null)
+                val intents = try {
+                    val response = api.getMyPaymentIntents(userId)
                     if (response.isSuccessful) response.body().orEmpty() else emptyList()
                 } catch (_: Exception) {
                     emptyList()
                 }
 
-                val asSeller = try {
-                    val response = api.getTransactionsBySeller(userId, null)
+                val payouts = try {
+                    val response = api.getMyPayouts(userId)
                     if (response.isSuccessful) response.body().orEmpty() else emptyList()
                 } catch (_: Exception) {
                     emptyList()
                 }
 
-                val merged = (asBuyer + asSeller).distinctBy { it.id }
-                entries = merged
-                    .flatMap { txn -> mapToFinanceEntries(txn = txn, currentUserId = userId) }
+                entries = (intents.map { mapIntentToFinanceEntry(it) } + payouts.map { mapPayoutToFinanceEntry(it) })
                     .sortedByDescending { it.createdAtRaw }
             } catch (e: Exception) {
                 loadError = "Failed to load finances."
@@ -998,46 +997,48 @@ private data class FinanceEntry(
 
 // ===================== HELPER FUNCTIONS =====================
 
-private fun mapToFinanceEntries(txn: EscrowResponse, currentUserId: String): List<FinanceEntry> {
-    val entries = mutableListOf<FinanceEntry>()
+private fun mapIntentToFinanceEntry(intent: PaymentIntentFinanceResponse): FinanceEntry {
+    val createdAt = intent.createdAt ?: ""
+    val updatedAt = intent.updatedAt ?: intent.createdAt ?: ""
+    val amount = intent.amount ?: 0.0
 
-    if (txn.sellerId == currentUserId) {
-        entries += FinanceEntry(
-            entryId = "${txn.id}:credit",
-            type = FinanceType.CREDIT,
-            transactionId = txn.id,
-            reference = txn.reference,
-            title = txn.title,
-            description = txn.productDescription,
-            amount = txn.amount,
-            statusLabel = txn.status,
-            message = "Received from buyer ${shortId(txn.buyerId)}",
-            counterpartyId = txn.buyerId,
-            createdAtRaw = txn.createdAt,
-            createdAtDisplay = formatDate(txn.createdAt),
-            updatedAtDisplay = formatDate(txn.updatedAt)
-        )
-    }
+    return FinanceEntry(
+        entryId = "intent:${intent.paymentId}",
+        type = FinanceType.DEBIT,
+        transactionId = intent.transactionId ?: intent.paymentId,
+        reference = intent.transactionReference,
+        title = "Payment Intent",
+        description = "Method: ${intent.paymentMethod ?: "-"}, Phone: ${intent.phoneNumber ?: "-"}",
+        amount = amount,
+        statusLabel = intent.status,
+        message = "Payment initiated${intent.mpesaReceiptNumber?.let { " (receipt: $it)" } ?: ""}",
+        counterpartyId = intent.sellerId ?: "-",
+        createdAtRaw = createdAt,
+        createdAtDisplay = formatDate(createdAt),
+        updatedAtDisplay = formatDate(updatedAt)
+    )
+}
 
-    if (txn.buyerId == currentUserId) {
-        entries += FinanceEntry(
-            entryId = "${txn.id}:debit",
-            type = FinanceType.DEBIT,
-            transactionId = txn.id,
-            reference = txn.reference,
-            title = txn.title,
-            description = txn.productDescription,
-            amount = txn.amount,
-            statusLabel = txn.status,
-            message = "Paid to seller ${shortId(txn.sellerId)}",
-            counterpartyId = txn.sellerId,
-            createdAtRaw = txn.createdAt,
-            createdAtDisplay = formatDate(txn.createdAt),
-            updatedAtDisplay = formatDate(txn.updatedAt)
-        )
-    }
+private fun mapPayoutToFinanceEntry(payout: PayoutFinanceResponse): FinanceEntry {
+    val createdAt = payout.createdAt ?: ""
+    val updatedAt = payout.updatedAt ?: payout.createdAt ?: ""
+    val amount = payout.amount ?: 0.0
 
-    return entries
+    return FinanceEntry(
+        entryId = "payout:${payout.payoutId}",
+        type = FinanceType.CREDIT,
+        transactionId = payout.transactionId ?: payout.payoutId,
+        reference = payout.transactionReference,
+        title = "Payout",
+        description = payout.resultDescription ?: "Conversation: ${payout.conversationId ?: "-"}",
+        amount = amount,
+        statusLabel = payout.status,
+        message = "Payout ${payout.status.lowercase(Locale.getDefault())}",
+        counterpartyId = payout.sellerId ?: "-",
+        createdAtRaw = createdAt,
+        createdAtDisplay = formatDate(createdAt),
+        updatedAtDisplay = formatDate(updatedAt)
+    )
 }
 
 private fun shortId(id: String): String = if (id.length <= 8) id else id.take(8)

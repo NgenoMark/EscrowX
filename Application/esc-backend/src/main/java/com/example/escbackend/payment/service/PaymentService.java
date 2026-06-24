@@ -8,6 +8,8 @@ import com.example.escbackend.escrow.service.TransactionStatusHistoryService;
 import com.example.escbackend.payment.dto.InitiateStkPushRequest;
 import com.example.escbackend.payment.dto.InitiateStkPushResponse;
 import com.example.escbackend.payment.dto.PaymentResponse;
+import com.example.escbackend.payment.dto.PaymentIntentFinanceResponse;
+import com.example.escbackend.payment.dto.PayoutFinanceResponse;
 import com.example.escbackend.payment.dto.ReleasePayoutResponse;
 import com.example.escbackend.payment.entity.PaymentCallbackEntity;
 import com.example.escbackend.payment.entity.PaymentIntentEntity;
@@ -117,6 +119,24 @@ public class PaymentService {
         PaymentIntentEntity payment = paymentIntentRepository.findById(paymentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Payment not found"));
         return toPaymentResponse(payment);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentIntentFinanceResponse> getMyPaymentIntents(UUID actorUserId) {
+        UUID userId = requireActorUserId(actorUserId);
+        return paymentIntentRepository.findByBuyerIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(this::toPaymentIntentFinanceResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PayoutFinanceResponse> getMyPayouts(UUID actorUserId) {
+        UUID userId = requireActorUserId(actorUserId);
+        return payoutRepository.findBySellerIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(this::toPayoutFinanceResponse)
+                .toList();
     }
 
     @Transactional
@@ -231,6 +251,7 @@ public class PaymentService {
     }
 
     @Scheduled(fixedDelayString = "${escrowx.mpesa.reconciliation.fixed-delay-ms:60000}")
+    @Transactional
     public void reconcileStuckProcessingPayoutsScheduled() {
         if (!reconciliationEnabled) {
             return;
@@ -266,9 +287,7 @@ public class PaymentService {
             syntheticPayload.put("conversationId", payout.getConversationId());
             syntheticPayload.put("originatorConversationId", payout.getOriginatorConversationId());
 
-            String providerEventId = StringUtils.hasText(payout.getConversationId())
-                    ? payout.getConversationId()
-                    : payout.getOriginatorConversationId();
+                String providerEventId = "RECON-" + payout.getId();
 
             savePaymentCallback(null, payout, "B2C_TIMEOUT_RECON", providerEventId, syntheticPayload);
 
@@ -456,6 +475,11 @@ public class PaymentService {
             String providerEventId,
             Map<String, Object> payload
     ) {
+        if (StringUtils.hasText(providerEventId) && callbackRepository.findByProviderEventId(providerEventId).isPresent()) {
+            log.info("Skipping duplicate callback persist for providerEventId={} callbackType={}", providerEventId, callbackType);
+            return;
+        }
+
         PaymentCallbackEntity callback = new PaymentCallbackEntity();
         callback.setPaymentIntent(payment);
         callback.setPayout(payout);
@@ -486,6 +510,53 @@ public class PaymentService {
     private EscrowTransaction getEscrowOrThrow(UUID escrowId) {
         return escrowRepository.findById(escrowId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Escrow transaction not found"));
+    }
+
+    private UUID requireActorUserId(UUID actorUserId) {
+        if (actorUserId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing required header: X-Actor-User-Id");
+        }
+        userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Actor user not found"));
+        return actorUserId;
+    }
+
+    private PaymentIntentFinanceResponse toPaymentIntentFinanceResponse(PaymentIntentEntity payment) {
+        return PaymentIntentFinanceResponse.builder()
+                .paymentId(payment.getId())
+                .transactionId(payment.getTransaction() == null ? null : payment.getTransaction().getId())
+                .transactionReference(payment.getTransaction() == null ? null : payment.getTransaction().getReference())
+                .buyerId(payment.getBuyer() == null ? null : payment.getBuyer().getId())
+                .sellerId(payment.getSeller() == null ? null : payment.getSeller().getId())
+                .amount(payment.getAmount())
+                .currency(payment.getCurrency())
+                .status(payment.getStatus())
+                .paymentMethod(payment.getPaymentMethod())
+                .phoneNumber(payment.getPhoneNumber())
+                .mpesaReceiptNumber(payment.getMpesaReceiptNumber())
+                .paidAt(payment.getPaidAt())
+                .createdAt(payment.getCreatedAt())
+                .updatedAt(payment.getUpdatedAt())
+                .build();
+    }
+
+    private PayoutFinanceResponse toPayoutFinanceResponse(PayoutEntity payout) {
+        return PayoutFinanceResponse.builder()
+                .payoutId(payout.getId())
+                .transactionId(payout.getTransaction() == null ? null : payout.getTransaction().getId())
+                .transactionReference(payout.getTransaction() == null ? null : payout.getTransaction().getReference())
+                .sellerId(payout.getSeller() == null ? null : payout.getSeller().getId())
+                .amount(payout.getAmount())
+                .currency(payout.getCurrency())
+                .status(payout.getStatus())
+                .conversationId(payout.getConversationId())
+                .originatorConversationId(payout.getOriginatorConversationId())
+                .resultCode(payout.getResultCode())
+                .resultDescription(payout.getResultDescription())
+                .paidAt(payout.getPaidAt())
+                .createdAt(payout.getCreatedAt())
+                .updatedAt(payout.getUpdatedAt())
+                .build();
     }
 
     private void assertStateIn(EscrowTransaction transaction, List<String> statuses) {

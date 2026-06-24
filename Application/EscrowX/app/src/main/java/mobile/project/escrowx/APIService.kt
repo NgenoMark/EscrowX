@@ -145,6 +145,16 @@ interface AuthApiService {
         @Path("paymentId") paymentId: String
     ): Response<PaymentResponse>
 
+    @GET("api/v1/payments/intents/me")
+    suspend fun getMyPaymentIntents(
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<List<PaymentIntentFinanceResponse>>
+
+    @GET("api/v1/payments/payouts/me")
+    suspend fun getMyPayouts(
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<List<PayoutFinanceResponse>>
+
     @POST("api/v1/payments/escrows/{escrowId}/release")
     suspend fun releasePayout(
         @Path("escrowId") escrowId: String,
@@ -434,6 +444,40 @@ data class PaymentResponse(
     val checkoutRequestId: String?,
     val merchantRequestId: String?,
     val mpesaReceiptNumber: String?,
+    val paidAt: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+data class PaymentIntentFinanceResponse(
+    val paymentId: String,
+    val transactionId: String?,
+    val transactionReference: String?,
+    val buyerId: String?,
+    val sellerId: String?,
+    val amount: Double?,
+    val currency: String?,
+    val status: String,
+    val paymentMethod: String?,
+    val phoneNumber: String?,
+    val mpesaReceiptNumber: String?,
+    val paidAt: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+data class PayoutFinanceResponse(
+    val payoutId: String,
+    val transactionId: String?,
+    val transactionReference: String?,
+    val sellerId: String?,
+    val amount: Double?,
+    val currency: String?,
+    val status: String,
+    val conversationId: String?,
+    val originatorConversationId: String?,
+    val resultCode: String?,
+    val resultDescription: String?,
     val paidAt: String?,
     val createdAt: String?,
     val updatedAt: String?

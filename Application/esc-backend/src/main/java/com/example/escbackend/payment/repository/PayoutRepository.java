@@ -16,4 +16,6 @@ public interface PayoutRepository extends JpaRepository<PayoutEntity, UUID> {
     Optional<PayoutEntity> findByOriginatorConversationId(String originatorConversationId);
 
     List<PayoutEntity> findByStatusAndUpdatedAtBefore(String status, OffsetDateTime cutoff);
+
+    List<PayoutEntity> findBySellerIdOrderByCreatedAtDesc(UUID sellerId);
 }
