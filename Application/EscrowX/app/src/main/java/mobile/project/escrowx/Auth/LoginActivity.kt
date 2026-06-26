@@ -4,14 +4,33 @@ package mobile.project.escrowx.auth
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Button
-import android.widget.EditText
-import android.widget.ImageButton
-import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
-import android.text.method.HideReturnsTransformationMethod
-import android.text.method.PasswordTransformationMethod
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -19,70 +38,100 @@ import kotlinx.coroutines.withContext
 import mobile.project.escrowx.dash.BuyerDashboardActivity
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.RetrofitClient
-import mobile.project.escrowx.R
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 import retrofit2.Response
 
 class LoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_login)
-
-        val btnTabSignUp = findViewById<Button>(R.id.btnTabSignUp)
-        val btnLoginContinue = findViewById<Button>(R.id.btnLoginContinue)
-        val etLoginIdentifier = findViewById<EditText>(R.id.etLoginIdentifier)
-        val etLoginPassword = findViewById<EditText>(R.id.etLoginPassword)
-        val btnToggleLoginPassword = findViewById<ImageButton>(R.id.btnToggleLoginPassword)
-        val tvForgotPassword = findViewById<TextView>(R.id.tvForgotPassword)
-        var isPasswordVisible = false
-
-        btnToggleLoginPassword.setOnClickListener {
-            isPasswordVisible = !isPasswordVisible
-            if (isPasswordVisible) {
-                etLoginPassword.transformationMethod = HideReturnsTransformationMethod.getInstance()
-                btnToggleLoginPassword.setImageResource(R.drawable.ic_visibility)
-            } else {
-                etLoginPassword.transformationMethod = PasswordTransformationMethod.getInstance()
-                btnToggleLoginPassword.setImageResource(R.drawable.ic_visibility_off)
+        setContent {
+            EscrowXTheme(
+                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                dynamicColor = false
+            ) {
+                LoginScreen()
             }
-            etLoginPassword.setSelection(etLoginPassword.text.length)
+        }
+    }
+}
+
+@Composable
+private fun LoginScreen() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isLoading by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(text = "Welcome Back", style = MaterialTheme.typography.headlineMedium)
+        Spacer(modifier = Modifier.height(20.dp))
+
+        OutlinedTextField(
+            value = email,
+            onValueChange = { email = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Email") },
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = password,
+            onValueChange = { password = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Password") },
+            singleLine = true,
+            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation()
+        )
+
+        TextButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+            Text(if (isPasswordVisible) "Hide password" else "Show password")
         }
 
-        btnTabSignUp.setOnClickListener {
-            startActivity(Intent(this, SignUpActivity::class.java))
+        TextButton(onClick = {
+            context.startActivity(Intent(context, ResetPasswordActivity::class.java))
+        }) {
+            Text("Forgot password?")
         }
 
-        tvForgotPassword.setOnClickListener {
-            startActivity(Intent(this, ResetPasswordActivity::class.java))
-        }
+        Spacer(modifier = Modifier.height(8.dp))
 
-        btnLoginContinue.setOnClickListener {
-            val email = etLoginIdentifier.text.toString().trim()
-            val password = etLoginPassword.text.toString().trim()
+        Button(
+            onClick = {
+                val trimmedEmail = email.trim()
+                val trimmedPassword = password.trim()
 
-            if (email.isEmpty() || password.isEmpty()) {
-                Toast.makeText(this, "Please fill in all fields", Toast.LENGTH_SHORT).show()
-            } else {
-                Toast.makeText(this, "Logging in...", Toast.LENGTH_SHORT).show()
+                if (trimmedEmail.isEmpty() || trimmedPassword.isEmpty()) {
+                    Toast.makeText(context, "Please fill in all fields", Toast.LENGTH_SHORT).show()
+                    return@Button
+                }
 
-                val loginPayload = LoginRequest(
-                    email = email,
-                    password = password
-                )
+                isLoading = true
 
-                CoroutineScope(Dispatchers.IO).launch {
+                val loginPayload = LoginRequest(email = trimmedEmail, password = trimmedPassword)
+
+                scope.launch(Dispatchers.IO) {
                     try {
                         val response: Response<LoginResponse> = RetrofitClient.instance.loginUser(loginPayload)
 
                         withContext(Dispatchers.Main) {
                             val loginData = response.body()
                             if (response.isSuccessful && loginData != null) {
-                                // Extract userId and role from the nested user object
                                 val userId = loginData.user.id
                                 val userRole = loginData.user.role
 
-                                // Persist authentication session with new fields
-                                SessionManager(this@LoginActivity).saveSession(
+                                SessionManager(context).saveSession(
                                     accessToken = loginData.accessToken,
                                     refreshToken = loginData.refreshToken,
                                     email = loginData.user.email,
@@ -90,32 +139,50 @@ class LoginActivity : ComponentActivity() {
                                     role = userRole
                                 )
 
-                                if (userRole.equals("BUYER", ignoreCase = true)) {
-                                    val intent = Intent(this@LoginActivity, BuyerDashboardActivity::class.java).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                when {
+                                    userRole.equals("BUYER", ignoreCase = true) -> {
+                                        context.startActivity(Intent(context, BuyerDashboardActivity::class.java).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        })
                                     }
-                                    startActivity(intent)
-                                    finish()
-                                } else if (userRole.equals("SELLER", ignoreCase = true)) {
-                                    val intent = Intent(this@LoginActivity, SellerDashboardActivity::class.java).apply {
-                                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+
+                                    userRole.equals("SELLER", ignoreCase = true) -> {
+                                        context.startActivity(Intent(context, SellerDashboardActivity::class.java).apply {
+                                            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                        })
                                     }
-                                    startActivity(intent)
-                                    finish()
-                                } else {
-                                    Toast.makeText(this@LoginActivity, "Welcome $userRole!", Toast.LENGTH_LONG).show()
+
+                                    else -> Toast.makeText(context, "Welcome $userRole!", Toast.LENGTH_LONG).show()
                                 }
                             } else {
-                                Toast.makeText(this@LoginActivity, "Invalid email or password", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "Invalid email or password", Toast.LENGTH_LONG).show()
                             }
+                            isLoading = false
                         }
                     } catch (_: Exception) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(this@LoginActivity, "Network connection error", Toast.LENGTH_LONG).show()
+                            isLoading = false
+                            Toast.makeText(context, "Network connection error", Toast.LENGTH_LONG).show()
                         }
                     }
                 }
+            },
+            modifier = Modifier.fillMaxWidth(),
+            enabled = !isLoading
+        ) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.height(20.dp), strokeWidth = 2.dp)
+            } else {
+                Text("Login")
             }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TextButton(onClick = {
+            context.startActivity(Intent(context, SignUpActivity::class.java))
+        }) {
+            Text("Create account")
         }
     }
 }

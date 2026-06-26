@@ -3,21 +3,39 @@ package mobile.project.escrowx.auth
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mobile.project.escrowx.RetrofitClient
-import mobile.project.escrowx.R
 import mobile.project.escrowx.dash.BuyerDashboardActivity
 import mobile.project.escrowx.seller.SellerDashboardActivity
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 class SplashActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_splash)
+        setContent {
+            EscrowXTheme(
+                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                dynamicColor = false
+            ) {
+                SplashScreen()
+            }
+        }
 
         lifecycleScope.launch {
             delay(1200)
@@ -60,6 +78,18 @@ class SplashActivity : ComponentActivity() {
                 session.clearSession()
                 openLogin()
             }
+        }
+    }
+
+    @Composable
+    private fun SplashScreen() {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(text = "EscrowX", style = MaterialTheme.typography.headlineLarge)
+            CircularProgressIndicator()
         }
     }
 
