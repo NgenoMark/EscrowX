@@ -462,6 +462,10 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                             }
                         }.map { it.await() }.toMap()
                     }
+                } else if (response.code() == 404) {
+                    // Backward compatibility with older backend behavior that returned 404 on empty results.
+                    realIncomingTransactions = emptyList()
+                    sellerNamesById = emptyMap()
                 } else {
                     sellerNamesById = emptyMap()
                     realError = "Failed to load: ${response.code()}"

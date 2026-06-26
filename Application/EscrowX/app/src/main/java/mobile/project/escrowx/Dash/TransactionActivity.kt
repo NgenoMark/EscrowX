@@ -56,6 +56,7 @@ import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.text.NumberFormat
 import java.util.*
+import java.util.UUID
 
 class TransactionsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,53 +99,7 @@ fun TransactionsScreen(role: String) {
     }
     var selectedBottomTab by remember { mutableIntStateOf(1) }
 
-    // Helper to create dummy transactions
-    fun createDummyTransaction(
-        id: String,
-        reference: String,
-        buyerId: String,
-        sellerId: String,
-        title: String,
-        amount: String,
-        status: String,
-        createdAt: String
-    ): EscrowResponse {
-        return EscrowResponse(
-            id = id,
-            reference = reference,
-            buyerId = buyerId,
-            sellerId = sellerId,
-            title = title,
-            productDescription = "Sample product description",
-            amount = amount.toDoubleOrNull() ?: 0.0,
-            deliveryAddress = "Nairobi, Kenya",
-            initialDepositAmount = null,
-            currency = "KES",
-            status = status,
-            deliveryDueAt = "2024-12-31T23:59:59Z",
-            autoReleaseAt = null,
-            createdAt = createdAt,
-            updatedAt = createdAt
-        )
-    }
-
-    fun getDummyBuyerTransactions(): List<EscrowResponse> {
-        return listOf(
-            createDummyTransaction("1", "ESC-BUY-001", "buyer1", "seller1", "iPhone 15 Pro Max", "165000", "IN_DELIVERY", "2024-06-05T10:30:00"),
-            createDummyTransaction("2", "ESC-BUY-002", "buyer1", "seller2", "MacBook Air M2", "125000", "COMPLETED", "2024-05-20T09:00:00"),
-            createDummyTransaction("3", "ESC-BUY-003", "buyer1", "seller3", "Sony WH-1000XM5", "42500", "FUNDS_HELD", "2024-06-08T08:15:00"),
-            createDummyTransaction("4", "ESC-BUY-004", "buyer1", "seller4", "Samsung 4K Monitor", "75000", "DELIVERED", "2024-06-01T11:00:00")
-        )
-    }
-
-    fun getDummySellerTransactions(): List<EscrowResponse> {
-        return listOf(
-            createDummyTransaction("101", "ESC-SELL-001", "buyerA", "seller1", "Sold: iPhone 15 Pro Max", "165000", "IN_DELIVERY", "2024-06-05T10:30:00"),
-            createDummyTransaction("102", "ESC-SELL-002", "buyerB", "seller1", "Sold: MacBook Air M2", "125000", "COMPLETED", "2024-05-20T09:00:00"),
-            createDummyTransaction("103", "ESC-SELL-003", "buyerC", "seller1", "Sold: Sony Headphones", "42500", "FUNDS_HELD", "2024-06-08T08:15:00"),
-            createDummyTransaction("104", "ESC-SELL-004", "buyerD", "seller1", "Sold: Samsung Monitor", "75000", "DELIVERED", "2024-06-01T11:00:00")
-        )
-    }
+    fun isUuid(value: String): Boolean = runCatching { UUID.fromString(value) }.isSuccess
 
     fun parseTransactionsFromBody(body: Any?): List<EscrowResponse> {
         return when (body) {
@@ -176,8 +131,7 @@ fun TransactionsScreen(role: String) {
             val token = session.getAccessToken()
             val userId = session.getUserId()
             if (token.isNullOrBlank() || userId.isNullOrBlank()) {
-                allTransactions = (getDummyBuyerTransactions() + getDummySellerTransactions())
-                    .distinctBy { it.id }
+                allTransactions = emptyList()
                 isLoading = false
                 return@launch
             }
@@ -202,17 +156,10 @@ fun TransactionsScreen(role: String) {
                 val mergedTransactions = (buyerTransactions + sellerTransactions)
                     .distinctBy { it.id }
                     .sortedByDescending { toEpochMillis(it.createdAt) }
-                allTransactions = if (mergedTransactions.isNotEmpty()) {
-                    mergedTransactions
-                } else {
-                    (getDummyBuyerTransactions() + getDummySellerTransactions()).distinctBy { it.id }
-                        .sortedByDescending { toEpochMillis(it.createdAt) }
-                }
+                allTransactions = mergedTransactions
             } catch (e: Exception) {
                 e.printStackTrace()
-                allTransactions = (getDummyBuyerTransactions() + getDummySellerTransactions())
-                    .distinctBy { it.id }
-                    .sortedByDescending { toEpochMillis(it.createdAt) }
+                allTransactions = emptyList()
             } finally {
                 isLoading = false
             }
@@ -241,7 +188,10 @@ fun TransactionsScreen(role: String) {
         }
 
         val api = RetrofitClient.authenticated(token)
-        val uniqueSellerIds = allTransactions.map { it.sellerId }.distinct()
+        val uniqueSellerIds = allTransactions
+            .map { it.sellerId }
+            .distinct()
+            .filter(::isUuid)
         val fetchedNames = mutableMapOf<String, String>()
 
         uniqueSellerIds.forEach { sellerId ->
