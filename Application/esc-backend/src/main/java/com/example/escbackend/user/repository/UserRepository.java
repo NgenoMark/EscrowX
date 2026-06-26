@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,6 +26,14 @@ public interface UserRepository extends JpaRepository<UserEntity, UUID> {
     Page<UserEntity> findByPhoneContaining(String phone, Pageable pageable);
 
     Page<UserEntity> findByRole(UserRole role, Pageable pageable);
+
+    Page<UserEntity> findByRoleIn(Collection<UserRole> roles, Pageable pageable);
+
+    Page<UserEntity> findByPhoneContainingAndRoleIn(String phone, Collection<UserRole> roles, Pageable pageable);
+
+    Page<UserEntity> findByPhoneContainingAndRoleInAndStatus(String phone, Collection<UserRole> roles, UserStatus status, Pageable pageable);
+
+    Page<UserEntity> findByRoleInAndStatus(Collection<UserRole> roles, UserStatus status, Pageable pageable);
 
     Page<UserEntity> findByStatus(UserStatus status, Pageable pageable);
 

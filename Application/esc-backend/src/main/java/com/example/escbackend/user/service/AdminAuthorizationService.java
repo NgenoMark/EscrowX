@@ -27,4 +27,14 @@ public class AdminAuthorizationService {
         }
         return actor;
     }
+
+    public UserEntity requireSuperAdmin(UUID actorId) {
+        UserEntity actor = userRepository.findById(actorId)
+            .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Actor user not found"));
+
+        if (actor.getRole() != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only SUPER_ADMIN can perform this action");
+        }
+        return actor;
+    }
 }

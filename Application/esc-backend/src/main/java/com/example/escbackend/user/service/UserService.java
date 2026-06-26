@@ -22,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
@@ -94,6 +95,67 @@ public class UserService {
         }
 
         return users.map(user -> mapper.toDetails(user, profileRepository.findById(user.getId()).orElse(null)));
+    }
+
+    public Page<UserDetailsResponse> listMarketplaceUsers(UUID actorUserId, String phone, String status, int page, int size) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        return listByRoles(phone, status, page, size, List.of(UserRole.BUYER, UserRole.SELLER));
+    }
+
+    public Page<UserDetailsResponse> listBuyers(UUID actorUserId, String phone, String status, int page, int size) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        return listByRoles(phone, status, page, size, List.of(UserRole.BUYER));
+    }
+
+    public Page<UserDetailsResponse> listSellers(UUID actorUserId, String phone, String status, int page, int size) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        return listByRoles(phone, status, page, size, List.of(UserRole.SELLER));
+    }
+
+    public Page<UserDetailsResponse> listEmployees(UUID actorUserId, String phone, String status, int page, int size) {
+        UserEntity actor = authz.requireAdminOrSuperAdmin(actorUserId);
+        List<UserRole> visibleRoles = actor.getRole() == UserRole.SUPER_ADMIN
+            ? List.of(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+            : List.of(UserRole.ADMIN);
+
+        return listByRoles(phone, status, page, size, visibleRoles);
+    }
+
+    @Transactional
+    public UserDetailsResponse createEmployee(UUID actorUserId, CreateEmployeeRequest request, UserRole targetRole) {
+        authz.requireSuperAdmin(actorUserId);
+
+        if (targetRole != UserRole.ADMIN && targetRole != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only ADMIN or SUPER_ADMIN can be created via this API");
+        }
+
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Email already registered");
+        }
+
+        if (userRepository.existsByPhone(request.getPhone())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Phone number already registered");
+        }
+
+        UserEntity user = new UserEntity();
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setRole(targetRole);
+        user.setStatus(UserStatus.ACTIVE);
+        user = userRepository.save(user);
+
+        ProfileEntity profile = new ProfileEntity();
+        profile.setUserId(user.getId());
+        profile.setDisplayName(request.getDisplayName());
+        profile.setBusinessName(request.getBusinessName());
+        profile.setAddress(request.getAddress());
+        profile.setAvatarUrl(request.getAvatarUrl());
+        profileRepository.save(profile);
+
+        saveAudit(actorUserId, "CREATE_" + targetRole.name(), user.getId(), "Employee account created by SUPER_ADMIN");
+
+        return mapper.toDetails(user, profile);
     }
 
     @Transactional
@@ -270,5 +332,23 @@ public class UserService {
 
     private boolean isNotBlank(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private Page<UserDetailsResponse> listByRoles(String phone, String status, int page, int size, List<UserRole> roles) {
+        String phoneFilter = phone == null ? "" : phone;
+        Pageable pageable = PageRequest.of(page, size);
+        Page<UserEntity> users;
+
+        if (isNotBlank(status) && isNotBlank(phone)) {
+            users = userRepository.findByPhoneContainingAndRoleInAndStatus(phoneFilter, roles, parseStatus(status), pageable);
+        } else if (isNotBlank(status)) {
+            users = userRepository.findByRoleInAndStatus(roles, parseStatus(status), pageable);
+        } else if (isNotBlank(phone)) {
+            users = userRepository.findByPhoneContainingAndRoleIn(phoneFilter, roles, pageable);
+        } else {
+            users = userRepository.findByRoleIn(roles, pageable);
+        }
+
+        return users.map(user -> mapper.toDetails(user, profileRepository.findById(user.getId()).orElse(null)));
     }
 }
