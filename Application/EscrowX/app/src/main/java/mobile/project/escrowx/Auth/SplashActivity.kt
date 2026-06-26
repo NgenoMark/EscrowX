@@ -4,20 +4,20 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.dash.BuyerDashboardActivity
 import mobile.project.escrowx.seller.SellerDashboardActivity
@@ -33,11 +33,12 @@ class SplashActivity : ComponentActivity() {
                 darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
                 dynamicColor = false
             ) {
-                SplashScreen()
+                SplashScreenContent()
             }
         }
 
         lifecycleScope.launch {
+            // Ensure splash is visible briefly before routing.
             delay(1200)
             val session = SessionManager(this@SplashActivity)
             val token = session.getAccessToken()
@@ -81,23 +82,12 @@ class SplashActivity : ComponentActivity() {
         }
     }
 
-    @Composable
-    private fun SplashScreen() {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(text = "EscrowX", style = MaterialTheme.typography.headlineLarge)
-            CircularProgressIndicator()
-        }
-    }
-
     private fun openLogin() {
         val intent = Intent(this, LoginActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         startActivity(intent)
+        overridePendingTransition(0, 0)
         finish()
     }
 
@@ -106,6 +96,7 @@ class SplashActivity : ComponentActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         startActivity(intent)
+        overridePendingTransition(0, 0)
         finish()
     }
 
@@ -114,6 +105,23 @@ class SplashActivity : ComponentActivity() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         startActivity(intent)
+        overridePendingTransition(0, 0)
         finish()
+    }
+}
+
+@Composable
+private fun SplashScreenContent() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(color = androidx.compose.material3.MaterialTheme.colorScheme.background)
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.splashscreen_logo),
+            contentDescription = "EscrowX splash",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.FillBounds
+        )
     }
 }

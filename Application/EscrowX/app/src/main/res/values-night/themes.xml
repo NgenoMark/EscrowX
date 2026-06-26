@@ -11,7 +11,7 @@
 
     <style name="Theme.EscrowX.Splash" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/auth_screen_bg</item>
-        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/escrowx_logo</item>
         <item name="windowSplashScreenIconBackgroundColor">@color/brand_primary</item>
         <item name="postSplashScreenTheme">@style/Theme.EscrowX</item>
     </style>
