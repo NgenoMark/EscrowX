@@ -78,7 +78,11 @@ public class AuthService {
         user.setPhone(request.getPhone());
         user.setEmail(request.getEmail());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setRole(UserRole.BUYER);
+        UserRole selectedRole = request.getRole() == null ? UserRole.BUYER : request.getRole();
+        if (selectedRole != UserRole.BUYER && selectedRole != UserRole.SELLER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only BUYER or SELLER can self-register");
+        }
+        user.setRole(selectedRole);
         user.setStatus(UserStatus.PENDING_VERIFICATION);
         user = userRepository.save(user);
 
@@ -106,7 +110,11 @@ public class AuthService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         otpService.verify(request.getEmail(), "REGISTER", request.getOtp());
-        user.setStatus(UserStatus.ACTIVE);
+        if (user.getRole() == UserRole.SELLER) {
+            user.setStatus(UserStatus.PENDING_ADMIN_APPROVAL);
+        } else {
+            user.setStatus(UserStatus.ACTIVE);
+        }
         userRepository.save(user);
 
         return ConfirmResponse.builder()
@@ -129,6 +137,12 @@ public class AuthService {
         }
 
         if (user.getStatus() != UserStatus.ACTIVE) {
+            if (user.getStatus() == UserStatus.PENDING_VERIFICATION) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "Please verify your account first");
+            }
+            if (user.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "Your seller account is pending admin approval");
+            }
             throw new ApiException(HttpStatus.FORBIDDEN, "User account is not active");
         }
 

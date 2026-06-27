@@ -1,5 +1,6 @@
 package com.example.escbackend.auth.dto;
 
+import com.example.escbackend.common.constants.UserRole;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
@@ -32,4 +33,6 @@ public class RegisterRequest {
 
     @Size(max = 150)
     private String businessName;
+
+    private UserRole role;
 }
