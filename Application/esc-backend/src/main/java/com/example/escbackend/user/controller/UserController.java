@@ -113,6 +113,15 @@ public class UserController {
         return userService.updateStatus(id, actorUserId, request);
     }
 
+    @PostMapping("/{id}/approve-seller")
+    public UserRoleStatusUpdateResponse approveSeller(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+        @RequestBody(required = false) SellerApprovalRequest request
+    ) {
+        return userService.approveSeller(id, actorUserId, request);
+    }
+
     @PatchMapping("admin/{id}/blacklist")
     public BlacklistUpdateResponse updateBlacklistStatus(
             @PathVariable UUID id,

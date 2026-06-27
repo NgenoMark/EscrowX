@@ -202,6 +202,42 @@ public class UserService {
             .build();
     }
 
+    @Transactional
+    public UserRoleStatusUpdateResponse approveSeller(UUID targetUserId, UUID actorUserId, SellerApprovalRequest request) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+
+        UserEntity target = userRepository.findById(targetUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Target user not found"));
+
+        if (target.getRole() != UserRole.SELLER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only SELLER accounts can be approved with this endpoint");
+        }
+
+        if (target.getStatus() != UserStatus.PENDING_ADMIN_APPROVAL) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Seller account is not pending admin approval"
+            );
+        }
+
+        String oldStatus = target.getStatus().name();
+        target.setStatus(UserStatus.ACTIVE);
+        userRepository.save(target);
+
+        String reason = request == null || request.getReason() == null || request.getReason().isBlank()
+            ? "Seller account approved"
+            : request.getReason();
+        saveAudit(actorUserId, "APPROVE_SELLER", targetUserId, reason);
+
+        return UserRoleStatusUpdateResponse.builder()
+            .userId(targetUserId)
+            .oldValue(oldStatus)
+            .newValue(target.getStatus().name())
+            .updatedBy(actorUserId)
+            .updatedAt(OffsetDateTime.now())
+            .build();
+    }
+
 
     @Transactional
     public UpdateUserResponse updateUserDetails(UUID actorUserId , UpdateUserRequest request){
