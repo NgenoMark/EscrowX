@@ -42,7 +42,8 @@ data class RegisterRequest(
     val email: String,       // e.g., "newuser@escrowx.local"
     val password: String,    // e.g., "Strong@123"
     val displayName: String, // e.g., "New User"
-    val businessName: String?// Optional field (Nullable)
+    val businessName: String?,// Optional field (Nullable)
+    val role: String         // BUYER or SELLER
 )
 
 data class RegisterResponse(

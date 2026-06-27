@@ -135,7 +135,12 @@ private fun LoginScreen() {
                             else -> Toast.makeText(context, "Welcome $userRole!", Toast.LENGTH_LONG).show()
                         }
                     } else {
-                        Toast.makeText(context, "Invalid email or password", Toast.LENGTH_LONG).show()
+                        val errorMsg = response.errorBody()?.string()?.take(180)
+                            ?.replace("\"", "")
+                            ?.replace("{", "")
+                            ?.replace("}", "")
+                            ?: "Invalid email or password"
+                        Toast.makeText(context, errorMsg, Toast.LENGTH_LONG).show()
                     }
                     isLoading = false
                 }
@@ -178,7 +183,8 @@ private fun LoginScreen() {
             email = registerEmail,
             phone = registerPhone,
             password = registerPassword,
-            businessName = registerBusinessName
+            businessName = registerBusinessName,
+            role = selectedRole
         )
 
         scope.launch(Dispatchers.IO) {

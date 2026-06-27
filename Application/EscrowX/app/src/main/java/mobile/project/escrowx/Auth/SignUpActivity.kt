@@ -129,7 +129,8 @@ private fun SignUpScreen() {
             email = trimmedEmail,
             password = trimmedPassword,
             displayName = trimmedName,
-            businessName = trimmedBusiness
+            businessName = trimmedBusiness,
+            role = selectedRole
         )
 
         scope.launch(Dispatchers.IO) {

@@ -99,8 +99,17 @@ private fun VerificationScreen(email: String) {
 
                 withContext(Dispatchers.Main) {
                     if (response.isSuccessful && response.body() != null && response.body()!!.confirmed) {
+                        val accountStatus = response.body()!!.status.uppercase()
                         isSuccess = true
-                        Toast.makeText(context, "🎉 Account Activated Successfully!", Toast.LENGTH_LONG).show()
+                        if (accountStatus == "PENDING_ADMIN_APPROVAL") {
+                            Toast.makeText(
+                                context,
+                                "Seller account verified. Waiting for admin approval before login.",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        } else {
+                            Toast.makeText(context, "🎉 Account Activated Successfully!", Toast.LENGTH_LONG).show()
+                        }
 
                         delay(800)
 
