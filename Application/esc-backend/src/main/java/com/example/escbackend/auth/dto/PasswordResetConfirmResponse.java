@@ -6,6 +6,6 @@ import lombok.Getter;
 @Getter
 @Builder
 public class PasswordResetConfirmResponse {
-    private String phone;
+    private String email;
     private boolean passwordUpdated;
 }

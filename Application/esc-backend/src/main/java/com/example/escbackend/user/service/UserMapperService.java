@@ -49,6 +49,7 @@ public class UserMapperService {
                 .createdAt(user.getCreatedAt())
                 // Safe profile mapping with null-checks
                 .address(profile != null ? profile.getAddress() : null)
+                .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
                 .displayName(profile != null ? profile.getDisplayName() : null)
                 .businessName(profile != null ? profile.getBusinessName() : null)
                 .build();
@@ -66,7 +67,7 @@ public class UserMapperService {
                 .phone(user.getPhone())
                 .passwordHash(user.getPasswordHash())
                 .address(profile != null ? profile.getAddress() : null)
-                .displayName( profile != null ? profile.getAddress() : null)
+                .displayName(profile != null ? profile.getDisplayName() : null)
                 .businessName(profile != null ? profile.getBusinessName() : null)
                 .avatarUrl(profile != null ? profile.getAvatarUrl() : null)
                 .updatedAt(profile != null ? profile.getUpdatedAt() : user.getUpdatedAt())                .build();

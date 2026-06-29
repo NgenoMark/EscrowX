@@ -2,6 +2,7 @@ package mobile.project.escrowx
 
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
+import okhttp3.MultipartBody
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.Response
@@ -9,6 +10,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.*
 import mobile.project.escrowx.auth.*
 import mobile.project.escrowx.dash.DashboardResponse
+import java.net.URI
 import java.util.concurrent.TimeUnit
 
 interface AuthApiService {
@@ -52,6 +54,13 @@ interface AuthApiService {
         @Body request: UpdateProfileRequest
     ): Response<UserDetailsResponse>
 
+    @Multipart
+    @POST("api/v1/uploads/users/profile")
+    suspend fun uploadProfileImage(
+        @Part file: MultipartBody.Part,
+        @Query("userId") userId: String?
+    ): Response<UploadImageResponse>
+
     // DASHBOARD ENDPOINT (if available)
     @GET("api/v1/dashboard/summary")
     suspend fun getDashboardData(): Response<DashboardResponse>
@@ -62,21 +71,30 @@ interface AuthApiService {
     @GET("api/v1/transactions/buyer/{buyerId}")
     suspend fun getTransactionsByBuyer(
         @Path("buyerId") buyerId: String,
-        @Query("status") status: String? = null,
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20
-    ): Response<PageResponse<EscrowResponse>>
+        @Query("status") status: String? = null
+    ): Response<List<EscrowResponse>>
 
     @GET("api/v1/transactions/seller/{sellerId}")
     suspend fun getTransactionsBySeller(
         @Path("sellerId") sellerId: String,
-        @Query("status") status: String? = null,
-        @Query("page") page: Int = 0,
-        @Query("size") size: Int = 20
-    ): Response<PageResponse<EscrowResponse>>
+        @Query("status") status: String? = null
+    ): Response<List<EscrowResponse>>
 
     @GET("api/v1/transactions/{id}")
     suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/decline-transaction")
+    suspend fun declineTransaction(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/approve-transaction")
+    suspend fun approveTransaction(
+        @Path("id") id:String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
 
     @POST("api/v1/transactions/{id}/accept-transaction")
     suspend fun acceptTransaction(
@@ -115,6 +133,34 @@ interface AuthApiService {
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
 
+    @POST("api/v1/payments/escrows/{escrowId}/stk-push")
+    suspend fun initiateStkPush(
+        @Path("escrowId") escrowId: String,
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Body request: InitiateStkPushRequest
+    ): Response<InitiateStkPushResponse>
+
+    @GET("api/v1/payments/{paymentId}")
+    suspend fun getPayment(
+        @Path("paymentId") paymentId: String
+    ): Response<PaymentResponse>
+
+    @GET("api/v1/payments/intents/me")
+    suspend fun getMyPaymentIntents(
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<List<PaymentIntentFinanceResponse>>
+
+    @GET("api/v1/payments/payouts/me")
+    suspend fun getMyPayouts(
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<List<PayoutFinanceResponse>>
+
+    @POST("api/v1/payments/escrows/{escrowId}/release")
+    suspend fun releasePayout(
+        @Path("escrowId") escrowId: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<ReleasePayoutResponse>
+
     // DISPUTE ENDPOINTS
     @POST("api/v1/disputes")
     suspend fun raiseDispute(
@@ -122,12 +168,88 @@ interface AuthApiService {
         @Body request: RaiseDisputeRequest
     ): Response<DisputeResponse>
 
+    @Multipart
+    @POST("api/v1/uploads/disputes")
+    suspend fun uploadDisputeImage(
+        @Part file: MultipartBody.Part,
+        @Query("referenceId") referenceId: String?
+    ): Response<UploadImageResponse>
+
     @GET("api/v1/disputes/{id}")
-    suspend fun getDisputeById(@Path("id") id: String): Response<DisputeResponse>
+    suspend fun getDisputeById(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") id: String
+    ): Response<DisputeDetailsResponse>
+
+    @GET("api/v1/disputes/transaction/{transactionId}")
+    suspend fun getDisputeByTransactionId(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("transactionId") transactionId: String
+    ): Response<DisputeDetailsResponse>
+
+    @POST("api/v1/disputes/{id}/evidence")
+    suspend fun addDisputeEvidence(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") disputeId: String,
+        @Body request: UpdateDisputeEvidenceRequest
+    ): Response<DisputeDetailsResponse>
+
+    @POST("api/v1/disputes/{id}/evidence/remove")
+    suspend fun removeDisputeEvidence(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") disputeId: String,
+        @Body request: UpdateDisputeEvidenceRequest
+    ): Response<DisputeDetailsResponse>
+
+    @POST("api/v1/disputes/{id}/close")
+    suspend fun closeDispute(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") disputeId: String,
+        @Body request: CloseDisputeRequest
+    ): Response<DisputeDetailsResponse>
+
+    @POST("api/v1/admin/disputes/{id}/action-required")
+    suspend fun assignDisputeActionRequired(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") disputeId: String,
+        @Body request: ActionRequiredRequest
+    ): Response<DisputeDetailsResponse>
 }
 
 object RetrofitClient {
     private const val BASE_URL = "https://mullets-handset-pampered.ngrok-free.dev"
+
+    fun getBaseUrl(): String = BASE_URL
+
+    fun resolveApiUrl(urlOrPath: String?): String? {
+        val value = urlOrPath?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+
+        val parsedPath = try {
+            URI(value).path
+        } catch (_: Exception) {
+            null
+        }
+
+        if (!parsedPath.isNullOrBlank() && parsedPath.startsWith("/uploads/")) {
+            return BASE_URL.removeSuffix("/") + parsedPath
+        }
+
+        return when {
+            value.startsWith("http://", ignoreCase = true) || value.startsWith("https://", ignoreCase = true) -> value
+            value.startsWith("/") -> BASE_URL.removeSuffix("/") + value
+            else -> BASE_URL.removeSuffix("/") + "/" + value
+        }
+    }
+
+    fun toBackendRelativePath(urlOrPath: String?): String? {
+        val value = urlOrPath?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        val base = BASE_URL.removeSuffix("/")
+        return if (value.startsWith(base, ignoreCase = true)) {
+            value.removePrefix(base).ifBlank { "/" }
+        } else {
+            value
+        }
+    }
 
     private val loggingInterceptor: HttpLoggingInterceptor = HttpLoggingInterceptor().apply {
         level = HttpLoggingInterceptor.Level.BODY
@@ -185,15 +307,18 @@ data class CreateEscrowRequest(
 
 data class EscrowResponse(
     val id: String,
-    val reference: String,
+    val reference: String?,
     val buyerId: String,
     val sellerId: String,
     val title: String,
-    val amount: String,
-    val currency: String,
+    val productDescription: String,
+    val amount: Double,
+    val deliveryAddress: String,
+    val initialDepositAmount: Double?,
+    val currency: String?,
     val status: String,
-    val deliveryDueAt: String? = null,
-    val autoReleaseAt: String? = null,
+    val deliveryDueAt: String,
+    val autoReleaseAt: String?,
     val createdAt: String,
     val updatedAt: String
 )
@@ -232,7 +357,8 @@ data class UpdateProfileRequest(
     val phone: String? = null,
     val businessName: String? = null,
     val address: String? = null,          // ✅ match backend field name
-    val shopLocation: String? = null
+    val shopLocation: String? = null,
+    val avatarUrl: String? = null
 )
 
 // Dispute related
@@ -248,7 +374,8 @@ enum class DisputeCategory {
 data class RaiseDisputeRequest(
     val transactionId: String,
     val category: String,
-    val description: String
+    val description: String,
+    val evidenceUrls: List<String> = emptyList()
 )
 
 data class DisputeResponse(
@@ -257,7 +384,112 @@ data class DisputeResponse(
     val raisedById: String,
     val category: String,
     val status: String,
+    val evidenceUrls: List<String>? = null,
     val createdAt: String
+)
+
+data class DisputeDetailsResponse(
+    val id: String,
+    val transactionId: String,
+    val transactionReference: String? = null,
+    val raisedById: String,
+    val raisedByName: String? = null,
+    val category: String,
+    val description: String? = null,
+    val status: String,
+    val assignedAdminId: String? = null,
+    val resolution: String? = null,
+    val resolvedAt: String? = null,
+    val evidenceUrls: List<String>? = null,
+    val createdAt: String,
+    val updatedAt: String? = null
+)
+
+data class UploadImageResponse(
+    val url: String
+)
+
+data class UpdateDisputeEvidenceRequest(
+    val evidenceUrl: String
+)
+
+data class CloseDisputeRequest(
+    val reason: String? = null
+)
+
+data class ActionRequiredRequest(
+    val action: String
+)
+
+data class InitiateStkPushRequest(
+    val phoneNumber: String
+)
+
+data class InitiateStkPushResponse(
+    val paymentId: String,
+    val escrowId: String?,
+    val status: String?,
+    val checkoutRequestId: String?,
+    val merchantRequestId: String?,
+    val message: String?
+)
+
+data class PaymentResponse(
+    val paymentId: String,
+    val escrowId: String?,
+    val amount: Double?,
+    val currency: String?,
+    val status: String,
+    val phoneNumber: String?,
+    val checkoutRequestId: String?,
+    val merchantRequestId: String?,
+    val mpesaReceiptNumber: String?,
+    val paidAt: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+data class PaymentIntentFinanceResponse(
+    val paymentId: String,
+    val transactionId: String?,
+    val transactionReference: String?,
+    val buyerId: String?,
+    val sellerId: String?,
+    val amount: Double?,
+    val currency: String?,
+    val status: String,
+    val paymentMethod: String?,
+    val phoneNumber: String?,
+    val mpesaReceiptNumber: String?,
+    val paidAt: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+data class PayoutFinanceResponse(
+    val payoutId: String,
+    val transactionId: String?,
+    val transactionReference: String?,
+    val sellerId: String?,
+    val amount: Double?,
+    val currency: String?,
+    val status: String,
+    val conversationId: String?,
+    val originatorConversationId: String?,
+    val resultCode: String?,
+    val resultDescription: String?,
+    val paidAt: String?,
+    val createdAt: String?,
+    val updatedAt: String?
+)
+
+data class ReleasePayoutResponse(
+    val payoutId: String,
+    val escrowId: String,
+    val status: String,
+    val conversationId: String?,
+    val originatorConversationId: String?,
+    val message: String?
 )
 
 // Additional auth DTOs (if not already present elsewhere)

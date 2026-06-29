@@ -1,6 +1,9 @@
 @file:Suppress("SpellCheckingInspection")
 package mobile.project.escrowx.dash
 
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -41,10 +44,11 @@ class DisputeCenterActivity : ComponentActivity() {
         viewModel.fetchUserDisputes(this)
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                 var currentFilter by remember { mutableStateOf(DisputeFilter.ALL) }
                 val context = LocalContext.current
+                val colorScheme = MaterialTheme.colorScheme
 
                 val filteredDisputes = when (currentFilter) {
                     DisputeFilter.ALL -> uiState.disputesList
@@ -55,18 +59,18 @@ class DisputeCenterActivity : ComponentActivity() {
                 Scaffold(
                     topBar = {
                         TopAppBar(
-                            title = { Text("Dispute Center", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF00236F)) },
+                            title = { Text("Dispute Center", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface) },
                             navigationIcon = {
                                 IconButton(onClick = { finish() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colorScheme.primary)
                                 }
                             },
                             actions = {
                                 IconButton(onClick = { }) {
-                                    Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Help", tint = Color(0xFF00236F))
+                                    Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Help", tint = colorScheme.primary)
                                 }
                             },
-                            colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White, titleContentColor = Color(0xFF00236F))
+                            colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.background, titleContentColor = colorScheme.onSurface)
                         )
                     }
                 ) { padding ->
@@ -74,7 +78,7 @@ class DisputeCenterActivity : ComponentActivity() {
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(padding)
-                            .background(Color(0xFFF9F9FF))
+                            .background(colorScheme.background)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(16.dp),

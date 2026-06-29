@@ -2,6 +2,9 @@
 
 package mobile.project.escrowx.dash
 
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -56,7 +59,7 @@ class PaymentActivity : ComponentActivity() {
         val deliveryAddress = intent.getStringExtra("DELIVERY_ADDRESS") ?: ""
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 PaymentScreen(
                     itemName = itemName,
                     transactionAmount = transactionAmount,
@@ -83,6 +86,7 @@ fun PaymentScreen(
     deliveryAddress: String
 ) {
     val context = LocalContext.current
+    val colorScheme = MaterialTheme.colorScheme
     val session = SessionManager(context)
     val scope = rememberCoroutineScope()
 
@@ -189,13 +193,13 @@ fun PaymentScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Payment Method", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF151C27)) },
+                title = { Text("Payment Method", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = { (context as? PaymentActivity)?.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF), titleContentColor = Color(0xFF151C27))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.background, titleContentColor = colorScheme.onSurface)
             )
         }
     ) { paddingValues ->
@@ -203,7 +207,7 @@ fun PaymentScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFFF9F9FF))
+                .background(colorScheme.background)
         ) {
             Column(
                 modifier = Modifier

@@ -47,15 +47,64 @@ public class DisputeController {
     }
 
     /**
+     * Get dispute details by transaction id.
+     * Accessible by: Involved Buyer, Involved Seller, or Admins.
+     */
+    @GetMapping("/disputes/transaction/{transactionId}")
+    public ResponseEntity<DisputeDetailsResponse> getByTransactionId(
+            @PathVariable UUID transactionId,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return ResponseEntity.ok(disputeService.getByTransactionId(transactionId, actorUserId));
+    }
+
+    @PostMapping("/disputes/{id}/evidence")
+    public ResponseEntity<DisputeDetailsResponse> addEvidence(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+            @Valid @RequestBody DisputeEvidenceUpdateRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.addEvidence(id, actorUserId, request));
+    }
+
+    @PostMapping("/disputes/{id}/evidence/remove")
+    public ResponseEntity<DisputeDetailsResponse> removeEvidence(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+            @Valid @RequestBody DisputeEvidenceUpdateRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.removeEvidence(id, actorUserId, request));
+    }
+
+    @PostMapping("/disputes/{id}/close")
+    public ResponseEntity<DisputeDetailsResponse> closeDispute(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+            @RequestBody(required = false) DisputeCloseRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.closeDispute(id, actorUserId, request));
+    }
+
+    /**
      * Assign an administrator to manage an open dispute case.
      * Accessible by: Admins / SuperAdmins.
      */
     @PatchMapping("/admin/disputes/{id}/assign")
     public ResponseEntity<DisputeDetailsResponse> assignAdmin(
             @PathVariable UUID id,
-            @RequestHeader("X-Actor-User-Id") UUID adminUserId
+            @RequestHeader("X-Actor-User-Id") UUID adminUserId,
+            @RequestBody(required = false) DisputeAssignAdminRequest request
     ) {
-        return ResponseEntity.ok(disputeService.assignAdmin(id, adminUserId));
+        return ResponseEntity.ok(disputeService.assignAdmin(id, adminUserId, request));
+    }
+
+    @PatchMapping("/admin/disputes/{id}/reassign")
+    public ResponseEntity<DisputeDetailsResponse> reassignAdmin(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID adminUserId,
+            @RequestBody @Valid DisputeAssignAdminRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.reassignAdmin(id, adminUserId, request));
     }
 
     /**
@@ -69,6 +118,15 @@ public class DisputeController {
             @Valid @RequestBody DisputeResolveRequest request
     ) {
         return ResponseEntity.ok(disputeService.resolveDispute(id, adminUserId, request));
+    }
+
+    @PostMapping("/admin/disputes/{id}/action-required")
+    public ResponseEntity<DisputeDetailsResponse> assignActionRequired(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID adminUserId,
+            @Valid @RequestBody DisputeActionRequiredRequest request
+    ) {
+        return ResponseEntity.ok(disputeService.assignActionRequired(id, adminUserId, request));
     }
 
     /**

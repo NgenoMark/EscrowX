@@ -19,6 +19,7 @@ public class UserDetailsResponse {
         private UserStatus status;
         private BlackListStatus blacklistStatus;
         private String address;
+        private String avatarUrl;
         private String displayName;
         private String businessName;
         private OffsetDateTime createdAt;

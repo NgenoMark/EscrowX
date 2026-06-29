@@ -13,6 +13,7 @@
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
 
     <application
+        android:name=".EscrowXApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -39,14 +40,21 @@
 
         <!-- LAUNCHER ACTIVITY -->
         <activity
-            android:name=".auth.LoginActivity"
+            android:name=".auth.SplashActivity"
             android:exported="true"
             android:screenOrientation="unspecified"
-            android:windowSoftInputMode="adjustResize">
+            android:theme="@style/Theme.EscrowX.SplashFull">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".auth.LoginActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified"
+            android:windowSoftInputMode="adjustResize">
         </activity>
 
         <!-- AUTH ACTIVITIES -->
@@ -95,12 +103,22 @@
             android:screenOrientation="unspecified" />
 
         <activity
+            android:name=".dash.DisputeDetailsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
             android:name=".dash.TransactionsActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
 
         <activity
             android:name=".dash.SettingsActivity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
+            android:name=".dash.TrackFinancesActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
 
@@ -173,6 +191,12 @@
             android:name=".seller.SellerTransactionDetailActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
+
+        <activity
+            android:name="com.yalantis.ucrop.UCropActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:theme="@style/Theme.AppCompat.Light.NoActionBar" />
 
     </application>
 

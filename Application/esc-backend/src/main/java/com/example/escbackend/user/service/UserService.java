@@ -4,6 +4,7 @@ import com.example.escbackend.common.constants.BlackListStatus;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.constants.UserStatus;
 import com.example.escbackend.common.exception.ApiException;
+import com.example.escbackend.auth.service.OtpDeliveryService;
 import com.example.escbackend.audit.entity.AuditLogEntity;
 import com.example.escbackend.audit.repository.AuditLogRepository;
 import com.example.escbackend.user.dto.*;
@@ -20,14 +21,19 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Locale;
 import java.util.UUID;
 
 @Service
 public class UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
 
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
@@ -36,6 +42,7 @@ public class UserService {
     private final AdminAuthorizationService authz;
     private final AuditLogRepository auditRepo;
     private final PasswordEncoder passwordEncoder;
+    private final OtpDeliveryService otpDeliveryService;
 
     public UserService(
         UserRepository userRepository,
@@ -44,7 +51,8 @@ public class UserService {
         UserBlacklistRepository blacklistRepo,
         AdminAuthorizationService authz,
         AuditLogRepository auditRepo,
-        PasswordEncoder passwordEncoder
+        PasswordEncoder passwordEncoder,
+        OtpDeliveryService otpDeliveryService
     ) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
@@ -53,6 +61,7 @@ public class UserService {
         this.authz = authz;
         this.auditRepo = auditRepo;
         this.passwordEncoder = passwordEncoder;
+        this.otpDeliveryService = otpDeliveryService;
     }
 
     public UserDetailsResponse getById(UUID id) {
@@ -96,6 +105,67 @@ public class UserService {
         return users.map(user -> mapper.toDetails(user, profileRepository.findById(user.getId()).orElse(null)));
     }
 
+    public Page<UserDetailsResponse> listMarketplaceUsers(UUID actorUserId, String phone, String status, int page, int size) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        return listByRoles(phone, status, page, size, List.of(UserRole.BUYER, UserRole.SELLER));
+    }
+
+    public Page<UserDetailsResponse> listBuyers(UUID actorUserId, String phone, String status, int page, int size) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        return listByRoles(phone, status, page, size, List.of(UserRole.BUYER));
+    }
+
+    public Page<UserDetailsResponse> listSellers(UUID actorUserId, String phone, String status, int page, int size) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        return listByRoles(phone, status, page, size, List.of(UserRole.SELLER));
+    }
+
+    public Page<UserDetailsResponse> listEmployees(UUID actorUserId, String phone, String status, int page, int size) {
+        UserEntity actor = authz.requireAdminOrSuperAdmin(actorUserId);
+        List<UserRole> visibleRoles = actor.getRole() == UserRole.SUPER_ADMIN
+            ? List.of(UserRole.ADMIN, UserRole.SUPER_ADMIN)
+            : List.of(UserRole.ADMIN);
+
+        return listByRoles(phone, status, page, size, visibleRoles);
+    }
+
+    @Transactional
+    public UserDetailsResponse createEmployee(UUID actorUserId, CreateEmployeeRequest request, UserRole targetRole) {
+        authz.requireSuperAdmin(actorUserId);
+
+        if (targetRole != UserRole.ADMIN && targetRole != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only ADMIN or SUPER_ADMIN can be created via this API");
+        }
+
+        if (userRepository.existsByEmail(request.getEmail())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Email already registered");
+        }
+
+        if (userRepository.existsByPhone(request.getPhone())) {
+            throw new ApiException(HttpStatus.CONFLICT, "Phone number already registered");
+        }
+
+        UserEntity user = new UserEntity();
+        user.setEmail(request.getEmail());
+        user.setPhone(request.getPhone());
+        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        user.setRole(targetRole);
+        user.setStatus(UserStatus.ACTIVE);
+        user = userRepository.save(user);
+
+        ProfileEntity profile = new ProfileEntity();
+        profile.setUserId(user.getId());
+        profile.setDisplayName(request.getDisplayName());
+        profile.setBusinessName(request.getBusinessName());
+        profile.setAddress(request.getAddress());
+        profile.setAvatarUrl(request.getAvatarUrl());
+        profileRepository.save(profile);
+
+        saveAudit(actorUserId, "CREATE_" + targetRole.name(), user.getId(), "Employee account created by SUPER_ADMIN");
+
+        return mapper.toDetails(user, profile);
+    }
+
     @Transactional
     public UserRoleStatusUpdateResponse updateRole(UUID targetUserId, UUID actorUserId, UserRoleUpdateRequest request) {
         authz.requireAdminOrSuperAdmin(actorUserId);
@@ -130,6 +200,49 @@ public class UserService {
         userRepository.save(target);
 
         saveAudit(actorUserId, "UPDATE_STATUS", targetUserId, request.getReason());
+
+        return UserRoleStatusUpdateResponse.builder()
+            .userId(targetUserId)
+            .oldValue(oldStatus)
+            .newValue(target.getStatus().name())
+            .updatedBy(actorUserId)
+            .updatedAt(OffsetDateTime.now())
+            .build();
+    }
+
+    @Transactional
+    public UserRoleStatusUpdateResponse approveSeller(UUID targetUserId, UUID actorUserId, SellerApprovalRequest request) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+
+        UserEntity target = userRepository.findById(targetUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Target user not found"));
+
+        if (target.getRole() != UserRole.SELLER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only SELLER accounts can be approved with this endpoint");
+        }
+
+        if (target.getStatus() != UserStatus.PENDING_ADMIN_APPROVAL) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Seller account is not pending admin approval"
+            );
+        }
+
+        String oldStatus = target.getStatus().name();
+        target.setStatus(UserStatus.ACTIVE);
+        userRepository.save(target);
+
+        String reason = request == null || request.getReason() == null || request.getReason().isBlank()
+            ? "Seller account approved"
+            : request.getReason();
+        saveAudit(actorUserId, "APPROVE_SELLER", targetUserId, reason);
+
+
+        try {
+            otpDeliveryService.sendAdminApprovalEmail(target.getEmail());
+        } catch (Exception ex){
+            log.warn("Admin-approval email failed for {}", target.getEmail() , ex);
+        }
 
         return UserRoleStatusUpdateResponse.builder()
             .userId(targetUserId)
@@ -177,6 +290,9 @@ public class UserService {
         if (request.getAddress() != null){
             profile.setAddress(request.getAddress());
         }
+
+        userRepository.save(user);
+        profileRepository.save(profile);
 
         return mapper.toUpdateUserResponse(user , profile);
     }
@@ -267,5 +383,23 @@ public class UserService {
 
     private boolean isNotBlank(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private Page<UserDetailsResponse> listByRoles(String phone, String status, int page, int size, List<UserRole> roles) {
+        String phoneFilter = phone == null ? "" : phone;
+        Pageable pageable = PageRequest.of(page, size);
+        Page<UserEntity> users;
+
+        if (isNotBlank(status) && isNotBlank(phone)) {
+            users = userRepository.findByPhoneContainingAndRoleInAndStatus(phoneFilter, roles, parseStatus(status), pageable);
+        } else if (isNotBlank(status)) {
+            users = userRepository.findByRoleInAndStatus(roles, parseStatus(status), pageable);
+        } else if (isNotBlank(phone)) {
+            users = userRepository.findByPhoneContainingAndRoleIn(phoneFilter, roles, pageable);
+        } else {
+            users = userRepository.findByRoleIn(roles, pageable);
+        }
+
+        return users.map(user -> mapper.toDetails(user, profileRepository.findById(user.getId()).orElse(null)));
     }
 }

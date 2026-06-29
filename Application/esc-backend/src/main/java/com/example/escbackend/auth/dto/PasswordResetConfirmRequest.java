@@ -9,9 +9,17 @@ import lombok.Setter;
 @Setter
 public class PasswordResetConfirmRequest {
 
+//    @NotBlank
+//    @Pattern(regexp = "^\\+2547\\d{8}$", message = "phone must match +2547XXXXXXXX")
+//    private String phone;
+
     @NotBlank
-    @Pattern(regexp = "^\\+2547\\d{8}$", message = "phone must match +2547XXXXXXXX")
-    private String phone;
+    @Pattern(
+            regexp = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,6}$",
+            message = "email must be a valid format like user@example.com"
+    )
+    private String email;
+
 
     @NotBlank
     @Pattern(regexp = "^\\d{6}$", message = "otp must be 6 digits")

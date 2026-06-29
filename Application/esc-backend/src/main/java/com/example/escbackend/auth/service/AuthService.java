@@ -28,9 +28,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.escbackend.common.constants.BlackListStatus; // Assumed package for your new Enum
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
@@ -78,7 +82,11 @@ public class AuthService {
         user.setPhone(request.getPhone());
         user.setEmail(request.getEmail());
         user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setRole(UserRole.BUYER);
+        UserRole selectedRole = request.getRole() == null ? UserRole.BUYER : request.getRole();
+        if (selectedRole != UserRole.BUYER && selectedRole != UserRole.SELLER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only BUYER or SELLER can self-register");
+        }
+        user.setRole(selectedRole);
         user.setStatus(UserStatus.PENDING_VERIFICATION);
         user = userRepository.save(user);
 
@@ -106,7 +114,16 @@ public class AuthService {
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         otpService.verify(request.getEmail(), "REGISTER", request.getOtp());
-        user.setStatus(UserStatus.ACTIVE);
+        if (user.getRole() == UserRole.SELLER) {
+            user.setStatus(UserStatus.PENDING_ADMIN_APPROVAL);
+            try {
+                otpDeliveryService.sendSellerAcknowledgmentEmail(user.getEmail());
+            } catch (Exception ex) {
+                log.warn("Seller acknowledgment email failed for {}", user.getEmail(), ex);
+            }
+        } else {
+            user.setStatus(UserStatus.ACTIVE);
+        }
         userRepository.save(user);
 
         return ConfirmResponse.builder()
@@ -129,6 +146,12 @@ public class AuthService {
         }
 
         if (user.getStatus() != UserStatus.ACTIVE) {
+            if (user.getStatus() == UserStatus.PENDING_VERIFICATION) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "Please verify your account first");
+            }
+            if (user.getStatus() == UserStatus.PENDING_ADMIN_APPROVAL) {
+                throw new ApiException(HttpStatus.FORBIDDEN, "Your seller account is pending admin approval");
+            }
             throw new ApiException(HttpStatus.FORBIDDEN, "User account is not active");
         }
 
@@ -145,14 +168,14 @@ public class AuthService {
     }
 
     public PasswordResetRequestResponse requestPasswordReset(PasswordResetRequestDto request) {
-        UserEntity user = userRepository.findByPhone(request.getPhone())
+        UserEntity user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        String otp = otpService.generate(user.getPhone(), "PASSWORD_RESET");
+        String otp = otpService.generate(user.getEmail(), "PASSWORD_RESET");
         otpDeliveryService.sendPasswordResetOtp(user.getEmail(), otp);
 
         return PasswordResetRequestResponse.builder()
-            .phone(user.getPhone())
+            .email(user.getEmail())
             .message("OTP sent")
             .otpPreview(null)
             .build();
@@ -160,15 +183,15 @@ public class AuthService {
 
     @Transactional
     public PasswordResetConfirmResponse confirmPasswordReset(PasswordResetConfirmRequest request) {
-        UserEntity user = userRepository.findByPhone(request.getPhone())
+        UserEntity user = userRepository.findByEmail(request.getEmail())
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
-        otpService.verify(request.getPhone(), "PASSWORD_RESET", request.getOtp());
+        otpService.verify(request.getEmail(), "PASSWORD_RESET", request.getOtp());
         user.setPasswordHash(passwordEncoder.encode(request.getNewPassword()));
         userRepository.save(user);
 
         return PasswordResetConfirmResponse.builder()
-            .phone(user.getPhone())
+            .email(user.getEmail())
             .passwordUpdated(true)
             .build();
     }

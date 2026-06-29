@@ -49,4 +49,51 @@ public class EmailOtpDeliveryService implements OtpDeliveryService {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Failed to send OTP email");
         }
     }
+
+    @Override
+    public void sendSellerAcknowledgmentEmail(String email) {
+        sendMail(
+            email,
+            "EscrowX seller registration acknowledgment",
+            "Your seller account has been verified and is now awaiting admin approval."
+                + "\n\nWe will notify you once your account is approved and activated for login."
+        );
+    }
+
+    private void sendMail(String to, String subject, String body) {
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromAddress);
+            message.setTo(to);
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+        } catch (MailException ex) {
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Failed to send email");
+        }
+    }
+
+    @Override
+    public void sendAdminApprovalEmail(String email){
+        sendAdminEmail(
+                email,
+                "EscrowX SellerAccount Activation",
+                "Dear user, your Seller account has been Activated." +
+                        "\n\n You can now fully access our platform." +
+                        "\n\nThank you for choosing EscrowX."
+        );
+    }
+
+    private void sendAdminEmail(String to, String subject, String body){
+        try{
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(fromAddress);
+            message.setTo(to);
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+        } catch (MailException ex){
+            throw new ApiException(HttpStatus.BAD_GATEWAY, "Failed to send admin approval email");
+        }
+    }
 }

@@ -8,10 +8,11 @@ data class UserDetailsResponse(
     val email: String,
     val role: String,
     val status: String,
-    @SerializedName("displayName") val displayName: String? = null,
+    @SerializedName(value = "displayName", alternate = ["display_name"]) val displayName: String? = null,
     @SerializedName("businessName") val businessName: String? = null,
-    @SerializedName("address") val address: String? = null,          // ✅ backend uses "address"
+    @SerializedName("address") val address: String? = null,
     @SerializedName("shopLocation") val shopLocation: String? = null,
+    @SerializedName(value = "avatarUrl", alternate = ["avatar_url"]) val avatarUrl: String? = null,
     @SerializedName("createdAt") val createdAt: String,
     @SerializedName("updatedAt") val updatedAt: String? = null
 )

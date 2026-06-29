@@ -1,11 +1,15 @@
 package com.example.escbackend.payment.service;
 
+import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository;
+import com.example.escbackend.escrow.service.TransactionStatusHistoryService;
 import com.example.escbackend.payment.dto.InitiateStkPushRequest;
 import com.example.escbackend.payment.dto.InitiateStkPushResponse;
 import com.example.escbackend.payment.dto.PaymentResponse;
+import com.example.escbackend.payment.dto.PaymentIntentFinanceResponse;
+import com.example.escbackend.payment.dto.PayoutFinanceResponse;
 import com.example.escbackend.payment.dto.ReleasePayoutResponse;
 import com.example.escbackend.payment.entity.PaymentCallbackEntity;
 import com.example.escbackend.payment.entity.PaymentIntentEntity;
@@ -13,9 +17,13 @@ import com.example.escbackend.payment.entity.PayoutEntity;
 import com.example.escbackend.payment.repository.PaymentCallbackRepository;
 import com.example.escbackend.payment.repository.PaymentIntentRepository;
 import com.example.escbackend.payment.repository.PayoutRepository;
+import com.example.escbackend.user.entity.UserEntity;
+import com.example.escbackend.user.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -23,6 +31,7 @@ import org.springframework.util.StringUtils;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,6 +40,8 @@ import java.util.UUID;
 @Service
 public class PaymentService {
     private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+    private static final String PAYOUT_STATUS_PROCESSING = "PROCESSING";
+    private static final String PAYOUT_STATUS_FAILED = "FAILED";
 
     private final EscrowRepository escrowRepository;
     private final PaymentIntentRepository paymentIntentRepository;
@@ -38,6 +49,14 @@ public class PaymentService {
     private final PaymentCallbackRepository callbackRepository;
     private final MpesaDarajaService mpesaDarajaService;
     private final LedgerService ledgerService;
+    private final TransactionStatusHistoryService transactionStatusHistoryService;
+    private final UserRepository userRepository;
+
+    @Value("${escrowx.mpesa.reconciliation.enabled:true}")
+    private boolean reconciliationEnabled;
+
+    @Value("${escrowx.mpesa.reconciliation.max-processing-minutes:15}")
+    private long maxProcessingMinutes;
 
     public PaymentService(
             EscrowRepository escrowRepository,
@@ -45,7 +64,9 @@ public class PaymentService {
             PayoutRepository payoutRepository,
             PaymentCallbackRepository callbackRepository,
             MpesaDarajaService mpesaDarajaService,
-            LedgerService ledgerService
+            LedgerService ledgerService,
+            TransactionStatusHistoryService transactionStatusHistoryService,
+            UserRepository userRepository
     ) {
         this.escrowRepository = escrowRepository;
         this.paymentIntentRepository = paymentIntentRepository;
@@ -53,10 +74,12 @@ public class PaymentService {
         this.callbackRepository = callbackRepository;
         this.mpesaDarajaService = mpesaDarajaService;
         this.ledgerService = ledgerService;
+        this.transactionStatusHistoryService = transactionStatusHistoryService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
-    public InitiateStkPushResponse initiateStkPush(UUID escrowId, InitiateStkPushRequest request) {
+    public InitiateStkPushResponse initiateStkPush(UUID escrowId, InitiateStkPushRequest request, UUID actorUserId) {
         EscrowTransaction transaction = getEscrowOrThrow(escrowId);
         assertStateIn(transaction, List.of("CREATED", "PENDING_PAYMENT"));
 
@@ -80,8 +103,7 @@ public class PaymentService {
         payment.setStatus("PENDING");
         paymentIntentRepository.save(payment);
 
-        transaction.setStatus("PENDING_PAYMENT");
-        escrowRepository.save(transaction);
+        updateEscrowStatus(transaction, "PENDING_PAYMENT", actorUserId, "STK push initiated");
 
         return InitiateStkPushResponse.builder()
                 .paymentId(payment.getId())
@@ -97,6 +119,24 @@ public class PaymentService {
         PaymentIntentEntity payment = paymentIntentRepository.findById(paymentId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Payment not found"));
         return toPaymentResponse(payment);
+    }
+
+    @Transactional(readOnly = true)
+    public List<PaymentIntentFinanceResponse> getMyPaymentIntents(UUID actorUserId) {
+        UUID userId = requireActorUserId(actorUserId);
+        return paymentIntentRepository.findByBuyerIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(this::toPaymentIntentFinanceResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<PayoutFinanceResponse> getMyPayouts(UUID actorUserId) {
+        UUID userId = requireActorUserId(actorUserId);
+        return payoutRepository.findBySellerIdOrderByCreatedAtDesc(userId)
+                .stream()
+                .map(this::toPayoutFinanceResponse)
+                .toList();
     }
 
     @Transactional
@@ -127,15 +167,13 @@ public class PaymentService {
             payment.setStatus("PAID");
 
             EscrowTransaction transaction = payment.getTransaction();
-            transaction.setStatus("FUNDS_HELD");
-            escrowRepository.save(transaction);
+            updateEscrowStatus(transaction, "FUNDS_HELD", null, "STK callback success");
             ledgerService.recordHold(transaction, payment.getAmount(), payment.getId());
         } else {
             payment.setStatus("FAILED");
             EscrowTransaction transaction = payment.getTransaction();
             if ("PENDING_PAYMENT".equals(transaction.getStatus())) {
-                transaction.setStatus("PENDING_PAYMENT"); // Retain state for potential retries
-                escrowRepository.save(transaction);
+                updateEscrowStatus(transaction, "PENDING_PAYMENT", null, "STK callback failed");
             }
         }
 
@@ -143,8 +181,9 @@ public class PaymentService {
     }
 
     @Transactional
-    public ReleasePayoutResponse releaseToSeller(UUID escrowId) {
+    public ReleasePayoutResponse releaseToSeller(UUID escrowId, UUID actorUserId) {
         EscrowTransaction transaction = getEscrowOrThrow(escrowId);
+        assertReleaseAuthorization(transaction, actorUserId);
         assertStateIn(transaction, List.of("RELEASE_PENDING", "RELEASE_FAILED"));
 
         PayoutEntity payout = payoutRepository.findByTransactionId(escrowId)
@@ -152,8 +191,7 @@ public class PaymentService {
         payout.setStatus("INITIATED");
         payout = payoutRepository.save(payout);
 
-        transaction.setStatus("RELEASE_PROCESSING");
-        escrowRepository.save(transaction);
+        updateEscrowStatus(transaction, "RELEASE_PROCESSING", actorUserId, "Payout release initiated");
 
         MpesaDarajaService.B2cResult result = mpesaDarajaService.initiateB2cPayout(
                 payout.getSellerPhoneNumber(),
@@ -180,7 +218,7 @@ public class PaymentService {
                     result.responseDescription()
             );
             payout.setStatus("FAILED");
-            transaction.setStatus("RELEASE_FAILED");
+            updateEscrowStatus(transaction, "RELEASE_FAILED", actorUserId, "Payout request rejected");
         }
         payoutRepository.save(payout);
         escrowRepository.save(transaction);
@@ -193,6 +231,78 @@ public class PaymentService {
                 .originatorConversationId(payout.getOriginatorConversationId())
                 .message(result.responseDescription())
                 .build();
+    }
+
+    private void assertReleaseAuthorization(EscrowTransaction transaction, UUID actorUserId) {
+        if (actorUserId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing required header: X-Actor-User-Id");
+        }
+
+        if (transaction.getBuyer().getId().equals(actorUserId)) {
+            return;
+        }
+
+        UserEntity actor = userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Actor user not found"));
+
+        if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the buyer or ADMIN/SUPER_ADMIN can authorize payout release");
+        }
+    }
+
+    @Scheduled(fixedDelayString = "${escrowx.mpesa.reconciliation.fixed-delay-ms:60000}")
+    @Transactional
+    public void reconcileStuckProcessingPayoutsScheduled() {
+        if (!reconciliationEnabled) {
+            return;
+        }
+        int reconciled = reconcileStuckProcessingPayouts(
+                null,
+                "Scheduled reconciliation: callback timeout guard"
+        );
+        if (reconciled > 0) {
+            log.warn("Reconciled {} stale payouts that were stuck in PROCESSING.", reconciled);
+        }
+    }
+
+    @Transactional
+    public int reconcileStuckProcessingPayouts(UUID actorUserId, String reason) {
+        OffsetDateTime cutoff = OffsetDateTime.now().minusMinutes(maxProcessingMinutes);
+        List<PayoutEntity> stalePayouts = payoutRepository.findByStatusAndUpdatedAtBefore(PAYOUT_STATUS_PROCESSING, cutoff);
+
+        if (stalePayouts.isEmpty()) {
+            return 0;
+        }
+
+        int reconciledCount = 0;
+        for (PayoutEntity payout : stalePayouts) {
+            if (!PAYOUT_STATUS_PROCESSING.equals(payout.getStatus())) {
+                continue;
+            }
+
+            Map<String, Object> syntheticPayload = new HashMap<>();
+            syntheticPayload.put("source", "SYSTEM_RECONCILER");
+            syntheticPayload.put("reason", reason);
+            syntheticPayload.put("reconciledAt", OffsetDateTime.now().toString());
+            syntheticPayload.put("conversationId", payout.getConversationId());
+            syntheticPayload.put("originatorConversationId", payout.getOriginatorConversationId());
+
+                String providerEventId = "RECON-" + payout.getId();
+
+            savePaymentCallback(null, payout, "B2C_TIMEOUT_RECON", providerEventId, syntheticPayload);
+
+            payout.setStatus(PAYOUT_STATUS_FAILED);
+            payout.setResultDescription("No B2C callback received within " + maxProcessingMinutes + " minutes.");
+
+            EscrowTransaction transaction = payout.getTransaction();
+            updateEscrowStatus(transaction, "RELEASE_FAILED", actorUserId, reason);
+
+            payoutRepository.save(payout);
+            escrowRepository.save(transaction);
+            reconciledCount++;
+        }
+
+        return reconciledCount;
     }
 
     @Transactional
@@ -260,13 +370,13 @@ public class PaymentService {
         if (resultCode != null && resultCode == 0) {
             payout.setStatus("PAID");
             payout.setPaidAt(OffsetDateTime.now());
-            transaction.setStatus("COMPLETED");
+            updateEscrowStatus(transaction, "COMPLETED", null, "B2C callback success");
 
             log.info("B2C Verification Payout process successful for transaction reference {}. Dispatching ledger releases.", transaction.getReference());
             ledgerService.recordRelease(transaction, payout.getAmount(), payout.getId());
         } else {
             payout.setStatus("FAILED");
-            transaction.setStatus("RELEASE_FAILED");
+            updateEscrowStatus(transaction, "RELEASE_FAILED", null, "B2C callback failed");
             log.warn("M-Pesa Core Layer rejected payout request for Payout ID {} with Safaricom reason code details: {}", payout.getId(), resultDescription);
         }
 
@@ -303,20 +413,32 @@ public class PaymentService {
         }
         PayoutEntity payout = payoutMatch.get();
 
-        if ("FAILED".equals(payout.getStatus()) || "PAID".equals(payout.getStatus())) {
+        if (PAYOUT_STATUS_FAILED.equals(payout.getStatus()) || "PAID".equals(payout.getStatus())) {
             log.info("Payout entry status index tracking target {} already marked settled. Terminating timeout task handler context.", payout.getId());
             return;
         }
 
         savePaymentCallback(null, payout, "B2C_TIMEOUT", conversationId, payload);
-        payout.setStatus("FAILED");
+        payout.setStatus(PAYOUT_STATUS_FAILED);
         payout.setResultDescription("The B2C payout operational transaction sequence timed out inside Safaricom system queues.");
 
         EscrowTransaction transaction = payout.getTransaction();
-        transaction.setStatus("RELEASE_FAILED");
+        updateEscrowStatus(transaction, "RELEASE_FAILED", null, "B2C timeout");
 
         payoutRepository.save(payout);
         escrowRepository.save(transaction);
+    }
+
+    private void updateEscrowStatus(
+            EscrowTransaction transaction,
+            String newStatus,
+            UUID changedBy,
+            String reason
+    ) {
+        String fromStatus = transaction.getStatus();
+        transaction.setStatus(newStatus);
+        EscrowTransaction saved = escrowRepository.save(transaction);
+        transactionStatusHistoryService.recordStatusChange(saved, fromStatus, newStatus, changedBy, reason);
     }
 
     private PaymentIntentEntity newPaymentIntent(EscrowTransaction transaction, String phoneNumber) {
@@ -353,6 +475,11 @@ public class PaymentService {
             String providerEventId,
             Map<String, Object> payload
     ) {
+        if (StringUtils.hasText(providerEventId) && callbackRepository.findByProviderEventId(providerEventId).isPresent()) {
+            log.info("Skipping duplicate callback persist for providerEventId={} callbackType={}", providerEventId, callbackType);
+            return;
+        }
+
         PaymentCallbackEntity callback = new PaymentCallbackEntity();
         callback.setPaymentIntent(payment);
         callback.setPayout(payout);
@@ -383,6 +510,53 @@ public class PaymentService {
     private EscrowTransaction getEscrowOrThrow(UUID escrowId) {
         return escrowRepository.findById(escrowId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Escrow transaction not found"));
+    }
+
+    private UUID requireActorUserId(UUID actorUserId) {
+        if (actorUserId == null) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Missing required header: X-Actor-User-Id");
+        }
+        userRepository.findById(actorUserId)
+                .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Actor user not found"));
+        return actorUserId;
+    }
+
+    private PaymentIntentFinanceResponse toPaymentIntentFinanceResponse(PaymentIntentEntity payment) {
+        return PaymentIntentFinanceResponse.builder()
+                .paymentId(payment.getId())
+                .transactionId(payment.getTransaction() == null ? null : payment.getTransaction().getId())
+                .transactionReference(payment.getTransaction() == null ? null : payment.getTransaction().getReference())
+                .buyerId(payment.getBuyer() == null ? null : payment.getBuyer().getId())
+                .sellerId(payment.getSeller() == null ? null : payment.getSeller().getId())
+                .amount(payment.getAmount())
+                .currency(payment.getCurrency())
+                .status(payment.getStatus())
+                .paymentMethod(payment.getPaymentMethod())
+                .phoneNumber(payment.getPhoneNumber())
+                .mpesaReceiptNumber(payment.getMpesaReceiptNumber())
+                .paidAt(payment.getPaidAt())
+                .createdAt(payment.getCreatedAt())
+                .updatedAt(payment.getUpdatedAt())
+                .build();
+    }
+
+    private PayoutFinanceResponse toPayoutFinanceResponse(PayoutEntity payout) {
+        return PayoutFinanceResponse.builder()
+                .payoutId(payout.getId())
+                .transactionId(payout.getTransaction() == null ? null : payout.getTransaction().getId())
+                .transactionReference(payout.getTransaction() == null ? null : payout.getTransaction().getReference())
+                .sellerId(payout.getSeller() == null ? null : payout.getSeller().getId())
+                .amount(payout.getAmount())
+                .currency(payout.getCurrency())
+                .status(payout.getStatus())
+                .conversationId(payout.getConversationId())
+                .originatorConversationId(payout.getOriginatorConversationId())
+                .resultCode(payout.getResultCode())
+                .resultDescription(payout.getResultDescription())
+                .paidAt(payout.getPaidAt())
+                .createdAt(payout.getCreatedAt())
+                .updatedAt(payout.getUpdatedAt())
+                .build();
     }
 
     private void assertStateIn(EscrowTransaction transaction, List<String> statuses) {

@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.UUID;
 
 @Data
@@ -24,4 +25,6 @@ public class DisputeCreateRequest {
 
     @NotBlank(message = "Dispute description can not be empty")
     private String description;
+
+    private List<String> evidenceUrls;
 }

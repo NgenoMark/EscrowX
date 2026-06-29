@@ -1,4 +1,6 @@
 package mobile.project.escrowx.seller
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.os.Bundle
@@ -34,7 +36,7 @@ class RequestAcceptedActivity : ComponentActivity() {
         val transactionId = intent.getStringExtra("TRANSACTION_ID") ?: "EX-9284-KNY"
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 RequestAcceptedScreen(transactionId = transactionId)
             }
         }

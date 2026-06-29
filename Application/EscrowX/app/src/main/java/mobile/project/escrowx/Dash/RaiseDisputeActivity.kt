@@ -1,6 +1,9 @@
 @file:Suppress("SpellCheckingInspection")
 package mobile.project.escrowx.dash
 
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -32,6 +35,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import kotlinx.coroutines.launch
 import mobile.project.escrowx.R
 import mobile.project.escrowx.RaiseDisputeRequest
@@ -51,7 +57,7 @@ class RaiseDisputeActivity : ComponentActivity() {
         val transactionAmount = intent.getStringExtra("TRANSACTION_AMOUNT") ?: "0"
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 RaiseDisputeScreen(
                     transactionId = transactionId,
                     transactionTitle = transactionTitle,
@@ -70,29 +76,42 @@ fun RaiseDisputeScreen(
     transactionAmount: String
 ) {
     val context = LocalContext.current
+    val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
 
-    var selectedReason by remember { mutableStateOf("") }
+    data class ReasonOption(val label: String, val backendCategory: String)
+
+    val userRole = session.getUserRole()?.uppercase(Locale.getDefault()) ?: "BUYER"
+    val isSeller = userRole == "SELLER"
+
+    val reasonOptions = if (isSeller) {
+        listOf(
+            ReasonOption("Non-payment by buyer", "NON_PAYMENT"),
+            ReasonOption("Other", "OTHER")
+        )
+    } else {
+        listOf(
+            ReasonOption("Item not received", "NON_DELIVERY"),
+            ReasonOption("Defective item", "DEFECTIVE_ITEM"),
+            ReasonOption("Item not as described", "NOT_AS_DESCRIBED"),
+            ReasonOption("Other", "OTHER")
+        )
+    }
+
+    var selectedReason by remember { mutableStateOf<ReasonOption?>(null) }
     var otherReasonText by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf(transactionAmount) }
     var description by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     val attachedFiles = remember { mutableStateListOf<Uri>() }
     var showImagePickerDialog by remember { mutableStateOf(false) }
+    var pendingCameraUri by remember { mutableStateOf<Uri?>(null) }
 
     var expanded by remember { mutableStateOf(false) }
-    val reasons = listOf(
-        "Item not received",
-        "Item not as described",
-        "Seller unresponsive",
-        "Wrong item delivered",
-        "Damaged item",
-        "Other"
-    )
 
-    val isOtherSelected = selectedReason == "Other"
-    val isFormValid = selectedReason.isNotBlank() &&
+    val isOtherSelected = selectedReason?.backendCategory == "OTHER"
+    val isFormValid = selectedReason != null &&
             (!isOtherSelected || otherReasonText.isNotBlank()) &&
             description.isNotBlank()
 
@@ -114,8 +133,10 @@ fun RaiseDisputeScreen(
         contract = ActivityResultContracts.TakePicture()
     ) { success ->
         if (success) {
-            // In a real app, you'd upload and get URL, then add to attachedFiles
-            Toast.makeText(context, "Photo captured (upload not implemented)", Toast.LENGTH_SHORT).show()
+            pendingCameraUri?.let {
+                attachedFiles.add(it)
+                Toast.makeText(context, "Photo added", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -131,6 +152,7 @@ fun RaiseDisputeScreen(
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             val photoFile = createImageFile()
             val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", photoFile)
+            pendingCameraUri = uri
             cameraLauncher.launch(uri)
         } else {
             cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
@@ -167,7 +189,7 @@ fun RaiseDisputeScreen(
     fun submitDispute() {
         if (!isFormValid) {
             when {
-                selectedReason.isBlank() -> Toast.makeText(context, "Please select a dispute reason", Toast.LENGTH_SHORT).show()
+                selectedReason == null -> Toast.makeText(context, "Please select a dispute reason", Toast.LENGTH_SHORT).show()
                 isOtherSelected && otherReasonText.isBlank() -> Toast.makeText(context, "Please specify the reason", Toast.LENGTH_SHORT).show()
                 description.isBlank() -> Toast.makeText(context, "Please provide a detailed description", Toast.LENGTH_SHORT).show()
             }
@@ -175,15 +197,11 @@ fun RaiseDisputeScreen(
         }
 
         isLoading = true
-        val finalReason = if (isOtherSelected) otherReasonText else selectedReason
-        // Map to backend category enum
-        val category = when (finalReason) {
-            "Item not received" -> "NON_DELIVERY"
-            "Item not as described" -> "ITEM_NOT_AS_DESCRIBED"
-            "Damaged item" -> "DAMAGED_ITEM"
-            "Wrong item delivered" -> "WRONG_ITEM"
-            "Seller unresponsive" -> "SELLER_UNRESPONSIVE"
-            else -> "OTHER"
+        val category = selectedReason?.backendCategory ?: "OTHER"
+        val finalDescription = if (isOtherSelected) {
+            "Other reason: ${otherReasonText.trim()}\n\n${description.trim()}"
+        } else {
+            description.trim()
         }
 
         scope.launch {
@@ -196,10 +214,31 @@ fun RaiseDisputeScreen(
                     return@launch
                 }
 
+                val evidenceUrls = mutableListOf<String>()
+                attachedFiles.forEach { uri ->
+                    val file = uriToTempFile(context, uri, "dispute_evidence")
+                    if (file != null && file.exists()) {
+                        val body = file.asRequestBody("image/*".toMediaTypeOrNull())
+                        val part = MultipartBody.Part.createFormData("file", file.name, body)
+                        val uploadResponse = RetrofitClient.authenticated(token)
+                            .uploadDisputeImage(part, transactionId)
+                        if (uploadResponse.isSuccessful && uploadResponse.body() != null) {
+                            evidenceUrls.add(uploadResponse.body()!!.url)
+                        }
+                    }
+                }
+
+                if (attachedFiles.isNotEmpty() && evidenceUrls.isEmpty()) {
+                    Toast.makeText(context, "Failed to upload evidence images", Toast.LENGTH_LONG).show()
+                    isLoading = false
+                    return@launch
+                }
+
                 val request = RaiseDisputeRequest(
                     transactionId = transactionId,
                     category = category,
-                    description = description
+                    description = finalDescription,
+                    evidenceUrls = evidenceUrls
                 )
                 val response = RetrofitClient.authenticated(token).raiseDispute(actorUserId, request)
                 if (response.isSuccessful && response.body() != null) {
@@ -220,13 +259,13 @@ fun RaiseDisputeScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Raise Dispute", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F)) },
+                title = { Text("Raise Dispute", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface) },
                 navigationIcon = {
                     IconButton(onClick = { (context as? RaiseDisputeActivity)?.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = colorScheme.primary)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White, titleContentColor = Color(0xFF00236F))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = colorScheme.background, titleContentColor = colorScheme.onSurface)
             )
         }
     ) { padding ->
@@ -234,7 +273,7 @@ fun RaiseDisputeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFFF9F9FF))
+                .background(colorScheme.background)
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
@@ -281,31 +320,44 @@ fun RaiseDisputeScreen(
 
             // Dispute Reason Dropdown
             Text("Dispute Reason *", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF00236F), modifier = Modifier.padding(bottom = 8.dp))
+            Text(
+                text = if (isSeller) {
+                    "Seller reasons: Non-payment, Other"
+                } else {
+                    "Buyer reasons: Non-delivery, Defective item, Not as described, Other"
+                },
+                fontSize = 12.sp,
+                color = Color.Gray,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
             ExposedDropdownMenuBox(
                 expanded = expanded,
                 onExpandedChange = { expanded = it }
             ) {
                 OutlinedTextField(
-                    value = selectedReason,
+                    value = selectedReason?.label.orEmpty(),
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("Select Reason") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
                     shape = RoundedCornerShape(12.dp),
-                    isError = selectedReason.isBlank(),
+                    isError = selectedReason == null,
                     colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF00236F), unfocusedBorderColor = Color.Gray)
                 )
                 ExposedDropdownMenu(
                     expanded = expanded,
                     onDismissRequest = { expanded = false }
                 ) {
-                    reasons.forEach { reasonItem ->
+                    reasonOptions.forEach { reasonItem ->
                         DropdownMenuItem(
-                            text = { Text(reasonItem) },
+                            text = { Text(reasonItem.label) },
                             onClick = {
                                 selectedReason = reasonItem
                                 expanded = false
+                                if (reasonItem.backendCategory != "OTHER") {
+                                    otherReasonText = ""
+                                }
                             }
                         )
                     }

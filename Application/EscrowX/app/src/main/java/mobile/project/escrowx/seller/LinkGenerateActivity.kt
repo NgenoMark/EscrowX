@@ -1,4 +1,6 @@
 package mobile.project.escrowx.seller
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.net.Uri
@@ -29,6 +31,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.ui.components.SellerNavBar
+import mobile.project.escrowx.ui.components.SellerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 
 import mobile.project.escrowx.dash.ProfileActivity
 import mobile.project.escrowx.dash.TransactionsActivity
@@ -40,7 +45,7 @@ class LinkGeneratedActivity : ComponentActivity() {
         val paymentLink = intent.getStringExtra("PAYMENT_LINK") ?: "escrowx.com/pay/default"
 
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 LinkGeneratedScreen(paymentLink = paymentLink)
             }
         }
@@ -116,7 +121,7 @@ fun LinkGeneratedScreen(paymentLink: String) {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF9F9FF),
+                    containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = Color(0xFF00236F)
                 )
             )
@@ -339,47 +344,20 @@ fun ShareOptionButton(
 @Composable
 fun LinkGeneratedBottomNavigation() {
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(1) }
-
-    NavigationBar(
-        modifier = Modifier.height(80.dp),
-        containerColor = Color(0xFFF9F9FF),
-        tonalElevation = 0.dp
-    ) {
-        NavigationBarItem(
-            selected = selectedTab == 0,
-            onClick = {
-                selectedTab = 0
-                context.startActivity(Intent(context, SellerDashboardActivity::class.java))
-            },
-            icon = { Icon(Icons.Default.Home, contentDescription = "Home", modifier = Modifier.size(24.dp)) },
-            label = { Text("Home", fontSize = 11.sp) }
-        )
-
-        NavigationBarItem(
-            selected = selectedTab == 1,
-            onClick = {
-                selectedTab = 1
-                context.startActivity(Intent(context, TransactionsActivity::class.java))
-            },
-            icon = {
-                Icon(
-                    Icons.Default.AccountBalanceWallet,
-                    contentDescription = "Transactions",
-                    modifier = Modifier.size(24.dp)
-                )
-            },
-            label = { Text("Transactions", fontSize = 11.sp) }
-        )
-
-        NavigationBarItem(
-            selected = selectedTab == 2,
-            onClick = {
-                selectedTab = 2
-                context.startActivity(Intent(context, ProfileActivity::class.java))
-            },
-            icon = { Icon(Icons.Default.Person, contentDescription = "Profile", modifier = Modifier.size(24.dp)) },
-            label = { Text("Profile", fontSize = 11.sp) }
-        )
-    }
+    SellerNavBar(
+        selectedIndex = SellerNavItem.Transactions.index,
+        onItemSelected = { item ->
+            when (item) {
+                SellerNavItem.Home -> navigateTab(context, SellerDashboardActivity::class.java)
+                SellerNavItem.Transactions -> {
+                    navigateTab(
+                        context,
+                        TransactionsActivity::class.java,
+                        Bundle().apply { putString("ROLE", "SELLER") }
+                    )
+                }
+                SellerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
+            }
+        }
+    )
 }

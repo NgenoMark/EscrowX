@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.EscrowX" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.EscrowX" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@color/app_background_light</item>
+        <item name="android:colorBackground">@color/app_background_light</item>
+    </style>
+
+    <style name="Theme.EscrowX.SplashFull" parent="Theme.EscrowX">
+        <item name="android:windowBackground">@color/auth_screen_bg</item>
+    </style>
+
+    <style name="Theme.EscrowX.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/auth_screen_bg</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/escrowx_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/brand_primary</item>
+        <item name="postSplashScreenTheme">@style/Theme.EscrowX</item>
+    </style>
 </resources>

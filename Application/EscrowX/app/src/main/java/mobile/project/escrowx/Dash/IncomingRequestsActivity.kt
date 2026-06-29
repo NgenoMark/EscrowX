@@ -1,4 +1,6 @@
 package mobile.project.escrowx.dash
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 import android.content.Intent
 import android.os.Bundle
@@ -30,6 +32,7 @@ import kotlinx.coroutines.launch
 import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
+import java.util.Locale
 
 data class IncomingRequest(
     val id: String,
@@ -44,7 +47,7 @@ class IncomingRequestsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            MaterialTheme {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
                 IncomingRequestsScreen()
             }
         }
@@ -65,30 +68,35 @@ fun IncomingRequestsScreen() {
     LaunchedEffect(Unit) {
         scope.launch {
             val token = session.getAccessToken()
-            if (token.isNullOrBlank()) {
+            val buyerId = session.getUserId()
+            if (token.isNullOrBlank() || buyerId.isNullOrBlank()) {
                 error = "Please login again"
                 isLoading = false
                 return@launch
             }
 
             try {
-                delay(1000)
-                incomingRequests = listOf(
-                    IncomingRequest(
-                        id = "1",
-                        sellerName = "Tech Haven KE",
-                        businessName = "Tech Haven KE",
-                        itemTitle = "Payment for Wireless Mouse",
-                        amount = "8,200"
-                    ),
-                    IncomingRequest(
-                        id = "2",
-                        sellerName = "Phone Mart Kenya",
-                        businessName = "Phone Mart Kenya",
-                        itemTitle = "iPhone 15 Pro",
-                        amount = "125,000"
-                    )
-                )
+                // Fetching using /api/v1/transactions/buyer/{buyerId}
+                val response = RetrofitClient.authenticated(token).getTransactionsByBuyer(buyerId)
+                if (response.isSuccessful && response.body() != null) {
+                    val allTransactions = response.body()!!
+                    // Filter for CREATED status which represents incoming requests for the buyer
+                    incomingRequests = allTransactions.filter {
+                        it.status.equals("CREATED", ignoreCase = true) 
+                    }.map { txn ->
+                        val amountVal = txn.amount
+                        IncomingRequest(
+                            id = txn.id,
+                            sellerName = "Seller ${txn.sellerId.take(6)}",
+                            businessName = "Business",
+                            itemTitle = txn.title,
+                            amount = String.format(Locale.getDefault(), "%,.0f", amountVal),
+                            status = txn.status
+                        )
+                    }
+                } else {
+                    error = "Failed to load requests: ${response.code()}"
+                }
                 isLoading = false
             } catch (e: Exception) {
                 error = "Network error: ${e.message}"
@@ -120,7 +128,7 @@ fun IncomingRequestsScreen() {
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color(0xFFF9F9FF)
+                    containerColor = MaterialTheme.colorScheme.background
                 )
             )
         }

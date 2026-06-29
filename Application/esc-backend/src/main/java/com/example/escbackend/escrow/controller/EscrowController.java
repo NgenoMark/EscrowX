@@ -60,10 +60,19 @@ public class EscrowController {
     }
 
 
-    @PostMapping("/transaction/{id}/approve-transaction")
+    
+    @PostMapping("/transactions/{id}/decline-transaction")
+    public EscrowResponse declineTransactionPlural(
+            @PathVariable UUID id,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return escrowService.declineTransaction(id, actorUserId);
+    }
+
+    @PostMapping("/transactions/{id}/approve-transaction")
     public EscrowResponse approveTransaction(
             @PathVariable UUID id,
-            @RequestHeader("X_Actor_User_Id") UUID actorUserId
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId
     )
     {
         return escrowService.approveTransaction(id, actorUserId);

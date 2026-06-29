@@ -5,10 +5,13 @@ import com.example.escbackend.common.constants.EscrowStatus; // Assumed name for
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.dispute.dto.*;
+import com.example.escbackend.dispute.entity.DisputeEvidenceEntity;
 import com.example.escbackend.dispute.entity.DisputeEntity;
+import com.example.escbackend.dispute.repository.DisputeEvidenceRepository;
 import com.example.escbackend.dispute.repository.DisputeRepository;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository; // Assumed repository name
+import com.example.escbackend.escrow.service.TransactionStatusHistoryService;
 import com.example.escbackend.audit.entity.AuditLogEntity;
 import com.example.escbackend.audit.repository.AuditLogRepository;
 import com.example.escbackend.user.entity.UserEntity;
@@ -22,29 +25,37 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class DisputeService {
 
     private final DisputeRepository disputeRepository;
+    private final DisputeEvidenceRepository disputeEvidenceRepository;
     private final EscrowRepository escrowRepository;
     private final UserRepository userRepository;
     private final AdminAuthorizationService authz;
     private final AuditLogRepository auditRepo;
+    private final TransactionStatusHistoryService transactionStatusHistoryService;
 
     public DisputeService(
             DisputeRepository disputeRepository,
+            DisputeEvidenceRepository disputeEvidenceRepository,
             EscrowRepository escrowRepository,
             UserRepository userRepository,
             AdminAuthorizationService authz,
-            AuditLogRepository auditRepo) {
+            AuditLogRepository auditRepo,
+            TransactionStatusHistoryService transactionStatusHistoryService) {
         this.disputeRepository = disputeRepository;
+        this.disputeEvidenceRepository = disputeEvidenceRepository;
         this.escrowRepository = escrowRepository;
         this.userRepository = userRepository;
         this.authz = authz;
         this.auditRepo = auditRepo;
+        this.transactionStatusHistoryService = transactionStatusHistoryService;
     }
 
     @Transactional
@@ -86,9 +97,27 @@ public class DisputeService {
 
         dispute = disputeRepository.save(dispute);
 
+        if (request.getEvidenceUrls() != null && !request.getEvidenceUrls().isEmpty()) {
+            for (String evidenceUrl : request.getEvidenceUrls()) {
+                if (evidenceUrl == null || evidenceUrl.isBlank()) {
+                    continue;
+                }
+                DisputeEvidenceEntity evidence = new DisputeEvidenceEntity();
+                evidence.setDispute(dispute);
+                evidence.setUploadedBy(raisedBy);
+                evidence.setFileUrl(evidenceUrl.trim());
+                evidence.setNote("Uploaded during dispute creation");
+                disputeEvidenceRepository.save(evidence);
+            }
+        }
+
         // 6. Push Escrow transaction status to DISPUTED
-        transaction.setStatus(EscrowStatus.DISPUTED.name());
-        escrowRepository.save(transaction);
+        updateEscrowStatus(
+            transaction,
+            EscrowStatus.DISPUTED.name(),
+            actorUserId,
+            "Dispute raised: " + request.getCategory()
+        );
 
         saveAudit(actorUserId, "CREATE_DISPUTE", dispute.getId(),
                 "Dispute raised under category: " + request.getCategory());
@@ -104,9 +133,9 @@ public class DisputeService {
     }
 
     @Transactional
-    public DisputeDetailsResponse assignAdmin(UUID disputeId, UUID adminUserId) {
+    public DisputeDetailsResponse assignAdmin(UUID disputeId, UUID adminUserId, DisputeAssignAdminRequest request) {
         // 1. Restrict to Admin/SuperAdmin
-        authz.requireAdminOrSuperAdmin(adminUserId);
+        UserEntity actor = authz.requireAdminOrSuperAdmin(adminUserId);
 
         DisputeEntity dispute = disputeRepository.findById(disputeId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
@@ -115,16 +144,51 @@ public class DisputeService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot assign an admin to a closed dispute.");
         }
 
-        UserEntity admin = userRepository.findById(adminUserId)
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Admin user not found."));
+        UUID assigneeId = (request != null && request.getAssigneeAdminId() != null)
+            ? request.getAssigneeAdminId()
+            : adminUserId;
 
-        dispute.setAssignedAdmin(admin);
+        UserEntity assignee = userRepository.findById(assigneeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Assignee admin user not found."));
+
+        if (assignee.getRole() != UserRole.ADMIN && assignee.getRole() != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Assignee must have ADMIN or SUPER_ADMIN role.");
+        }
+
+        UUID previousAdminId = dispute.getAssignedAdmin() != null ? dispute.getAssignedAdmin().getId() : null;
+
+        dispute.setAssignedAdmin(assignee);
         dispute.setStatus(DisputeStatus.UNDER_REVIEW);
         disputeRepository.save(dispute);
 
-        saveAudit(adminUserId, "ASSIGN_DISPUTE_ADMIN", disputeId, "Admin assigned to dispute case.");
+        String assignmentNote;
+        if (previousAdminId == null) {
+            assignmentNote = String.format(
+                "Assigned admin %s by %s",
+                assignee.getId(),
+                actor.getId()
+            );
+        } else {
+            assignmentNote = String.format(
+                "Reassigned dispute from %s to %s by %s",
+                previousAdminId,
+                assignee.getId(),
+                actor.getId()
+            );
+        }
+
+        saveAudit(adminUserId, "ASSIGN_DISPUTE_ADMIN", disputeId, assignmentNote);
 
         return mapToDetailsResponse(dispute);
+    }
+
+    @Transactional
+    public DisputeDetailsResponse reassignAdmin(UUID disputeId, UUID adminUserId, DisputeAssignAdminRequest request) {
+        if (request == null || request.getAssigneeAdminId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "assigneeAdminId is required for reassign.");
+        }
+
+        return assignAdmin(disputeId, adminUserId, request);
     }
 
     @Transactional
@@ -164,10 +228,148 @@ public class DisputeService {
         return mapToDetailsResponse(dispute);
     }
 
+    @Transactional
+    public DisputeDetailsResponse assignActionRequired(
+            UUID disputeId,
+            UUID adminUserId,
+            DisputeActionRequiredRequest request
+    ) {
+        authz.requireAdminOrSuperAdmin(adminUserId);
+
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || dispute.getStatus() == DisputeStatus.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot assign action for a closed dispute.");
+        }
+
+        if (dispute.getAssignedAdmin() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "No admin is assigned to this dispute yet.");
+        }
+
+        if (!dispute.getAssignedAdmin().getId().equals(adminUserId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Only the assigned admin can assign required action for this dispute.");
+        }
+
+        String sellerAction = request.getAction().trim();
+        dispute.setStatus(DisputeStatus.ACTION_REQUIRED);
+        dispute.setResolution(sellerAction);
+        dispute.setResolvedAt(null);
+        disputeRepository.save(dispute);
+
+        saveAudit(adminUserId, "ASSIGN_ACTION_REQUIRED", disputeId, sellerAction);
+        return mapToDetailsResponse(dispute);
+    }
+
+        @Transactional
+        public DisputeDetailsResponse closeDispute(UUID disputeId, UUID actorUserId, DisputeCloseRequest request) {
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || dispute.getStatus() == DisputeStatus.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Dispute is already closed.");
+        }
+
+        boolean isCreator = dispute.getRaisedBy() != null
+            && dispute.getRaisedBy().getId().equals(actorUserId);
+        boolean isAssignedAdmin = dispute.getAssignedAdmin() != null
+            && dispute.getAssignedAdmin().getId().equals(actorUserId);
+
+        if (!isCreator && !isAssignedAdmin) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                "Only the assigned admin or the dispute creator can close this dispute.");
+        }
+
+        String reason = request != null && request.getReason() != null && !request.getReason().isBlank()
+            ? request.getReason().trim()
+            : (isCreator ? "Closed by dispute creator" : "Closed by assigned admin");
+
+        dispute.setStatus(DisputeStatus.REJECTED);
+        dispute.setResolution(reason);
+        dispute.setResolvedAt(OffsetDateTime.now());
+        disputeRepository.save(dispute);
+
+        saveAudit(actorUserId, "CLOSE_DISPUTE", disputeId, reason);
+        return mapToDetailsResponse(dispute);
+        }
+
+        @Transactional
+        public DisputeDetailsResponse addEvidence(UUID disputeId, UUID actorUserId, DisputeEvidenceUpdateRequest request) {
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        ensureDisputeAccess(dispute, actorUserId);
+        ensureDisputeOpenForEvidenceChanges(dispute);
+
+        UserEntity actor = userRepository.findById(actorUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User entity not found."));
+
+        String normalizedUrl = request.getEvidenceUrl().trim();
+
+        boolean alreadyExists = disputeEvidenceRepository
+            .findByDisputeIdOrderByCreatedAtAsc(disputeId)
+            .stream()
+            .map(DisputeEvidenceEntity::getFileUrl)
+            .filter(Objects::nonNull)
+            .map(String::trim)
+            .anyMatch(normalizedUrl::equals);
+
+        if (alreadyExists) {
+            throw new ApiException(HttpStatus.CONFLICT, "Evidence image is already attached to this dispute.");
+        }
+
+        DisputeEvidenceEntity evidence = new DisputeEvidenceEntity();
+        evidence.setDispute(dispute);
+        evidence.setUploadedBy(actor);
+        evidence.setFileUrl(normalizedUrl);
+        evidence.setNote("Uploaded from dispute details");
+        disputeEvidenceRepository.save(evidence);
+
+        saveAudit(actorUserId, "ADD_DISPUTE_EVIDENCE", disputeId, "Added evidence from dispute details.");
+        return mapToDetailsResponse(dispute);
+        }
+
+        @Transactional
+        public DisputeDetailsResponse removeEvidence(UUID disputeId, UUID actorUserId, DisputeEvidenceUpdateRequest request) {
+        DisputeEntity dispute = disputeRepository.findById(disputeId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute not found."));
+
+        ensureDisputeAccess(dispute, actorUserId);
+        ensureDisputeOpenForEvidenceChanges(dispute);
+
+        String normalizedUrl = request.getEvidenceUrl().trim();
+        DisputeEvidenceEntity evidence = disputeEvidenceRepository
+            .findFirstByDisputeIdAndFileUrl(disputeId, normalizedUrl)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Evidence image not found on this dispute."));
+
+        disputeEvidenceRepository.delete(evidence);
+
+        saveAudit(actorUserId, "REMOVE_DISPUTE_EVIDENCE", disputeId, "Removed evidence from dispute details.");
+        return mapToDetailsResponse(dispute);
+        }
+
     @Transactional(readOnly = true)
     public DisputeDetailsResponse getById(UUID id, UUID actorUserId) {
         DisputeEntity dispute = disputeRepository.findById(id)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute records not found."));
+
+        ensureDisputeAccess(dispute, actorUserId);
+
+        return mapToDetailsResponse(dispute);
+        }
+
+        @Transactional(readOnly = true)
+        public DisputeDetailsResponse getByTransactionId(UUID transactionId, UUID actorUserId) {
+        DisputeEntity dispute = disputeRepository.findByTransactionId(transactionId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute records not found."));
+
+        ensureDisputeAccess(dispute, actorUserId);
+
+        return mapToDetailsResponse(dispute);
+        }
+
+        private void ensureDisputeAccess(DisputeEntity dispute, UUID actorUserId) {
 
         // Security check: Only the involved buyer, seller, or an administrator can pull
         // this information
@@ -181,8 +383,12 @@ public class DisputeService {
         if (!isAdmin && !isPartToTransaction) {
             throw new ApiException(HttpStatus.FORBIDDEN, "You do not have authorization to view this dispute case.");
         }
+    }
 
-        return mapToDetailsResponse(dispute);
+    private void ensureDisputeOpenForEvidenceChanges(DisputeEntity dispute) {
+        if (dispute.getStatus() == DisputeStatus.RESOLVED || dispute.getStatus() == DisputeStatus.REJECTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot modify evidence for a closed dispute.");
+        }
     }
 
     public Page<DisputeSummaryResponse> listDisputes(String status, int page, int size, UUID adminUserId) {
@@ -213,6 +419,12 @@ public class DisputeService {
     }
 
     private DisputeDetailsResponse mapToDetailsResponse(DisputeEntity dispute) {
+        List<String> evidenceUrls = disputeEvidenceRepository
+            .findByDisputeIdOrderByCreatedAtAsc(dispute.getId())
+            .stream()
+            .map(DisputeEvidenceEntity::getFileUrl)
+            .toList();
+
         return DisputeDetailsResponse.builder()
                 .id(dispute.getId())
                 .transactionId(dispute.getTransaction().getId())
@@ -226,6 +438,7 @@ public class DisputeService {
                 .assignedAdminId(dispute.getAssignedAdmin() != null ? dispute.getAssignedAdmin().getId() : null)
                 .resolution(dispute.getResolution())
                 .resolvedAt(dispute.getResolvedAt())
+                .evidenceUrls(evidenceUrls)
                 .createdAt(dispute.getCreatedAt())
                 .updatedAt(dispute.getUpdatedAt())
                 .build();
@@ -239,5 +452,17 @@ public class DisputeService {
         log.setEntityId(entityId);
         log.setMetadata(Map.of("reason", reason));
         auditRepo.save(log);
+    }
+
+    private void updateEscrowStatus(
+            EscrowTransaction transaction,
+            String newStatus,
+            UUID changedBy,
+            String reason
+    ) {
+        String fromStatus = transaction.getStatus();
+        transaction.setStatus(newStatus);
+        EscrowTransaction saved = escrowRepository.save(transaction);
+        transactionStatusHistoryService.recordStatusChange(saved, fromStatus, newStatus, changedBy, reason);
     }
 }

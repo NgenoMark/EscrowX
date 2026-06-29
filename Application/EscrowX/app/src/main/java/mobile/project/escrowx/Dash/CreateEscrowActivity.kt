@@ -1,14 +1,21 @@
 package mobile.project.escrowx.dash
 
+import mobile.project.escrowx.ui.theme.EscrowXTheme
+import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -20,10 +27,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Job
@@ -34,6 +46,11 @@ import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.seller.SellerDashboardActivity
+import mobile.project.escrowx.ui.components.BuyerNavBar
+import mobile.project.escrowx.ui.components.BuyerNavItem
+import mobile.project.escrowx.ui.components.SellerNavBar
+import mobile.project.escrowx.ui.components.SellerNavItem
+import mobile.project.escrowx.ui.components.navigateTab
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -43,7 +60,10 @@ class CreateEscrowActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val role = intent.getStringExtra("ROLE") ?: "BUYER"
         setContent {
-            MaterialTheme {
+            EscrowXTheme(
+                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                dynamicColor = false
+            ) {
                 UnifiedCreateEscrowScreen(role = role)
             }
         }
@@ -54,13 +74,14 @@ class CreateEscrowActivity : ComponentActivity() {
 @Composable
 fun UnifiedCreateEscrowScreen(role: String) {
     val context = LocalContext.current
+    val colorScheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
 
     val isBuyer = role.equals("BUYER", ignoreCase = true)
-    // New label: for buyer, "Escrow User Contact", for seller, "Buyer Contact"
-    val searchLabel = if (isBuyer) "Escrow User Contact" else "Buyer Contact"
-    val addressLabel = "User's Delivery Address" // same for both
+    val searchLabel = "Buyer Contact"
+    val addressLabel = "Delivery Address"
+    val pageTitle = "Initialize Escrow"
 
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
@@ -83,13 +104,13 @@ fun UnifiedCreateEscrowScreen(role: String) {
 
     var isProcessing by remember { mutableStateOf(false) }
     var isSuccess by remember { mutableStateOf(false) }
-    var buttonText by remember { mutableStateOf(if (isBuyer) "Proceed to Payment" else "Initialize Escrow") }
+    var buttonText by remember { mutableStateOf("Initialize Escrow") }
 
     val parsedAmount = amount.toDoubleOrNull() ?: 0.0
     val escrowFee = parsedAmount * 0.015
     val totalAmount = parsedAmount + escrowFee
 
-    // Load logged‑in user profile (only needed for user ID and maybe role)
+    // Load logged‑in user profile
     LaunchedEffect(Unit) {
         scope.launch {
             val token = session.getAccessToken()
@@ -106,7 +127,7 @@ fun UnifiedCreateEscrowScreen(role: String) {
         }
     }
 
-    // Debounced search for the other party
+    // Debounced search
     var searchJob: Job? by remember { mutableStateOf(null) }
 
     fun performSearch(query: String) {
@@ -150,7 +171,6 @@ fun UnifiedCreateEscrowScreen(role: String) {
                 }
                 if (foundUser != null) {
                     searchResults = listOf(foundUser)
-                    // Always show the selected user's address
                     selectedUserAddress = foundUser.address ?: "No delivery address on file"
                 } else {
                     searchResults = emptyList()
@@ -221,7 +241,7 @@ fun UnifiedCreateEscrowScreen(role: String) {
         }
 
         isProcessing = true
-        buttonText = if (isBuyer) "Creating Escrow..." else "Initializing Escrow..."
+        buttonText = "Initializing Escrow..."
 
         scope.launch {
             try {
@@ -230,7 +250,7 @@ fun UnifiedCreateEscrowScreen(role: String) {
                 if (token.isNullOrBlank() || loggedUserId.isBlank()) {
                     Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_LONG).show()
                     isProcessing = false
-                    buttonText = if (isBuyer) "Proceed to Payment" else "Initialize Escrow"
+                    buttonText = "Initialize Escrow"
                     return@launch
                 }
 
@@ -240,64 +260,39 @@ fun UnifiedCreateEscrowScreen(role: String) {
                 val day = calendar.get(Calendar.DAY_OF_MONTH)
                 val deliveryDueAt = String.format("%04d-%02d-%02dT12:00:00Z", year, month, day)
 
-                // Determine buyerId and sellerId based on role
-                val buyerId: String
-                val sellerId: String
-                if (isBuyer) {
-                    // Buyer creates escrow: buyer = logged user, seller = selected user
-                    buyerId = loggedUserId
-                    sellerId = selectedUser!!.id
-                } else {
-                    // Seller creates escrow: seller = logged user, buyer = selected user
-                    buyerId = selectedUser!!.id
-                    sellerId = loggedUserId
-                }
+                // Business rule: creator is always the seller.
+                val buyerId: String = selectedUser!!.id
+                val sellerId: String = loggedUserId
 
                 val request = CreateEscrowRequest(
                     buyerId = buyerId,
                     sellerId = sellerId,
                     title = itemName,
                     productDescription = description.trim(),
-                    amount = parsedAmount,
+                    amount = totalAmount,
                     deliveryAddress = selectedUserAddress.trim(),
                     deliveryDueAt = deliveryDueAt
                 )
 
                 val response = RetrofitClient.authenticated(token).createEscrow(request)
                 if (response.isSuccessful && response.body() != null) {
-                    val escrow = response.body()!!
                     isSuccess = true
                     buttonText = "Success!"
-                    Toast.makeText(context, "Escrow ${if (isBuyer) "created" else "initialized"} successfully!", Toast.LENGTH_LONG).show()
-
-                    if (isBuyer) {
-                        val intent = Intent(context, PaymentActivity::class.java).apply {
-                            putExtra("ITEM_NAME", itemName)
-                            putExtra("TRANSACTION_AMOUNT", parsedAmount)
-                            putExtra("ESCROW_FEE", escrowFee)
-                            putExtra("SELLER_NAME", selectedUser?.displayName ?: selectedUser?.email)
-                            putExtra("TRANSACTION_ID", escrow.id)
-                            putExtra("DELIVERY_DATE", displayDate)
-                            putExtra("DELIVERY_METHOD", "Courier")
-                            putExtra("DELIVERY_ADDRESS", selectedUserAddress)
-                        }
-                        context.startActivity(intent)
-                    } else {
-                        context.startActivity(Intent(context, SellerDashboardActivity::class.java))
-                    }
+                    Toast.makeText(context, "Escrow initialized successfully!", Toast.LENGTH_LONG).show()
+                    context.startActivity(Intent(context, SellerDashboardActivity::class.java))
                     (context as? CreateEscrowActivity)?.finish()
                 } else {
                     val errorBody = response.errorBody()?.string()
                     println("Escrow creation failed: ${response.code()} - $errorBody")
-                    Toast.makeText(context, "Failed to ${if (isBuyer) "create" else "initialize"} escrow: ${response.code()}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "Failed to initialize escrow: ${response.code()}", Toast.LENGTH_LONG).show()
                     isProcessing = false
-                    buttonText = if (isBuyer) "Proceed to Payment" else "Initialize Escrow"
+                    buttonText = "Initialize Escrow"
                     isSuccess = false
                 }
             } catch (e: Exception) {
                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
                 isProcessing = false
-                buttonText = if (isBuyer) "Proceed to Payment" else "Initialize Escrow"
+                buttonText = "Initialize Escrow"
                 isSuccess = false
             }
         }
@@ -329,34 +324,68 @@ fun UnifiedCreateEscrowScreen(role: String) {
     }
 
     Scaffold(
+        containerColor = colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Create New Escrow", fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF151C27)) },
+                title = {
+                    Text(
+                        pageTitle,
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onSurface,
+                        letterSpacing = 0.3.sp
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = { (context as? CreateEscrowActivity)?.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF00236F))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colorScheme.onSurface
+                        )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFFF9F9FF), titleContentColor = Color(0xFF151C27))
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = colorScheme.surface,
+                    scrolledContainerColor = colorScheme.surface
+                )
             )
         },
         bottomBar = {
-            NavigationBar(modifier = Modifier.height(80.dp), containerColor = Color(0xFFF9F9FF), tonalElevation = 0.dp) {
-                val items = listOf("Home" to Icons.Default.Home, "Transactions" to Icons.Default.AccountBalanceWallet, "Profile" to Icons.Default.Person)
-                items.forEach { (label, icon) ->
-                    NavigationBarItem(
-                        selected = false,
-                        onClick = {
-                            if (isBuyer) {
-                                context.startActivity(Intent(context, BuyerDashboardActivity::class.java))
-                            } else {
-                                context.startActivity(Intent(context, SellerDashboardActivity::class.java))
+            if (isBuyer) {
+                BuyerNavBar(
+                    selectedIndex = BuyerNavItem.Home.index,
+                    onItemSelected = { item ->
+                        when (item) {
+                            BuyerNavItem.Home -> navigateTab(context, BuyerDashboardActivity::class.java)
+                            BuyerNavItem.Transactions -> {
+                                navigateTab(
+                                    context,
+                                    TransactionsActivity::class.java,
+                                    Bundle().apply { putString("ROLE", "BUYER") }
+                                )
                             }
-                        },
-                        icon = { Icon(icon, contentDescription = label, tint = Color(0xFF00236F)) },
-                        label = { Text(label, fontSize = 11.sp) }
-                    )
-                }
+                            BuyerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
+                        }
+                    }
+                )
+            } else {
+                SellerNavBar(
+                    selectedIndex = SellerNavItem.Home.index,
+                    onItemSelected = { item ->
+                        when (item) {
+                            SellerNavItem.Home -> navigateTab(context, SellerDashboardActivity::class.java)
+                            SellerNavItem.Transactions -> {
+                                navigateTab(
+                                    context,
+                                    TransactionsActivity::class.java,
+                                    Bundle().apply { putString("ROLE", "SELLER") }
+                                )
+                            }
+                            SellerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
+                        }
+                    }
+                )
             }
         }
     ) { paddingValues ->
@@ -364,240 +393,890 @@ fun UnifiedCreateEscrowScreen(role: String) {
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .background(Color(0xFFF9F9FF))
+                .background(colorScheme.background)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
         ) {
             if (isLoading) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF00236F))
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        CircularProgressIndicator(
+                            color = colorScheme.primary,
+                            strokeWidth = 3.dp,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Text(
+                            "Loading...",
+                            fontSize = 14.sp,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             } else {
-                Text("New Escrow Details", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF151C27))
+                // ===== PROGRESS INDICATOR =====
+                CreateEscrowProgress(
+                    currentStep = when {
+                        selectedUser != null && selectedDeliveryDate != null && itemName.isNotBlank() && description.isNotBlank() -> 4
+                        selectedUser != null && selectedDeliveryDate != null && itemName.isNotBlank() -> 3
+                        selectedUser != null && selectedDeliveryDate != null -> 2
+                        selectedUser != null -> 1
+                        else -> 0
+                    },
+                    colorScheme = colorScheme
+                )
+
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Item Info Card
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        Column {
-                            Text("Item Name", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651), modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                            OutlinedTextField(value = itemName, onValueChange = { itemName = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("e.g., iPhone 15 Pro") }, shape = RoundedCornerShape(8.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF00236F), unfocusedBorderColor = Color(0xFFC5C5D3)))
-                        }
-                        Column {
-                            Text("Transaction Amount (KES)", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651), modifier = Modifier.padding(start = 4.dp, bottom = 4.dp))
-                            OutlinedTextField(value = amount, onValueChange = { amount = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("0.00") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), shape = RoundedCornerShape(8.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF00236F), unfocusedBorderColor = Color(0xFFC5C5D3)), trailingIcon = { Text("KES", fontSize = 12.sp, color = Color(0xFF444651)) })
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Search Card
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(searchLabel, fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it; selectedUser = null; selectedUserAddress = ""; searchError = null },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("Search by email or phone") },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF00236F), unfocusedBorderColor = Color(0xFFC5C5D3), errorBorderColor = Color.Red),
-                            isError = searchError != null,
-                            leadingIcon = {
-                                if (isSearching) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color(0xFF00236F))
-                                } else {
-                                    Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF444651))
-                                }
-                            },
-                            trailingIcon = {
-                                if (selectedUser != null) {
-                                    Icon(Icons.Default.CheckCircle, contentDescription = "Verified", tint = Color(0xFF10B981))
-                                } else null
-                            }
-                        )
-                        if (searchError != null && selectedUser == null) {
-                            Text(searchError!!, fontSize = 11.sp, color = Color.Red, modifier = Modifier.padding(start = 4.dp))
-                        }
-                        if (searchResults.isNotEmpty() && selectedUser == null) {
-                            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(4.dp)) {
-                                Column {
-                                    searchResults.forEach { user ->
-                                        Row(modifier = Modifier.fillMaxWidth().clickable { selectUser(user) }.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Person, null, tint = Color(0xFF00236F), modifier = Modifier.size(20.dp))
-                                            Spacer(Modifier.width(12.dp))
-                                            Column {
-                                                Text(user.displayName ?: "User", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                                                Text(user.email, fontSize = 11.sp, color = Color(0xFF444651))
-                                            }
-                                        }
-                                        if (user != searchResults.last()) HorizontalDivider(color = Color(0xFFEEEEEE))
-                                    }
-                                }
-                            }
-                        }
-                        if (selectedUser != null) {
-                            Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(8.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE7EEFE))) {
-                                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Column {
-                                        Text(text = selectedUser?.displayName ?: selectedUser?.email ?: "", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00236F))
-                                        Text(text = "Email: ${selectedUser?.email ?: ""}", fontSize = 11.sp, color = Color(0xFF444651))
-                                        Text(text = "Phone: ${selectedUser?.phone ?: ""}", fontSize = 11.sp, color = Color(0xFF444651))
-                                    }
-                                    Icon(Icons.Default.Verified, contentDescription = "Verified", tint = Color(0xFF10B981), modifier = Modifier.size(24.dp))
-                                }
-                            }
-                        }
-                        Text(if (selectedUser != null) "✓ User verified! Proceed." else "Enter email or phone number to search and verify.", fontSize = 12.sp, color = if (selectedUser != null) Color(0xFF10B981) else Color(0xFF444651))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Delivery Date Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(2.dp)
+                // ===== ITEM DETAILS SECTION =====
+                SectionCard(
+                    title = "Item Details",
+                    icon = Icons.Default.ShoppingBag,
+                    colorScheme = colorScheme
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Delivery Date *", fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-                        Spacer(Modifier.height(8.dp))
+                    CreateEscrowTextField(
+                        value = itemName,
+                        onValueChange = { itemName = it },
+                        label = "Item Name",
+                        placeholder = "e.g., iPhone 15 Pro Max",
+                        leadingIcon = Icons.Default.ShoppingBag,
+                        colorScheme = colorScheme
+                    )
+
+                    CreateEscrowTextField(
+                        value = amount,
+                        onValueChange = { amount = it },
+                        label = "Transaction Amount",
+                        placeholder = "0.00",
+                        leadingIcon = Icons.Default.Money,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        trailingText = "KES",
+                        colorScheme = colorScheme
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ===== PARTY SEARCH SECTION =====
+                SectionCard(
+                    title = searchLabel,
+                    icon = Icons.Default.PersonSearch,
+                    colorScheme = colorScheme
+                ) {
+                    PartySearchSection(
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = {
+                            searchQuery = it
+                            selectedUser = null
+                            selectedUserAddress = ""
+                            searchError = null
+                        },
+                        isSearching = isSearching,
+                        searchResults = searchResults,
+                        searchError = searchError,
+                        selectedUser = selectedUser,
+                        onSelectUser = { user ->
+                            selectUser(user)
+                        },
+                        colorScheme = colorScheme
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ===== DELIVERY DETAILS SECTION =====
+                SectionCard(
+                    title = "Delivery Details",
+                    icon = Icons.Default.LocalShipping,
+                    colorScheme = colorScheme
+                ) {
+                    // Delivery Date
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showDatePicker = true }
+                    ) {
                         OutlinedTextField(
                             value = displayDate,
                             onValueChange = {},
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { showDatePicker = true },
+                            modifier = Modifier.fillMaxWidth(),
                             readOnly = true,
-                            placeholder = { Text("Select delivery date") },
-                            trailingIcon = {
-                                IconButton(onClick = { showDatePicker = true }) {
-                                    Icon(Icons.Default.DateRange, null)
-                                }
+                            enabled = false,
+                            placeholder = {
+                                Text(
+                                    "Select delivery date",
+                                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
                             },
-                            shape = RoundedCornerShape(8.dp),
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Default.CalendarToday,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = colorScheme.onSurfaceVariant
+                                )
+                            },
+                            trailingIcon = {
+                                Icon(
+                                    Icons.Default.ArrowDropDown,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(24.dp),
+                                    tint = colorScheme.onSurfaceVariant
+                                )
+                            },
+                            shape = RoundedCornerShape(12.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF00236F),
-                                unfocusedBorderColor = Color(0xFFC5C5D3)
+                                focusedBorderColor = colorScheme.primary,
+                                unfocusedBorderColor = colorScheme.outlineVariant,
+                                disabledBorderColor = colorScheme.outlineVariant,
+                                disabledTextColor = colorScheme.onSurface,
+                                disabledLeadingIconColor = colorScheme.onSurfaceVariant,
+                                disabledTrailingIconColor = colorScheme.onSurfaceVariant,
+                                disabledPlaceholderColor = colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                cursorColor = colorScheme.primary
                             ),
                             isError = selectedDeliveryDate == null,
                             supportingText = {
                                 if (selectedDeliveryDate == null) {
-                                    Text("Delivery date is required", fontSize = 11.sp, color = Color.Red)
+                                    Text(
+                                        "Delivery date is required",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
                                 }
                             }
                         )
                     }
-                }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                // Address Card (shows selected user's address)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    elevation = CardDefaults.cardElevation(2.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(addressLabel, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-                        Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(
-                            value = selectedUserAddress.ifEmpty { "Search and select a user to see their address" },
-                            onValueChange = {},
-                            readOnly = true,
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF00236F),
-                                unfocusedBorderColor = Color(0xFFC5C5D3),
-                                disabledTextColor = Color(0xFF444651)
-                            ),
-                            isError = selectedUserAddress.isBlank() || selectedUserAddress == "No delivery address on file",
-                            supportingText = {
-                                if (selectedUserAddress.isBlank() || selectedUserAddress == "No delivery address on file") {
-                                    Text("Selected user has no delivery address", fontSize = 11.sp, color = Color.Red)
-                                }
+                    // Delivery Address
+                    OutlinedTextField(
+                        value = selectedUserAddress.ifEmpty { "Search and select a user to see their address" },
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.LocationOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp),
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outlineVariant,
+                            disabledTextColor = colorScheme.onSurface,
+                            cursorColor = colorScheme.primary
+                        ),
+                        isError = selectedUserAddress.isBlank() || selectedUserAddress == "No delivery address on file",
+                        supportingText = {
+                            if (selectedUserAddress.isBlank() || selectedUserAddress == "No delivery address on file") {
+                                Text(
+                                    "Selected user has no delivery address",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.error
+                                )
                             }
-                        )
-                    }
+                        }
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Description Card
-                Card(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), colors = CardDefaults.cardColors(containerColor = Color.White), elevation = CardDefaults.cardElevation(2.dp)) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("Terms of Sale / Description", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFF444651))
-                        OutlinedTextField(value = description, onValueChange = { description = it }, modifier = Modifier.fillMaxWidth(), placeholder = { Text("Describe the item condition, inclusions, and agreed terms...") }, minLines = 4, maxLines = 4, shape = RoundedCornerShape(8.dp), colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Color(0xFF00236F), unfocusedBorderColor = Color(0xFFC5C5D3)))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Summary Card
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E3A8A)),
-                    elevation = CardDefaults.cardElevation(8.dp)
+                // ===== TERMS & DESCRIPTION SECTION =====
+                SectionCard(
+                    title = "Terms & Description",
+                    icon = Icons.Default.Description,
+                    colorScheme = colorScheme
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text("Transaction Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF90A8FF))
-                        Spacer(Modifier.height(12.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Item Price", fontSize = 14.sp, color = Color(0xFF90A8FF).copy(alpha = 0.8f))
-                            Text(formatCurrency(parsedAmount), fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
-                        }
-                        Spacer(Modifier.height(4.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Escrow Fee (1.5%)", fontSize = 14.sp, color = Color(0xFF90A8FF).copy(alpha = 0.8f))
-                            Text(formatCurrency(escrowFee), fontSize = 14.sp, color = Color(0xFF90A8FF))
-                        }
-                        Spacer(Modifier.height(8.dp))
-                        HorizontalDivider(color = Color(0xFF90A8FF).copy(alpha = 0.2f))
-                        Spacer(Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Total to Pay", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text(formatCurrency(totalAmount), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6CF8BB))
-                        }
-                    }
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = {
+                            Text(
+                                "Describe the item condition, inclusions, and agreed terms...",
+                                color = colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        },
+                        minLines = 4,
+                        maxLines = 4,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = colorScheme.primary,
+                            unfocusedBorderColor = colorScheme.outlineVariant,
+                            cursorColor = colorScheme.primary
+                        )
+                    )
                 }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // ===== TRANSACTION SUMMARY =====
+                TransactionSummary(
+                    parsedAmount = parsedAmount,
+                    escrowFee = escrowFee,
+                    totalAmount = totalAmount,
+                    formatCurrency = ::formatCurrency,
+                    colorScheme = colorScheme
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                // ===== SUBMIT BUTTON =====
                 Button(
                     onClick = { handleSubmit() },
-                    modifier = Modifier.fillMaxWidth().height(56.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = if (isSuccess) Color(0xFF006C49) else Color(0xFF00236F)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isSuccess) Color(0xFF10B981) else colorScheme.primary,
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 4.dp,
+                        pressedElevation = 2.dp
+                    ),
                     enabled = !isProcessing && selectedUser != null && selectedDeliveryDate != null &&
                             selectedUserAddress.isNotBlank() && selectedUserAddress != "No delivery address on file"
                 ) {
                     if (isProcessing) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                        Spacer(Modifier.width(8.dp))
-                        Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(22.dp),
+                            color = Color.White,
+                            strokeWidth = 2.5.dp
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            buttonText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White
+                        )
                     } else {
-                        Icon(if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Shield, null, modifier = Modifier.size(20.dp), tint = Color.White)
-                        Spacer(Modifier.width(8.dp))
-                        Text(buttonText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Icon(
+                            if (isSuccess) Icons.Default.CheckCircle else Icons.Default.Shield,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = Color.White
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Initialize Escrow",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            letterSpacing = 0.3.sp
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    "Funds will be held securely in escrow until the transaction is completed.",
-                    fontSize = 12.sp,
-                    color = Color(0xFF444651),
-                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
+
+                // Security Note
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.Security,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Funds held securely in escrow until completion",
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(32.dp))
             }
         }
+    }
+}
+
+// ===================== COMPOSABLE COMPONENTS =====================
+
+@Composable
+fun CreateEscrowProgress(
+    currentStep: Int,
+    colorScheme: ColorScheme
+) {
+    val steps = listOf("Party", "Delivery", "Item", "Terms")
+    val totalSteps = steps.size
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        steps.forEachIndexed { index, label ->
+            val isCompleted = index < currentStep
+            val isCurrent = index == currentStep
+            val isUpcoming = index > currentStep
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(
+                            when {
+                                isCompleted -> Color(0xFF10B981)
+                                isCurrent -> colorScheme.primary
+                                else -> colorScheme.outlineVariant.copy(alpha = 0.3f)
+                            }
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isCompleted) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Color.White
+                        )
+                    } else {
+                        Text(
+                            (index + 1).toString(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isCurrent) Color.White else colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Text(
+                    label,
+                    fontSize = 9.sp,
+                    color = when {
+                        isCompleted -> Color(0xFF10B981)
+                        isCurrent -> colorScheme.primary
+                        else -> colorScheme.onSurfaceVariant
+                    },
+                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
+            }
+
+            if (index < totalSteps - 1) {
+                Box(
+                    modifier = Modifier
+                        .weight(0.3f)
+                        .height(2.dp)
+                        .background(
+                            if (isCompleted) Color(0xFF10B981)
+                            else colorScheme.outlineVariant.copy(alpha = 0.3f)
+                        )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SectionCard(
+    title: String,
+    icon: ImageVector,
+    colorScheme: ColorScheme,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp
+        ),
+        border = BorderStroke(
+            1.dp,
+            colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = colorScheme.primary
+                )
+                Text(
+                    title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onSurface
+                )
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+fun CreateEscrowTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    placeholder: String,
+    leadingIcon: ImageVector? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    trailingText: String? = null,
+    colorScheme: ColorScheme
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            color = colorScheme.onSurfaceVariant
+        )
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = {
+                Text(
+                    placeholder,
+                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            },
+            leadingIcon = leadingIcon?.let {
+                {
+                    Icon(
+                        it,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            trailingIcon = trailingText?.let {
+                {
+                    Text(
+                        it,
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = colorScheme.primary,
+                unfocusedBorderColor = colorScheme.outlineVariant,
+                cursorColor = colorScheme.primary
+            ),
+            keyboardOptions = keyboardOptions
+        )
+    }
+}
+
+@Composable
+fun PartySearchSection(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    isSearching: Boolean,
+    searchResults: List<UserDetailsResponse>,
+    searchError: String?,
+    selectedUser: UserDetailsResponse?,
+    onSelectUser: (UserDetailsResponse) -> Unit,
+    colorScheme: ColorScheme
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            modifier = Modifier.fillMaxWidth(),
+            placeholder = {
+                Text(
+                    "Search by email or phone",
+                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+            },
+            leadingIcon = {
+                if (isSearching) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            trailingIcon = {
+                if (selectedUser != null) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Verified",
+                        modifier = Modifier.size(20.dp),
+                        tint = Color(0xFF10B981)
+                    )
+                } else if (searchQuery.isNotBlank() && !isSearching && searchError == null && searchResults.isEmpty()) {
+                    Icon(
+                        Icons.Default.PersonOff,
+                        contentDescription = "No user found",
+                        modifier = Modifier.size(20.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = colorScheme.primary,
+                unfocusedBorderColor = colorScheme.outlineVariant,
+                errorBorderColor = MaterialTheme.colorScheme.error,
+                cursorColor = colorScheme.primary
+            ),
+            isError = searchError != null
+        )
+
+        // Error Message
+        if (searchError != null && selectedUser == null) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Icon(
+                    Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.error
+                )
+                Text(
+                    searchError!!,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+
+        // Search Results
+        if (searchResults.isNotEmpty() && selectedUser == null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f)
+                ),
+                border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.2f))
+            ) {
+                Column {
+                    searchResults.forEach { user ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onSelectUser(user) }
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(colorScheme.primary.copy(alpha = 0.1f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    (user.displayName?.take(2) ?: user.email.take(2)).uppercase(),
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = colorScheme.primary
+                                )
+                            }
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    user.displayName ?: "User",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = colorScheme.onSurface
+                                )
+                                Text(
+                                    user.email,
+                                    fontSize = 12.sp,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Icon(
+                                Icons.Default.ArrowForward,
+                                contentDescription = "Select",
+                                modifier = Modifier.size(16.dp),
+                                tint = colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (user != searchResults.last()) {
+                            HorizontalDivider(
+                                color = colorScheme.outlineVariant.copy(alpha = 0.2f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Selected User
+        if (selectedUser != null) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = colorScheme.primary.copy(alpha = 0.06f)
+                ),
+                border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.15f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(colorScheme.primary),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                (selectedUser.displayName?.take(2) ?: selectedUser.email.take(2)).uppercase(),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                        Column {
+                            Text(
+                                selectedUser.displayName ?: selectedUser.email,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colorScheme.onSurface
+                            )
+                            Text(
+                                "Email: ${selectedUser.email}",
+                                fontSize = 11.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                            selectedUser.phone?.let {
+                                Text(
+                                    "Phone: $it",
+                                    fontSize = 11.sp,
+                                    color = colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFF10B981)
+                    ) {
+                        Icon(
+                            Icons.Default.Check,
+                            contentDescription = "Verified",
+                            modifier = Modifier
+                                .size(20.dp)
+                                .padding(4.dp),
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TransactionSummary(
+    parsedAmount: Double,
+    escrowFee: Double,
+    totalAmount: Double,
+    formatCurrency: (Double) -> String,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.primary
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 4.dp
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.ReceiptLong,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = colorScheme.onPrimary.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        "Transaction Summary",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onPrimary
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = colorScheme.onPrimary.copy(alpha = 0.15f)
+                ) {
+                    Text(
+                        "1.5% Fee",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.onPrimary,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Item Price",
+                    fontSize = 13.sp,
+                    color = colorScheme.onPrimary.copy(alpha = 0.7f)
+                )
+                Text(
+                    formatCurrency(parsedAmount),
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onPrimary
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    "Escrow Fee",
+                    fontSize = 13.sp,
+                    color = colorScheme.onPrimary.copy(alpha = 0.7f)
+                )
+                Text(
+                    formatCurrency(escrowFee),
+                    fontSize = 14.sp,
+                    color = colorScheme.onPrimary.copy(alpha = 0.8f)
+                )
+            }
+
+            HorizontalDivider(
+                color = colorScheme.onPrimary.copy(alpha = 0.15f),
+                thickness = 0.5.dp
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Payments,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                        tint = Color(0xFF6CF8BB)
+                    )
+                    Text(
+                        "Total Amount",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onPrimary
+                    )
+                }
+                Text(
+                    formatCurrency(totalAmount),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF6CF8BB)
+                )
+            }
+        }
+    }
+}
+
+// ===== PREVIEW =====
+
+@Preview(showBackground = true, widthDp = 428, heightDp = 920)
+@Composable
+fun CreateEscrowPreview() {
+    EscrowXTheme(darkTheme = false) {
+        UnifiedCreateEscrowScreen(role = "BUYER")
+    }
+}
+
+@Preview(showBackground = true, widthDp = 428, heightDp = 920)
+@Composable
+fun CreateEscrowPreviewDark() {
+    EscrowXTheme(darkTheme = true) {
+        UnifiedCreateEscrowScreen(role = "BUYER")
     }
 }

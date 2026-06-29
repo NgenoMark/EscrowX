@@ -7,6 +7,7 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -72,6 +73,19 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())
                 .error("INTERNAL_SERVER_ERROR")
                 .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .build()
+        );
+    }
+
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiErrorResponse> handleMaxUpload(MaxUploadSizeExceededException ex, HttpServletRequest request) {
+        return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).body(
+            ApiErrorResponse.builder()
+                .timestamp(OffsetDateTime.now())
+                .status(HttpStatus.PAYLOAD_TOO_LARGE.value())
+                .error("PAYLOAD_TOO_LARGE")
+                .message("Image is too large. Maximum allowed size is 5MB.")
                 .path(request.getRequestURI())
                 .build()
         );

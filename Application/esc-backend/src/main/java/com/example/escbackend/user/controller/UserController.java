@@ -36,13 +36,46 @@ public class UserController {
 
     @GetMapping
     public Page<UserDetailsResponse> list(
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
         @RequestParam(required = false) String phone,
-        @RequestParam(required = false) String role,
         @RequestParam(required = false) String status,
         @RequestParam(defaultValue = "0") int page,
         @RequestParam(defaultValue = "20") int size
     ) {
-        return userService.list(phone, role, status, page, size);
+        return userService.listMarketplaceUsers(actorUserId, phone, status, page, size);
+    }
+
+    @GetMapping("/buyers")
+    public Page<UserDetailsResponse> listBuyers(
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+        @RequestParam(required = false) String phone,
+        @RequestParam(required = false) String status,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        return userService.listBuyers(actorUserId, phone, status, page, size);
+    }
+
+    @GetMapping("/sellers")
+    public Page<UserDetailsResponse> listSellers(
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+        @RequestParam(required = false) String phone,
+        @RequestParam(required = false) String status,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        return userService.listSellers(actorUserId, phone, status, page, size);
+    }
+
+    @GetMapping("/employees")
+    public Page<UserDetailsResponse> listEmployees(
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+        @RequestParam(required = false) String phone,
+        @RequestParam(required = false) String status,
+        @RequestParam(defaultValue = "0") int page,
+        @RequestParam(defaultValue = "20") int size
+    ) {
+        return userService.listEmployees(actorUserId, phone, status, page, size);
     }
 
     @PatchMapping("/{id}/role")

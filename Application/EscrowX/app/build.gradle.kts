@@ -56,8 +56,10 @@ dependencies {
     implementation(libs.androidx.compose.material3.lint)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)
+    implementation("com.google.android.material:material:1.12.0")
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
+    implementation("androidx.core:core-splashscreen:1.0.1")
 
     // Compose - matching versions with Kotlin 2.0.21
     implementation("androidx.compose.ui:ui:1.7.6")
@@ -81,6 +83,10 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.0")
+
+    // Image loading
+    implementation("io.coil-kt:coil-compose:2.7.0")
+    implementation("com.github.yalantis:ucrop:2.2.8")
 
     // ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
