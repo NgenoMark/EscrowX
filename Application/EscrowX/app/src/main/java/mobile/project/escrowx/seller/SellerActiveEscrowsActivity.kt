@@ -29,6 +29,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import mobile.project.escrowx.EscrowResponse
+import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.dash.ProfileActivity
 import mobile.project.escrowx.dash.TransactionsActivity
@@ -70,41 +72,86 @@ fun SellerActiveEscrowsScreen() {
     val session = SessionManager(context)
 
     var selectedFilter by remember { mutableStateOf("All") }
+    var escrows by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
+    var buyerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var isLoading by remember { mutableStateOf(true) }
+    var loadError by remember { mutableStateOf<String?>(null) }
     val filters = listOf("All", "Paid", "Shipped", "Pending Delivery")
 
-    // Mock data for active escrows
-    val activeEscrows = listOf(
-        ActiveEscrowItem(
-            id = "1",
-            buyerName = "Kwami Chen",
-            buyerInitials = "KC",
-            productName = "iPhone 15 Pro Max",
-            amount = "145,000",
-            status = "Paid - Ship Now",
-            statusColor = Color(0xFF006C49),
-            statusBgColor = Color(0xFF6CF8BB).copy(alpha = 0.1f),
-            statusIcon = Icons.Default.CheckCircle,
-            shippingAddress = "Westlands Hub, Ground Floor Wing A, Nairobi, Kenya",
-            date = "24 Oct, 2023",
-            orderId = "ESC-8294-PRO",
-            currentStep = 1
-        ),
-        ActiveEscrowItem(
-            id = "2",
-            buyerName = "Sarah Ochieng",
-            buyerInitials = "SO",
-            productName = "Sony WH-1000XM5",
-            amount = "42,500",
-            status = "In Transit",
-            statusColor = Color(0xFF3E2400),
-            statusBgColor = Color(0xFFFFDDB8),
-            statusIcon = Icons.Default.Schedule,
-            shippingAddress = "Industrial Area, Mombasa Road, Nairobi, Kenya",
-            date = "20 Oct, 2023",
-            orderId = "ESC-8295-PRO",
-            currentStep = 2
-        )
-    )
+    LaunchedEffect(Unit) {
+        isLoading = true
+        loadError = null
+
+        val token = session.getAccessToken()
+        val sellerId = session.getUserId()
+        if (token.isNullOrBlank() || sellerId.isNullOrBlank()) {
+            loadError = "Session expired. Please login again."
+            isLoading = false
+            return@LaunchedEffect
+        }
+
+        try {
+            val api = RetrofitClient.authenticated(token)
+            val response = api.getTransactionsBySeller(sellerId, null)
+            if (!response.isSuccessful) {
+                loadError = "Failed to load escrows: ${response.code()}"
+                isLoading = false
+                return@LaunchedEffect
+            }
+
+            escrows = response.body().orEmpty()
+                .filter { !isTerminalSellerState(it.status) }
+                .sortedByDescending { it.createdAt }
+
+            val buyerIds = escrows.map { it.buyerId }.distinct()
+            val fetchedBuyerNames = mutableMapOf<String, String>()
+            buyerIds.forEach { buyerId ->
+                val fallback = "Buyer ${buyerId.take(6)}"
+                val buyerName = try {
+                    val buyerResponse = api.getUserById(buyerId)
+                    if (buyerResponse.isSuccessful) {
+                        buyerResponse.body()?.displayName?.takeIf { it.isNotBlank() }
+                    } else {
+                        null
+                    }
+                } catch (_: Exception) {
+                    null
+                }
+                fetchedBuyerNames[buyerId] = buyerName ?: fallback
+            }
+            buyerNamesById = fetchedBuyerNames
+        } catch (e: Exception) {
+            loadError = "Network error: ${e.message}"
+        } finally {
+            isLoading = false
+        }
+    }
+
+    val activeEscrows = remember(escrows, buyerNamesById) {
+        escrows.map { escrow ->
+            val buyerName = buyerNamesById[escrow.buyerId] ?: "Buyer ${escrow.buyerId.take(6)}"
+            ActiveEscrowItem(
+                id = escrow.id,
+                buyerName = buyerName,
+                buyerInitials = buyerName
+                    .split(" ")
+                    .filter { it.isNotBlank() }
+                    .take(2)
+                    .joinToString("") { it.take(1).uppercase() }
+                    .ifBlank { "BY" },
+                productName = escrow.title,
+                amount = formatAmount(escrow.amount),
+                status = sellerStatusLabel(escrow.status),
+                statusColor = sellerStatusColor(escrow.status),
+                statusBgColor = sellerStatusBgColor(escrow.status),
+                statusIcon = sellerStatusIcon(escrow.status),
+                shippingAddress = escrow.deliveryAddress,
+                date = escrow.createdAt.take(10),
+                orderId = escrow.reference ?: escrow.id,
+                currentStep = sellerCurrentStep(escrow.status)
+            )
+        }
+    }
 
     val filteredEscrows = when (selectedFilter) {
         "Paid" -> activeEscrows.filter { it.currentStep == 1 }
@@ -163,28 +210,109 @@ fun SellerActiveEscrowsScreen() {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Active Escrows List
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                items(filteredEscrows) { escrow ->
-                    ActiveEscrowCard(
-                        escrow = escrow,
-                        onTrackOrder = {
-                            val intent = Intent(context, SellerTransactionDetailActivity::class.java).apply {
-                                putExtra("TRANSACTION_ID", escrow.id)
-                                putExtra("PRODUCT_NAME", escrow.productName)
-                                putExtra("BUYER_NAME", escrow.buyerName)
-                                putExtra("BUYER_INITIALS", escrow.buyerInitials)
-                                putExtra("AMOUNT", escrow.amount)
-                                putExtra("ORDER_ID", escrow.orderId)
-                                putExtra("DATE", escrow.date)
-                                putExtra("SHIPPING_ADDRESS", escrow.shippingAddress)
-                                putExtra("CURRENT_STEP", escrow.currentStep)
-                            }
-                            context.startActivity(intent)
-                        }
+            when {
+                isLoading -> {
+                    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Color(0xFF00236F))
+                    }
+                }
+                loadError != null -> {
+                    Text(
+                        text = loadError!!,
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
                     )
+                }
+                filteredEscrows.isEmpty() -> {
+                    Text(
+                        text = "No active escrows found",
+                        color = Color(0xFF6B7280),
+                        fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                }
+                else -> {
+                    LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        items(filteredEscrows) { escrow ->
+                            ActiveEscrowCard(
+                                escrow = escrow,
+                                onTrackOrder = {
+                                    val intent = Intent(context, SellerTransactionDetailActivity::class.java).apply {
+                                        putExtra("TRANSACTION_ID", escrow.id)
+                                        putExtra("PRODUCT_NAME", escrow.productName)
+                                        putExtra("BUYER_NAME", escrow.buyerName)
+                                        putExtra("BUYER_INITIALS", escrow.buyerInitials)
+                                        putExtra("AMOUNT", escrow.amount)
+                                        putExtra("ORDER_ID", escrow.orderId)
+                                        putExtra("DATE", escrow.date)
+                                        putExtra("SHIPPING_ADDRESS", escrow.shippingAddress)
+                                        putExtra("CURRENT_STEP", escrow.currentStep)
+                                    }
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+private fun formatAmount(amount: Double): String = java.text.NumberFormat.getIntegerInstance().format(amount)
+
+private fun isTerminalSellerState(status: String?): Boolean {
+    val normalized = status?.uppercase() ?: return false
+    return normalized in setOf("COMPLETED", "CANCELLED", "DECLINED", "REFUNDED", "RELEASED")
+}
+
+private fun sellerCurrentStep(status: String?): Int {
+    return when (status?.uppercase()) {
+        "FUNDS_HELD", "PENDING_PAYMENT" -> 1
+        "SELLER_ACCEPTED", "IN_DELIVERY" -> 2
+        "SELLER_DELIVERED", "BUYER_CONFIRMED_DELIVERED", "RELEASE_PENDING" -> 3
+        else -> 1
+    }
+}
+
+private fun sellerStatusLabel(status: String?): String {
+    return when (status?.uppercase()) {
+        "FUNDS_HELD" -> "Paid - Ship Now"
+        "PENDING_PAYMENT" -> "Awaiting Payment"
+        "SELLER_ACCEPTED" -> "Accepted"
+        "IN_DELIVERY" -> "In Transit"
+        "SELLER_DELIVERED" -> "Pending Buyer Confirmation"
+        "BUYER_CONFIRMED_DELIVERED" -> "Buyer Confirmed"
+        "RELEASE_PENDING" -> "Payout Processing"
+        else -> status ?: "Unknown"
+    }
+}
+
+private fun sellerStatusColor(status: String?): Color {
+    return when (status?.uppercase()) {
+        "FUNDS_HELD", "SELLER_ACCEPTED" -> Color(0xFF006C49)
+        "IN_DELIVERY", "SELLER_DELIVERED" -> Color(0xFF3E2400)
+        "PENDING_PAYMENT", "RELEASE_PENDING" -> Color(0xFF92400E)
+        else -> Color(0xFF374151)
+    }
+}
+
+private fun sellerStatusBgColor(status: String?): Color {
+    return when (status?.uppercase()) {
+        "FUNDS_HELD", "SELLER_ACCEPTED" -> Color(0xFF6CF8BB).copy(alpha = 0.1f)
+        "IN_DELIVERY", "SELLER_DELIVERED" -> Color(0xFFFFDDB8)
+        "PENDING_PAYMENT", "RELEASE_PENDING" -> Color(0xFFFDE68A)
+        else -> Color(0xFFE5E7EB)
+    }
+}
+
+private fun sellerStatusIcon(status: String?): androidx.compose.ui.graphics.vector.ImageVector {
+    return when (status?.uppercase()) {
+        "FUNDS_HELD", "SELLER_ACCEPTED" -> Icons.Default.CheckCircle
+        "IN_DELIVERY", "SELLER_DELIVERED" -> Icons.Default.Schedule
+        "PENDING_PAYMENT", "RELEASE_PENDING" -> Icons.Default.HourglassTop
+        else -> Icons.Default.Info
     }
 }
 
