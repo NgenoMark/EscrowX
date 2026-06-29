@@ -1,6 +1,5 @@
 package com.example.escbackend.user.controller;
 
-import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.user.dto.*;
 import com.example.escbackend.user.service.UserService;
 import jakarta.validation.Valid;
@@ -79,22 +78,6 @@ public class UserController {
         return userService.listEmployees(actorUserId, phone, status, page, size);
     }
 
-    @PostMapping("/employees/admin")
-    public UserDetailsResponse createAdmin(
-        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
-        @Valid @RequestBody CreateEmployeeRequest request
-    ) {
-        return userService.createEmployee(actorUserId, request, UserRole.ADMIN);
-    }
-
-    @PostMapping("/employees/super-admin")
-    public UserDetailsResponse createSuperAdmin(
-        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
-        @Valid @RequestBody CreateEmployeeRequest request
-    ) {
-        return userService.createEmployee(actorUserId, request, UserRole.SUPER_ADMIN);
-    }
-
     @PatchMapping("/{id}/role")
     public UserRoleStatusUpdateResponse updateRole(
         @PathVariable UUID id,
@@ -111,15 +94,6 @@ public class UserController {
         @Valid @RequestBody UserStatusUpdateRequest request
     ) {
         return userService.updateStatus(id, actorUserId, request);
-    }
-
-    @PostMapping("/{id}/approve-seller")
-    public UserRoleStatusUpdateResponse approveSeller(
-        @PathVariable UUID id,
-        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
-        @RequestBody(required = false) SellerApprovalRequest request
-    ) {
-        return userService.approveSeller(id, actorUserId, request);
     }
 
     @PatchMapping("admin/{id}/blacklist")
