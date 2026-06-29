@@ -4,6 +4,7 @@ import com.example.escbackend.common.constants.BlackListStatus;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.constants.UserStatus;
 import com.example.escbackend.common.exception.ApiException;
+import com.example.escbackend.auth.service.OtpDeliveryService;
 import com.example.escbackend.audit.entity.AuditLogEntity;
 import com.example.escbackend.audit.repository.AuditLogRepository;
 import com.example.escbackend.user.dto.*;
@@ -20,6 +21,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -30,6 +33,8 @@ import java.util.UUID;
 @Service
 public class UserService {
 
+    private static final Logger log = LoggerFactory.getLogger(UserService.class);
+
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
     private final UserMapperService mapper;
@@ -37,6 +42,7 @@ public class UserService {
     private final AdminAuthorizationService authz;
     private final AuditLogRepository auditRepo;
     private final PasswordEncoder passwordEncoder;
+    private final OtpDeliveryService otpDeliveryService;
 
     public UserService(
         UserRepository userRepository,
@@ -45,7 +51,8 @@ public class UserService {
         UserBlacklistRepository blacklistRepo,
         AdminAuthorizationService authz,
         AuditLogRepository auditRepo,
-        PasswordEncoder passwordEncoder
+        PasswordEncoder passwordEncoder,
+        OtpDeliveryService otpDeliveryService
     ) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
@@ -54,6 +61,7 @@ public class UserService {
         this.authz = authz;
         this.auditRepo = auditRepo;
         this.passwordEncoder = passwordEncoder;
+        this.otpDeliveryService = otpDeliveryService;
     }
 
     public UserDetailsResponse getById(UUID id) {
@@ -228,6 +236,13 @@ public class UserService {
             ? "Seller account approved"
             : request.getReason();
         saveAudit(actorUserId, "APPROVE_SELLER", targetUserId, reason);
+
+
+        try {
+            otpDeliveryService.sendAdminApprovalEmail(target.getEmail());
+        } catch (Exception ex){
+            log.warn("Admin-approval email failed for {}", target.getEmail() , ex);
+        }
 
         return UserRoleStatusUpdateResponse.builder()
             .userId(targetUserId)

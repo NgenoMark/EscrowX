@@ -8,4 +8,6 @@ public interface OtpDeliveryService {
     void sendUpdatePasswordAndPhoneOtp(String email , String otp);
 
     void sendSellerAcknowledgmentEmail(String email);
+
+    void sendAdminApprovalEmail(String email);
 }
