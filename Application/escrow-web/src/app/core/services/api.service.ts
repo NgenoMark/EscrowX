@@ -367,7 +367,7 @@ export class ApiService {
     const body: any = {};
     if (reason) body.reason = reason;
     return this.http.post<ApiResponse<{ userId: string; oldValue: string; newValue: string; updatedBy: string; updatedAt: string }>>(
-      `${this.apiUrl}/users/${userId}/approve-seller`,
+      `${this.apiUrl}/admin/users/${userId}/approve-seller`,
       body,
       { headers: this.getHeadersWithContentType() }
     );

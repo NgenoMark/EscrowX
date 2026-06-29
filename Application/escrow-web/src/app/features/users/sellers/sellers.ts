@@ -460,7 +460,7 @@ export class SellersComponent implements OnInit {
   }
 
   canApprove(user: User): boolean {
-    return user.status === 'PENDING_VERIFICATION';
+    return user.status === 'PENDING_ADMIN_APPROVAL';
   }
 
   getRoleBadgeClass(role: string): string {
@@ -478,6 +478,7 @@ export class SellersComponent implements OnInit {
       case 'ACTIVE': return 'bg-green-100 text-green-800';
       case 'SUSPENDED': return 'bg-red-100 text-red-800';
       case 'PENDING_VERIFICATION': return 'bg-yellow-100 text-yellow-800';
+      case 'PENDING_ADMIN_APPROVAL': return 'bg-yellow-100 text-blue-800';
       case 'BLACKLISTED': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-600';
     }
