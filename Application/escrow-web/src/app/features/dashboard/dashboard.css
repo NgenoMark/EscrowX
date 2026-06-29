@@ -1,39 +1,77 @@
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+/* src/app/features/dashboard/dashboard.css */
+
+/* --- Greeting Section --- */
+.greeting-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+  border-radius: 1rem;
+  border: 1px solid #e2e8f0;
+  margin-bottom: 1.5rem;
 }
 
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.02);
+.greeting-content {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
 }
-.insight-card,
+
+.greeting-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #6366f1, #818cf8);
+  color: #ffffff;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.greeting-text h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.greeting-text p {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin: 0.15rem 0 0 0;
+}
+
+.greeting-date {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background: #f1f5f9;
+  border-radius: 0.5rem;
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.greeting-date i {
+  color: #94a3b8;
+}
+
+/* --- Panel Styles --- */
 .panel {
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-radius: 0.85rem;
   background: #ffffff;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.05);
-}
-
-.insight-card p {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.insight-card strong {
-  display: block;
-  margin-top: 0.35rem;
-  color: #102033;
-  font-size: 1.65rem;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.insight-card span {
-  display: block;
-  margin-top: 1.2rem;
-  color: #64748b;
-  font-size: 0.78rem;
+  overflow: hidden;
 }
 
 .panel-header {
@@ -42,15 +80,92 @@
   justify-content: space-between;
   gap: 1rem;
   border-bottom: 1px solid #e2e8f0;
-  padding: 1rem 1.25rem;
+  padding: 0.75rem 1.25rem;
+  background: #fafbfc;
 }
 
 .panel-header h3 {
   color: #102033;
-  font-size: 1rem;
+  font-size: 1.125rem;
   font-weight: 800;
+  margin: 0;
 }
 
-.insight-card {
-  padding: 1rem;
+.section-kicker {
+  color: #8a97ad;
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 0.1rem;
+}
+
+/* --- Queue Items --- */
+.queue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.queue-item:hover {
+  background: #f8fafc;
+}
+
+.queue-item:active {
+  background: #f1f5f9;
+}
+
+.action-pill {
+  border: none;
+  background: transparent;
+  padding: 0.3rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  transition: background 0.2s ease;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.action-pill i {
+  font-size: 0.6rem;
+}
+
+/* --- Responsive --- */
+@media (max-width: 640px) {
+  .greeting-section {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 1rem;
+  }
+
+  .greeting-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .greeting-text h1 {
+    font-size: 1.25rem;
+  }
+
+  .greeting-date {
+    justify-content: center;
+    white-space: normal;
+  }
+
+  .queue-item {
+    flex-wrap: wrap;
+  }
+
+  .action-pill {
+    margin-left: auto;
+  }
 }

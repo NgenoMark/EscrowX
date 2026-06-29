@@ -1,0 +1,151 @@
+/* src/app/features/admins/admins.css */
+
+/* ===== SMOOTH TRANSITIONS ===== */
+button, .card-hover, .stat-card, tbody tr {
+  transition: all 0.2s ease-in-out;
+}
+
+/* ===== TABLE ROW HOVER ===== */
+tbody tr {
+  transition: background-color 0.15s ease;
+}
+
+/* ===== SCROLLBAR STYLING ===== */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 6px;
+}
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #c7d2fe;
+  border-radius: 10px;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #818cf8;
+}
+
+/* ===== FOCUS STYLES ===== */
+input:focus {
+  outline: none;
+}
+
+/* ===== STAT CARDS ===== */
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== DROPDOWN FILTERS ===== */
+select {
+  background-color: white;
+  cursor: pointer;
+  padding-right: 1.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3E%3Cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.2em 1.2em;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+}
+select:focus {
+  outline: none;
+  border-color: #9ca3af;
+  box-shadow: 0 0 0 1px #9ca3af;
+}
+
+/* ===== STICKY HEADER ===== */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
+}
+
+/* ===== CHECKBOXES ===== */
+input[type="checkbox"] {
+  accent-color: #dc2626;
+  cursor: pointer;
+  width: 16px;
+  height: 16px;
+  border-radius: 0.25rem;
+  border: 1px solid #d1d5db;
+  transition: all 0.15s ease;
+}
+input[type="checkbox"]:hover {
+  border-color: #ef4444;
+}
+input[type="checkbox"]:checked {
+  background-color: #dc2626;
+  border-color: #dc2626;
+}
+
+/* ===== BULK ACTION BAR ===== */
+.bulk-action-bar {
+  position: sticky;
+  bottom: 0;
+  background-color: #fef2f2;
+  border-top: 1px solid #fecaca;
+  z-index: 5;
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+}
+
+/* ===== SCROLLABLE TABLE CONTAINER ===== */
+.table-scroll-container {
+  max-height: calc(100vh - 380px - 60px);
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.table-responsive-wrapper {
+  overflow-x: auto;
+}
+
+.mobile-cards-container {
+  overflow-x: hidden;
+}
+
+/* ===== CARD POSITIONING CONTEXT ===== */
+.user-management-card {
+  position: relative;
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+@media (max-width: 640px) {
+  .search-header .flex-wrap {
+    gap: 0.5rem;
+  }
+  .search-header select {
+    font-size: 0.7rem;
+    padding: 0.25rem 1.2rem 0.25rem 0.5rem;
+  }
+  .search-header label {
+    font-size: 0.65rem;
+  }
+
+  .table-scroll-container {
+    max-height: calc(100vh - 420px - 80px);
+  }
+
+  input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+  }
+}
+
+/* ===== MOBILE CARD CHECKBOX SPACING ===== */
+.mobile-cards-container .flex.items-center.gap-2 {
+  gap: 0.5rem;
+}
+
+/* ===== AUDIT FOOTER ===== */
+.card-footer {
+  background-color: #f9fafb;
+  border-top: 1px solid #f3f4f6;
+}

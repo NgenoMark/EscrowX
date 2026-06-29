@@ -1,0 +1,69 @@
+<div class="chatbot-container">
+  <!-- Toggle button -->
+  <button
+    class="chatbot-toggle"
+    (click)="toggleChat()"
+    [class.open]="isOpen"
+    aria-label="Toggle chatbot"
+  >
+    @if (!isOpen) {
+      <i class="fas fa-robot"></i>
+    } @else {
+      <i class="fas fa-times"></i>
+    }
+  </button>
+
+  <!-- Chat window -->
+  @if (isOpen) {
+    <div class="chatbot-window">
+      <!-- Header -->
+      <div class="chatbot-header">
+        <span><i class="fas fa-robot mr-2"></i> EscrowX Assistant</span>
+        <button (click)="toggleChat()" class="close-btn" aria-label="Close chat">
+          <i class="fas fa-times"></i>
+        </button>
+      </div>
+
+      <!-- Messages -->
+      <div class="chatbot-messages" #messageContainer>
+        <!-- ✅ Use msg.id for tracking -->
+        @for (msg of messages; track msg.id) {
+          <div class="message" [class.user]="msg.sender === 'user'" [class.assistant]="msg.sender === 'assistant'">
+            <div class="bubble">
+              <span [innerHTML]="formatMessage(msg.text)"></span>
+              <span class="time">{{ msg.timestamp | date:'shortTime' }}</span>
+            </div>
+          </div>
+        }
+
+        <!-- Typing indicator (shown while waiting for API response) -->
+        @if (isLoading) {
+          <div class="message assistant">
+            <div class="bubble typing-indicator">
+              <span></span><span></span><span></span>
+            </div>
+          </div>
+        }
+      </div>
+
+      <!-- Input -->
+      <div class="chatbot-input">
+        <input
+          type="text"
+          [(ngModel)]="inputText"
+          (keyup.enter)="sendMessage()"
+          placeholder="Type a command..."
+          [disabled]="isLoading || isStreaming"
+          aria-label="Chat input"
+        />
+        <button
+          (click)="sendMessage()"
+          [disabled]="isLoading || isStreaming"
+          aria-label="Send message"
+        >
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </div>
+    </div>
+  }
+</div>

@@ -1,28 +1,71 @@
+<!-- src/app/shared/layout/sidebar/sidebar.html -->
 <aside 
   class="sidebar" 
   [class.sidebar-collapsed]="collapsed" 
   [class.sidebar-open]="mobileOpen"
 >
-  <div class="brand-row">
-    <div class="brand-copy">
-      <p>Admin Console</p>
-    </div>
-  </div>
+  <nav class="nav-list" #navList aria-label="Primary navigation">
+    <!-- Active indicator – slides between items -->
+    <div class="active-indicator" #activeIndicator></div>
 
-  <nav class="nav-list" aria-label="Primary navigation">
-    @for (item of navItems; track item.route) {
-      <a
-        [routerLink]="item.route"
-        routerLinkActive="nav-active"
-        class="nav-item"
-        [title]="collapsed ? item.label : ''"
-      >
-        <i class="fas {{ item.icon }}"></i>
-        <span>{{ item.label }}</span>
-        @if (item.count) {
-          <strong>{{ item.count }}</strong>
-        }
-      </a>
+    @for (item of navItems; track item.label) {
+      @if (item.type === 'link') {
+        <!-- Regular link item -->
+        <a
+          [routerLink]="item.route"
+          routerLinkActive="nav-active"
+          class="nav-item"
+          [title]="collapsed ? item.label : ''"
+          (click)="closeDropdownOnNavigate()"
+        >
+          <i class="fas {{ item.icon }}"></i>
+          <span>{{ item.label }}</span>
+          @if (item.count) {
+            <strong>{{ item.count }}</strong>
+          }
+        </a>
+      }
+
+      @if (item.type === 'dropdown') {
+        <!-- Dropdown item -->
+        <div 
+          class="nav-dropdown-wrapper"
+          (mouseenter)="openDropdownOnHover(item.dropdownId!)"
+          (mouseleave)="closeDropdownOnLeave(item.dropdownId!)"
+        >
+          <a
+            class="nav-item nav-dropdown-trigger"
+            [class.nav-active]="isChildActive(item.children)"
+            [class.dropdown-open]="isDropdownOpen(item.dropdownId!)"
+            [title]="collapsed ? item.label : ''"
+            (click)="toggleDropdown(item.dropdownId!, $event)"
+          >
+            <i class="fas {{ item.icon }}"></i>
+            <span>{{ item.label }}</span>
+            <i class="fas fa-chevron-down dropdown-arrow" [class.rotated]="isDropdownOpen(item.dropdownId!)"></i>
+          </a>
+          
+          <!-- Dropdown children -->
+          <div 
+            class="nav-dropdown-children" 
+            [class.open]="isDropdownOpen(item.dropdownId!)"
+            [class.collapsed-open]="collapsed && isDropdownOpen(item.dropdownId!)"
+          >
+            @for (child of item.children; track child.route) {
+              <a
+                [routerLink]="child.route"
+                routerLinkActive="nav-active-child"
+                class="nav-item nav-item-child"
+                [title]="collapsed ? child.label : ''"
+                (click)="closeDropdownOnNavigate()"
+              >
+                <i class="fas {{ child.icon }}"></i>
+                <span>{{ child.label }}</span>
+              </a>
+            }
+          </div>
+        </div>
+      }
     }
   </nav>
 

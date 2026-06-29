@@ -1,92 +1,172 @@
+<!-- src/app/features/dashboard/dashboard.html -->
 <div class="space-y-6">
-  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-    <app-stat-card
-      label="Total Volume"
-      [value]="(totalVolume() | number) + ' KES'"
-      note="+12.3% vs last month"
-      icon="fa-credit-card"
-    ></app-stat-card>
-    <app-stat-card
-      label="Platform Fees"
-      [value]="(platformFees() | number) + ' KES'"
-      note="2.5% collected fee"
-      icon="fa-chart-line"
-    ></app-stat-card>
-    <app-stat-card
-      label="Active Escrows"
-      [value]="activeEscrows()"
-      note="Funds currently protected"
-      icon="fa-lock"
-    ></app-stat-card>
-    <app-stat-card
-      label="Open Disputes"
-      [value]="openDisputes()"
-      note="Require admin review"
-      icon="fa-gavel"
-      tone="danger"
-    ></app-stat-card>
+
+  <!-- Greeting -->
+  <div class="greeting-section">
+    <div class="greeting-content">
+      <div class="greeting-icon">
+        <i class="fas fa-hand-wave"></i>
+      </div>
+      <div class="greeting-text">
+        <h1 class="text-2xl font-bold text-gray-800">{{ greeting() }}</h1>
+        <p class="text-sm text-gray-500">Here's what's happening with your escrow platform today.</p>
+      </div>
+    </div>
+    <div class="greeting-date">
+      <i class="fas fa-calendar-day"></i>
+      <span class="text-sm font-medium text-gray-600">{{ todayDate() }}</span>
+    </div>
   </div>
 
-  <section class="panel">
-    <div class="panel-header">
-      <div>
-        <p class="section-kicker">Live queue</p>
-        <h3>Recent Transactions</h3>
-      </div>
-      <a routerLink="/transactions" class="text-indigo-600 text-sm font-semibold">
-        View all <i class="fas fa-arrow-right ml-1 text-xs"></i>
-      </a>
-    </div>
-    <div class="overflow-x-auto">
-      <table class="min-w-full">
-        <thead>
-          <tr>
-            <th class="px-6 py-3 text-left uppercase">ID</th>
-            <th class="px-6 py-3 text-left uppercase">Buyer / Seller</th>
-            <th class="px-6 py-3 text-left uppercase">Amount</th>
-            <th class="px-6 py-3 text-left uppercase">Status</th>
-            <th class="px-6 py-3 text-left uppercase">Auto Release</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100">
-          <tr *ngFor="let tx of filteredRecentTransactions()">
-            <td class="px-6 py-3 text-xs font-mono text-gray-600">{{ tx.id }}</td>
-            <td class="px-6 py-3 text-sm">
-              {{ tx.buyer }} <i class="fas fa-arrow-right text-xs text-gray-400 mx-1"></i> {{ tx.seller }}
-            </td>
-            <td class="px-6 py-3 font-semibold text-gray-800">{{ tx.amount | number }} KES</td>
-            <td class="px-6 py-3">
-              <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getStatusClass(tx.status)">
-                {{ tx.status }}
-              </span>
-            </td>
-            <td class="px-6 py-3 text-xs text-gray-500">
-              {{ tx.autoReleaseDate ? (tx.autoReleaseDate | date) : '-' }}
-            </td>
-          </tr>
-          <tr *ngIf="filteredRecentTransactions().length === 0">
-            <td colspan="5" class="px-6 py-8 text-center text-gray-500">No matching transactions found</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </section>
+  <!-- 1. OPS METRICS CARDS -->
+  <ng-container *ngxsmkSkeleton="isLoading(); type: 'text'; count: 4; width: '100%'; height: '120px'; gap: '16px'; appearance: 'rect'; animation: 'progress'">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+      <!-- Active Escrows -->
+      <app-stat-card
+        label="Active Escrows"
+        [value]="activeEscrows()"
+        note="Funds currently protected"
+        icon="fa-lock"
+      >
+        <button (click)="goToTransactions()" class="stat-action-btn text-xs font-semibold">
+          <i class="fas fa-arrow-right"></i> View Escrows
+        </button>
+      </app-stat-card>
 
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-    <div class="insight-card">
-      <p>Success Rate</p>
-      <strong>96.2%</strong>
-      <span>Up 2.1% from last month</span>
+      <!-- Open Disputes -->
+      <app-stat-card
+        label="Open Disputes"
+        [value]="openDisputes()"
+        note="Require immediate review"
+        icon="fa-gavel"
+        tone="danger"
+      >
+        <button (click)="goToDisputes()" class="stat-action-btn text-xs font-semibold">
+          <i class="fas fa-arrow-right"></i> Mediate
+        </button>
+      </app-stat-card>
+
+      <!-- Auto-Releases Today -->
+      <app-stat-card
+        label="Auto-Releases Today"
+        [value]="autoReleasesToday()"
+        note="Scheduled for today"
+        icon="fa-clock"
+      >
+        <button (click)="goToTransactions()" class="stat-action-btn text-xs font-semibold">
+          <i class="fas fa-arrow-right"></i> Check Releases
+        </button>
+      </app-stat-card>
+
+      <!-- Today's Volume -->
+      <app-stat-card
+        label="Today's Volume"
+        [value]="formatCurrency(todayVolume())"
+        note="Transaction value created today"
+        icon="fa-coins"
+      >
+        <button (click)="goToAnalytics()" class="stat-action-btn text-xs font-semibold">
+          <i class="fas fa-arrow-right"></i> View Details
+        </button>
+      </app-stat-card>
     </div>
-    <div class="insight-card">
-      <p>Avg Resolution Time</p>
-      <strong>2.4 days</strong>
-      <span>For disputed transactions</span>
-    </div>
-    <div class="insight-card">
-      <p>Total Refunded</p>
-      <strong>KES 89,200</strong>
-      <span>Across 12 transactions</span>
-    </div>
+  </ng-container>
+
+  <!-- 2. ACTION QUEUE -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+    <!-- Left: Stalled Escrows -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="section-kicker text-xs font-bold text-gray-500 uppercase tracking-wide">
+            <i class="fas fa-triangle-exclamation text-yellow-500 mr-1"></i> Risk
+          </p>
+          <h3 class="text-lg font-extrabold text-gray-800">
+            <i class="fas fa-clock text-yellow-500 mr-2"></i> Stalled Escrows
+          </h3>
+        </div>
+        <a routerLink="/transactions" class="text-sm font-semibold text-indigo-600 hover:underline">
+          View all <i class="fas fa-arrow-right ml-1 text-xs"></i>
+        </a>
+      </div>
+      <div class="divide-y divide-gray-100">
+        @for (tx of stalledEscrows(); track tx.id) {
+          <div class="queue-item" (click)="navigateToTransaction(tx.id)">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono text-indigo-600">{{ tx.id.slice(0, 8) }}</span>
+                <span class="px-1.5 py-0.5 text-[10px] font-semibold bg-yellow-100 text-yellow-800 rounded">HELD</span>
+              </div>
+              <p class="text-sm font-medium text-gray-700 truncate">
+                {{ tx.buyer }} <i class="fas fa-arrow-right text-gray-300 mx-1 text-xs"></i> {{ tx.seller }}
+              </p>
+              <div class="flex gap-4 text-xs text-gray-400 mt-0.5">
+                <span>{{ formatCurrency(tx.amount) }}</span>
+                <span><i class="far fa-clock mr-1"></i> {{ daysSince(tx.created) }} days old</span>
+              </div>
+            </div>
+            <button (click)="$event.stopPropagation(); goToTransactions()"
+                    class="action-pill text-xs font-semibold text-indigo-600 hover:bg-indigo-50">
+              <i class="fas fa-hand-holding-usd mr-1"></i> Release
+              <i class="fas fa-chevron-right ml-1 text-[10px]"></i>
+            </button>
+          </div>
+        } @empty {
+          <div class="p-6 text-center text-sm text-gray-400">
+            <i class="fas fa-check-circle text-green-500 text-xl block mb-1"></i>
+            No stalled escrows! All funds are moving smoothly.
+          </div>
+        }
+      </div>
+    </section>
+
+    <!-- Right: Urgent Disputes -->
+    <section class="panel">
+      <div class="panel-header">
+        <div>
+          <p class="section-kicker text-xs font-bold text-gray-500 uppercase tracking-wide">
+            <i class="fas fa-scale-balanced text-red-500 mr-1"></i> Mediation
+          </p>
+          <h3 class="text-lg font-extrabold text-gray-800">
+            <i class="fas fa-gavel text-red-500 mr-2"></i> Urgent Disputes
+          </h3>
+        </div>
+        <a routerLink="/disputes" class="text-sm font-semibold text-indigo-600 hover:underline">
+          View all <i class="fas fa-arrow-right ml-1 text-xs"></i>
+        </a>
+      </div>
+      <div class="divide-y divide-gray-100">
+        @for (d of urgentDisputes(); track d.id) {
+          <div class="queue-item" (click)="navigateToDispute(d.id)">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-mono text-red-600">{{ d.id.slice(0, 8) }}</span>
+                <span class="px-1.5 py-0.5 text-[10px] font-semibold rounded" [class]="getDisputeStatusClass(d.status)">
+                  {{ d.status }}
+                </span>
+              </div>
+              <p class="text-sm font-medium text-gray-700 truncate">
+                <!-- {{ d.raisedBy }} <span class="text-gray-300 text-xs">vs</span> {{ d.against }} -->
+              </p>
+              <div class="flex gap-4 text-xs text-gray-400 mt-0.5">
+                <span>{{ formatCurrency(d.amount) }}</span>
+                <span><i class="far fa-clock mr-1"></i> {{ daysSince(d.createdAt) }} days old</span>
+              </div>
+            </div>
+            <button (click)="$event.stopPropagation(); goToDisputes()"
+                    class="action-pill text-xs font-semibold text-red-600 hover:bg-red-50">
+              <i class="fas fa-gavel mr-1"></i> Mediate
+              <i class="fas fa-chevron-right ml-1 text-[10px]"></i>
+            </button>
+          </div>
+        } @empty {
+          <div class="p-6 text-center text-sm text-gray-400">
+            <i class="fas fa-check-circle text-green-500 text-xl block mb-1"></i>
+            No urgent disputes! The platform is at peace.
+          </div>
+        }
+      </div>
+    </section>
   </div>
 </div>

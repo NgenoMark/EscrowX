@@ -1,3 +1,5 @@
+// src/app/core/models/dispute.ts
+
 export type DisputeStatus =
   | 'OPEN'
   | 'PENDING'
@@ -9,23 +11,22 @@ export type DisputeStatus =
 
 export interface Dispute {
   id: string;
-  txId: string;
-  transactionId?: string;
-  raisedById?: string;
-  raisedBy: string;
-  raisedByRole: 'BUYER' | 'SELLER';
-  against: string;
-  assignedAdminId?: string;
-  category?: 'NON_DELIVERY' | 'DEFECTIVE_ITEM' | 'NOT_AS_DESCRIBED' | 'NON_PAYMENT' | 'OTHER';
-  reason: string;
-  description?: string;
-  evidence: string[];
+  transactionId: string;
+  transactionReference?: string;
+  raisedById: string;           // API: raisedById
+  raisedByName: string;         // API: raisedByName
+  category: string;             // e.g., 'DEFECTIVE_ITEM'
+  description: string;
   status: DisputeStatus;
-  amount: number;
+  assignedAdminId?: string | null;
+  resolution?: string | null;
+  resolvedAt?: string | null;
+  evidenceUrls: string[];       // API: evidenceUrls (array of image URLs)
+  amount: number;               // from transaction or dispute
   createdAt: string;
-  updatedAt?: string;
-  resolvedAt?: string;
-  resolution?: 'REFUND_BUYER' | 'RELEASE_SELLER' | 'PARTIAL_SETTLEMENT';
-  partialAmount?: number;
+  updatedAt: string;
+  // UI-only fields (computed or local)
+  against?: string;             // derived from transaction
   adminNotes?: string;
+  partialAmount?: number;
 }

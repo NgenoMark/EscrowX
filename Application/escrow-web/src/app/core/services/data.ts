@@ -1,10 +1,11 @@
+// src/app/core/services/data.ts
 import { Injectable, inject, signal } from '@angular/core';
-import { catchError, forkJoin, of } from 'rxjs';
+import { catchError, forkJoin, of, firstValueFrom } from 'rxjs';
 import { Transaction, EscrowTransactionStatus } from '../models/transaction';
 import { User } from '../models/user';
 import { Dispute } from '../models/dispute';
 import { AppEnvironmentService } from '../config/app-environment';
-import { ApiEscrowTransaction, ApiService, ApiUserDetails } from './api.service';
+import { ApiEscrowTransaction, ApiService, ApiUserDetails, PageResponse } from './api.service';
 import { MockDataService } from './mock-data.service';
 import { NotificationService } from './notifications';
 
@@ -25,6 +26,11 @@ export class DataService {
   private apiService = inject(ApiService);
   private mockDataService = inject(MockDataService);
 
+  // --- Loading State ---
+  private loadingSignal = signal<boolean>(false);
+  readonly isLoading = this.loadingSignal.asReadonly();
+
+  // --- Data Signals ---
   private transactionsSignal = signal<Transaction[]>([]);
   private usersSignal = signal<User[]>([]);
   private disputesSignal = signal<Dispute[]>([]);
@@ -39,58 +45,123 @@ export class DataService {
     this.loadConfiguredData();
   }
 
+  // ================================================================
+  // INITIAL DATA LOAD
+  // ================================================================
   private loadConfiguredData(): void {
     if (this.appEnvironment.useMockData) {
-      this.loadMockDataFromService();
+      this.loadMockData();
       return;
     }
-
     this.loadApiData();
   }
 
-  private loadMockDataFromService(): void {
-    this.mockDataService.getTransactions().subscribe(transactions => this.transactionsSignal.set(transactions));
-    this.mockDataService.getUsers().subscribe(users => this.usersSignal.set(users));
-    this.mockDataService.getDisputes().subscribe(disputes => this.disputesSignal.set(disputes));
-    this.mockDataService.getAuditLogs().subscribe(logs => this.auditLogsSignal.set(logs));
+  private loadMockData(): void {
+    this.loadingSignal.set(true);
+    setTimeout(() => {
+      this.mockDataService.getTransactions().subscribe(tx => this.transactionsSignal.set(tx));
+      this.mockDataService.getUsers().subscribe(users => this.usersSignal.set(users));
+      this.mockDataService.getDisputes().subscribe(disputes => this.disputesSignal.set(disputes));
+      this.mockDataService.getAuditLogs().subscribe(logs => this.auditLogsSignal.set(logs));
+      setTimeout(() => this.loadingSignal.set(false), 300);
+    }, 300);
   }
 
-  private loadApiData(): void {
-    forkJoin({
-      usersPage: this.apiService.getUsers({ size: 500 }).pipe(catchError(() => of(null))),
-      transactionsPage: this.apiService.getTransactions({ size: 500 }).pipe(catchError(() => of(null))),
-      disputesResponse: this.apiService.getDisputes({ limit: 500 }).pipe(catchError(() => of(null))),
-      auditResponse: this.apiService.getAuditLogs({ limit: 500 }).pipe(catchError(() => of(null)))
-    }).subscribe({
-      next: ({ usersPage, transactionsPage, disputesResponse, auditResponse }) => {
-        const users = usersPage?.content.map(user => this.mapApiUser(user)) ?? [];
-        this.usersSignal.set(users);
-        this.transactionsSignal.set(transactionsPage?.content.map(transaction => this.mapApiTransaction(transaction, users)) ?? []);
-        this.disputesSignal.set(this.extractApiList(disputesResponse).map(dispute => this.mapApiDispute(dispute, users)));
-        this.auditLogsSignal.set(this.extractApiList(auditResponse).map(log => this.mapApiAuditLog(log, users)));
+  // ================================================================
+  // LOAD API DATA – with robust extraction and logging
+  // ================================================================
+  private async loadApiData(): Promise<void> {
+    this.loadingSignal.set(true);
 
-        if (!usersPage || !transactionsPage || !disputesResponse || !auditResponse) {
-          this.notificationService.add('Partial API Data', 'One or more admin API endpoints could not be loaded.', 'warning');
-        }
-      },
-      error: () => {
-        this.notificationService.add('API Unavailable', 'Could not load data from the configured API URL.', 'danger');
+    try {
+      // Fetch all data in parallel using the correct endpoints
+      const [usersPage, transactionsPage, disputesPage, auditResponse] = await Promise.all([
+        firstValueFrom(this.apiService.getUsers().pipe(catchError(() => of(null)))),
+        firstValueFrom(this.apiService.getTransactions().pipe(catchError(() => of(null)))),
+        firstValueFrom(this.apiService.getDisputes().pipe(catchError(() => of(null)))),
+        firstValueFrom(this.apiService.getAuditLogs().pipe(catchError(() => of(null))))
+      ]);
+
+      console.log('🔍 disputesPage:', disputesPage);
+
+      // Extract arrays (disputesPage is already a PageResponse with content)
+      const usersArray = this.extractData(usersPage);
+      const transactionsArray = this.extractData(transactionsPage);
+      const disputesArray = this.extractData(disputesPage); // content from PageResponse
+      const auditArray = this.extractData(auditResponse);
+
+      console.log('🔍 Extracted disputesArray:', disputesArray);
+      if (disputesArray.length) {
+        console.log('🔍 First dispute raw summary:', disputesArray[0]);
       }
-    });
+
+      // Map users
+      const users = usersArray.map(u => this.mapApiUser(u));
+      this.usersSignal.set(users);
+
+      // Map transactions (needs users)
+      const transactions = transactionsArray.map(tx => this.mapApiTransaction(tx, users));
+      this.transactionsSignal.set(transactions);
+
+      // Map disputes (summary) – these will be enriched later when selected
+      const disputes = disputesArray.map(d => this.mapApiDisputeSummary(d, users, transactions));
+      this.disputesSignal.set(disputes);
+      console.log('Disputes signal', this.disputesSignal());
+
+      // Map audit logs
+      const auditLogs = auditArray.map(log => this.mapApiAuditLog(log, users));
+      this.auditLogsSignal.set(auditLogs);
+
+      // Notify if any endpoint failed
+      if (!usersPage || !transactionsPage || !disputesPage || !auditResponse) {
+        this.notificationService.add('Partial API Data', 'Some data could not be loaded.', 'warning');
+      }
+    } catch (error) {
+      console.error('API Load Error:', error);
+      this.notificationService.add('API Unavailable', 'Could not load data.', 'danger');
+    } finally {
+      this.loadingSignal.set(false);
+    }
   }
 
-  private extractApiList(response: unknown): any[] {
+  // ================================================================
+  // ROBUST extractData – handles PageResponse, ApiResponse, etc.
+  // ================================================================
+  private extractData(response: any): any[] {
     if (!response) return [];
-    const value = response as { data?: unknown; content?: unknown };
-    if (Array.isArray(value)) return value;
-    if (Array.isArray(value.content)) return value.content;
-    if (Array.isArray(value.data)) return value.data;
-    if (value.data && Array.isArray((value.data as { content?: unknown }).content)) {
-      return (value.data as { content: any[] }).content;
+    if (Array.isArray(response)) return response;
+
+    // If it's a PageResponse, take content
+    if (response.content && Array.isArray(response.content)) return response.content;
+
+    // If it's an ApiResponse with data array
+    if (response.data && Array.isArray(response.data)) return response.data;
+
+    // If it's an object with a data property that is a PageResponse
+    if (response.data && response.data.content && Array.isArray(response.data.content)) {
+      return response.data.content;
     }
+
+    // If it's a plain object with a content property
+    if (response.content && Array.isArray(response.content)) return response.content;
+
+    // Last resort: look for any property that is an array of objects with 'id'
+    if (typeof response === 'object' && response !== null) {
+      for (const key of Object.keys(response)) {
+        const value = response[key];
+        if (Array.isArray(value) && value.length > 0 && value[0]?.id) {
+          console.log(`🔍 extractData: found array in property "${key}"`);
+          return value;
+        }
+      }
+    }
+
     return [];
   }
 
+  // ================================================================
+  // MAPPERS
+  // ================================================================
   private mapApiUser(user: ApiUserDetails): User {
     return {
       id: user.id,
@@ -98,7 +169,7 @@ export class DataService {
       email: user.email,
       role: user.role as 'BUYER' | 'SELLER' | 'ADMIN' | 'SUPER_ADMIN',
       status: user.status as 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED',
-      blacklistStatus: (user.blacklistStatus as 'NOT_BLACKLISTED' | 'TEMPORARILY_MUTED' | 'PERMANENTLY_BANNED' | 'UNDER_INVESTIGATION') ?? 'NOT_BLACKLISTED',
+      blacklistStatus: (user.blacklistStatus as any) ?? 'NOT_BLACKLISTED',
       displayName: user.displayName || user.email || user.phone,
       businessName: user.businessName ?? null,
       avatarUrl: user.avatarUrl ?? null,
@@ -107,219 +178,169 @@ export class DataService {
     };
   }
 
-  private mapApiTransaction(transaction: ApiEscrowTransaction, users: User[]): Transaction {
-    const buyer = users.find(user => user.id === transaction.buyerId);
-    const seller = users.find(user => user.id === transaction.sellerId);
-
+  private mapApiTransaction(tx: ApiEscrowTransaction, users: User[]): Transaction {
+    const buyer = users.find(u => u.id === tx.buyerId);
+    const seller = users.find(u => u.id === tx.sellerId);
     return {
-      id: transaction.id,
-      reference: transaction.reference,
-      buyerId: transaction.buyerId,
-      sellerId: transaction.sellerId,
-      buyer: buyer?.displayName || transaction.buyerId,
-      seller: seller?.displayName || transaction.sellerId,
-      title: transaction.title,
-      productDescription: transaction.productDescription ?? undefined,
-      description: transaction.productDescription ?? transaction.title,
-      amount: Number(transaction.amount),
-      initialDepositAmount: transaction.initialDepositAmount == null ? undefined : Number(transaction.initialDepositAmount),
-      currency: transaction.currency,
-      status: transaction.status as EscrowTransactionStatus,
-      created: transaction.createdAt,
-      createdAt: transaction.createdAt,
-      updatedAt: transaction.updatedAt ?? undefined,
-      deliveryDueAt: transaction.deliveryDueAt ?? undefined,
-      autoReleaseAt: transaction.autoReleaseAt ?? undefined,
-      autoReleaseDate: transaction.autoReleaseAt ?? undefined
+      id: tx.id,
+      reference: tx.reference,
+      buyerId: tx.buyerId,
+      sellerId: tx.sellerId,
+      buyer: buyer?.displayName || tx.buyerId,
+      seller: seller?.displayName || tx.sellerId,
+      title: tx.title,
+      productDescription: tx.productDescription ?? undefined,
+      description: tx.productDescription ?? tx.title,
+      amount: Number(tx.amount),
+      initialDepositAmount: tx.initialDepositAmount == null ? undefined : Number(tx.initialDepositAmount),
+      currency: tx.currency,
+      status: tx.status as EscrowTransactionStatus,
+      created: tx.createdAt,
+      createdAt: tx.createdAt,
+      updatedAt: tx.updatedAt ?? undefined,
+      deliveryDueAt: tx.deliveryDueAt ?? undefined,
+      autoReleaseAt: tx.autoReleaseAt ?? undefined,
+      autoReleaseDate: tx.autoReleaseAt ?? undefined
     };
   }
 
-  private mapApiDispute(dispute: any, users: User[]): Dispute {
-    const transactionId = dispute.transactionId ?? dispute.transaction_id ?? dispute.txId ?? '';
-    const raisedById = dispute.raisedBy ?? dispute.raised_by ?? dispute.raisedById ?? '';
-    const raisedByUser = users.find(user => user.id === raisedById);
-    const transaction = this.transactionsSignal().find(tx => tx.id === transactionId);
-    const category = dispute.category ?? 'OTHER';
+  /**
+   * Map a dispute summary (from list endpoint) – minimal fields.
+   * This will be enriched later with full details.
+   */
+  private mapApiDisputeSummary(raw: any, users: User[], transactions: Transaction[]): Dispute {
+    const transactionId = raw.transactionId ?? '';
+    const transaction = transactions.find(t => t.id === transactionId);
+    const amount = Number(raw.amount ?? transaction?.amount ?? 0);
 
     return {
-      id: String(dispute.id ?? ''),
-      txId: String(transactionId),
-      transactionId: String(transactionId),
-      raisedById: String(raisedById),
-      raisedBy: raisedByUser?.displayName ?? String(raisedById || 'Unknown user'),
-      raisedByRole: raisedByUser?.role === 'SELLER' ? 'SELLER' : 'BUYER',
-      against: transaction?.seller ?? transaction?.buyer ?? 'Unknown party',
-      assignedAdminId: dispute.assignedAdminId ?? dispute.assigned_admin_id,
+      id: raw.id ?? '',
+      transactionId,
+      transactionReference: raw.transactionReference ?? '',
+      raisedById: '', // not available in summary
+      raisedByName: 'Loading...', // placeholder
+      category: raw.category ?? 'OTHER',
+      description: '',
+      status: raw.status ?? 'OPEN',
+      assignedAdminId: raw.assignedAdminId ?? null,
+      resolution: null,
+      resolvedAt: null,
+      evidenceUrls: [],
+      amount,
+      createdAt: raw.createdAt ?? '',
+      updatedAt: raw.updatedAt ?? '',
+      against: 'Unknown', // placeholder
+      adminNotes: '',
+      partialAmount: undefined
+    };
+  }
+
+  /**
+   * Map full dispute detail (from /disputes/{id}).
+   */
+  private mapApiDisputeFull(raw: any, users: User[], transactions: Transaction[]): Dispute {
+    console.log('🧾 mapApiDisputeFull raw:', raw);
+
+    const id = raw.id ?? '';
+    const transactionId = raw.transactionId ?? '';
+    const transactionReference = raw.transactionReference ?? '';
+    const raisedById = raw.raisedById ?? '';
+    const raisedByName = raw.raisedByName ?? 'Unknown user';
+    const category = raw.category ?? 'OTHER';
+    const description = raw.description ?? '';
+    const status = raw.status ?? 'OPEN';
+    const assignedAdminId = raw.assignedAdminId ?? null;
+    const resolution = raw.resolution ?? null;
+    const resolvedAt = raw.resolvedAt ?? null;
+    const createdAt = raw.createdAt ?? '';
+    const updatedAt = raw.updatedAt ?? '';
+    const evidenceUrls = Array.isArray(raw.evidenceUrls) ? raw.evidenceUrls : [];
+
+    const transaction = transactions.find(t => t.id === transactionId);
+    let against = 'Unknown party';
+    if (transaction) {
+      const user = users.find(u => u.id === raisedById);
+      if (user?.id === transaction.buyerId) against = transaction.seller;
+      else if (user?.id === transaction.sellerId) against = transaction.buyer;
+    }
+
+    const amount = Number(raw.amount ?? transaction?.amount ?? 0);
+
+    return {
+      id,
+      transactionId,
+      transactionReference,
+      raisedById,
+      raisedByName,
       category,
-      reason: dispute.reason ?? category,
-      description: dispute.description ?? '',
-      evidence: dispute.evidence ?? [],
-      status: dispute.status === 'OPEN' ? 'PENDING' : dispute.status,
-      amount: Number(dispute.amount ?? transaction?.amount ?? 0),
-      createdAt: dispute.createdAt ?? dispute.created_at ?? '',
-      updatedAt: dispute.updatedAt ?? dispute.updated_at,
-      resolvedAt: dispute.resolvedAt ?? dispute.resolved_at,
-      resolution: dispute.resolution
+      description,
+      status,
+      assignedAdminId,
+      resolution,
+      resolvedAt,
+      evidenceUrls,
+      amount,
+      createdAt,
+      updatedAt,
+      against,
+      adminNotes: '',
+      partialAmount: undefined
     };
   }
 
   private mapApiAuditLog(log: any, users: User[]): AuditLog {
     const actorId = log.actorUserId ?? log.actor_user_id;
-    const actor = users.find(user => user.id === actorId);
-    const entityType = log.entityType ?? log.entity_type ?? '';
-    const entityId = log.entityId ?? log.entity_id ?? '';
-    const metadata = log.metadata ? JSON.stringify(log.metadata) : '';
-
+    const actor = users.find(u => u.id === actorId);
     return {
       timestamp: log.createdAt ?? log.created_at ?? log.timestamp ?? '',
       admin: actor?.email ?? actorId ?? 'system',
       action: log.action ?? 'UNKNOWN_ACTION',
-      target: [entityType, entityId].filter(Boolean).join(': ') || 'system',
-      details: metadata || log.details || ''
+      target: log.entityType ?? log.entity_type ?? 'system',
+      details: log.metadata ? JSON.stringify(log.metadata) : log.details || ''
     };
   }
 
-  private initializeSampleAuditLogs(): void {
-    if (this.auditLogsSignal().length === 0) {
-      const sampleLogs: AuditLog[] = [
-        { timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19), admin: 'admin@escrowx.com', action: 'SUSPEND_USER', target: 'Peter Omondi', details: 'Suspended user Peter Omondi' },
-        { timestamp: new Date(Date.now() - 86400000).toISOString().replace('T', ' ').substring(0, 19), admin: 'admin@escrowx.com', action: 'ACTIVATE_USER', target: 'Mercy Achieng', details: 'Activated user Mercy Achieng' },
-        { timestamp: new Date(Date.now() - 172800000).toISOString().replace('T', ' ').substring(0, 19), admin: 'admin@escrowx.com', action: 'BLACKLIST_USER', target: 'Peter Omondi', details: 'Blacklisted user Peter Omondi' },
-        { timestamp: new Date(Date.now() - 259200000).toISOString().replace('T', ' ').substring(0, 19), admin: 'admin@escrowx.com', action: 'FORCE_RELEASE', target: 'ESC-TX1005', details: 'Released KES 18,800 to seller' },
-        { timestamp: new Date(Date.now() - 345600000).toISOString().replace('T', ' ').substring(0, 19), admin: 'admin@escrowx.com', action: 'RESOLVE_DISPUTE', target: 'DSP-101', details: 'Resolved: Refunded KES 23,000 to buyer' }
-      ];
-      this.auditLogsSignal.set(sampleLogs);
+  // ================================================================
+  // PUBLIC API – FETCH FULL DISPUTE
+  // ================================================================
+
+  /**
+   * Fetch the full dispute details by ID and update the cached list.
+   * Returns the enriched Dispute object.
+   */
+  async fetchFullDispute(disputeId: string): Promise<Dispute | null> {
+    try {
+      const response = await firstValueFrom(
+        this.apiService.getDisputeById(disputeId).pipe(catchError(() => of(null)))
+      );
+      if (!response) return null;
+
+      // The response might be the object directly or wrapped in 'data'
+      const raw = response.data ?? response;
+      const users = this.usersSignal();
+      const transactions = this.transactionsSignal();
+      const full = this.mapApiDisputeFull(raw, users, transactions);
+
+      // Update the cached disputes list
+      const current = this.disputesSignal();
+      const index = current.findIndex(d => d.id === disputeId);
+      if (index !== -1) {
+        current[index] = full;
+        this.disputesSignal.set([...current]);
+      }
+
+      return full;
+    } catch (error) {
+      console.error('Error fetching full dispute:', error);
+      return null;
     }
   }
 
-  private loadMockData() {
-    // Mock transactions
-    this.transactionsSignal.set([
-      { id: "ESC-TX1001", buyer: "John Kamau", seller: "Mercy Achieng", amount: 12500, status: "FUNDS_HELD", created: "2025-05-28", autoReleaseDate: "2025-06-04" },
-      { id: "ESC-TX1002", buyer: "Zahra Hassan", seller: "Samuel Njoroge", amount: 4500, status: "COMPLETED", created: "2025-05-27" },
-      { id: "ESC-TX1003", buyer: "Peter Omondi", seller: "Faith Wanjiku", amount: 23000, status: "DISPUTED", created: "2025-05-26" },
-      { id: "ESC-TX1004", buyer: "Grace Adhiambo", seller: "James Mwangi", amount: 6750, status: "FUNDS_HELD", created: "2025-05-29", autoReleaseDate: "2025-06-05" },
-      { id: "ESC-TX1005", buyer: "John Kamau", seller: "Sharon Atieno", amount: 18800, status: "COMPLETED", created: "2025-05-25" },
-      { id: "ESC-TX1006", buyer: "Brian Odhiambo", seller: "Peter Omondi", amount: 9200, status: "DISPUTED", created: "2025-05-24" },
-      { id: "ESC-TX1007", buyer: "Linet Wambui", seller: "Samuel Njoroge", amount: 33000, status: "FUNDS_HELD", created: "2025-05-30", autoReleaseDate: "2025-06-06" }
-    ]);
+  // ================================================================
+  // ALL OTHER PUBLIC METHODS (unchanged)
+  // ================================================================
 
-    // Mock users strictly following the User interface
-    this.usersSignal.set([
-      {
-        id: "1",
-        phone: "+254712345678",
-        email: "john@example.com",
-        role: "BUYER",
-        status: "ACTIVE",
-        blacklistStatus: "NOT_BLACKLISTED",
-        displayName: "John Kamau",
-        businessName: null,
-        createdAt: "2025-01-15T10:00:00Z"
-      },
-      {
-        id: "2",
-        phone: "+254722987654",
-        email: "mercy@seller.com",
-        role: "SELLER",
-        status: "ACTIVE",
-        blacklistStatus: "NOT_BLACKLISTED",
-        displayName: "Mercy Achieng",
-        businessName: "Mercy Traders",
-        createdAt: "2025-02-10T09:30:00Z"
-      },
-      {
-        id: "3",
-        phone: "+254799887766",
-        email: "peter@fraud.com",
-        role: "SELLER",
-        status: "BLACKLISTED",
-        blacklistStatus: "PERMANENTLY_BANNED",
-        displayName: "Peter Omondi",
-        businessName: "Peter Supplies",
-        createdAt: "2025-01-20T14:15:00Z"
-      },
-      {
-        id: "4",
-        phone: "+254700112233",
-        email: "zahra@buyer.com",
-        role: "BUYER",
-        status: "PENDING_VERIFICATION",
-        blacklistStatus: "NOT_BLACKLISTED",
-        displayName: "Zahra Hassan",
-        businessName: null,
-        createdAt: "2025-03-05T11:45:00Z"
-      },
-      {
-        id: "5",
-        phone: "+254744556677",
-        email: "samuel@shop.com",
-        role: "SELLER",
-        status: "ACTIVE",
-        blacklistStatus: "NOT_BLACKLISTED",
-        displayName: "Samuel Njoroge",
-        businessName: "Samuel Shop",
-        createdAt: "2025-02-20T08:20:00Z"
-      },
-      {
-        id: "6",
-        phone: "+254711223344",
-        email: "grace@designs.com",
-        role: "SELLER",
-        status: "ACTIVE",
-        blacklistStatus: "UNDER_INVESTIGATION",
-        displayName: "Grace Adhiambo",
-        businessName: "Grace Designs",
-        createdAt: "2025-03-15T16:10:00Z"
-      }
-    ]);
-
-    // Mock disputes
-    this.disputesSignal.set([
-      {
-        id: "DSP-101",
-        txId: "ESC-TX1003",
-        raisedBy: "Peter Omondi",
-        raisedByRole: "BUYER",
-        against: "Faith Wanjiku",
-        reason: "Item never delivered after payment",
-        description: "I paid KES 23,000 for a laptop on May 20th.",
-        evidence: ["screenshot_wa.png", "payment_receipt.jpg"],
-        status: "PENDING",
-        amount: 23000,
-        createdAt: "2025-05-26"
-      },
-      {
-        id: "DSP-102",
-        txId: "ESC-TX1006",
-        raisedBy: "Brian Odhiambo",
-        raisedByRole: "BUYER",
-        against: "Peter Omondi",
-        reason: "Received counterfeit phone",
-        description: "The phone I received is clearly counterfeit.",
-        evidence: ["counterfeit_photo.jpg"],
-        status: "PENDING",
-        amount: 9200,
-        createdAt: "2025-05-24"
-      },
-      {
-        id: "DSP-103",
-        txId: "ESC-TX1001",
-        raisedBy: "Mercy Achieng",
-        raisedByRole: "SELLER",
-        against: "John Kamau",
-        reason: "Buyer confirmed then disputed",
-        description: "The buyer confirmed receipt then opened a dispute.",
-        evidence: ["delivery_proof.png"],
-        status: "UNDER_REVIEW",
-        amount: 12500,
-        createdAt: "2025-05-28"
-      }
-    ]);
-  }
-
-  // ========== DASHBOARD HELPER METHODS ==========
-
+  // ---- DASHBOARD HELPERS ----
   getTotalVolume(): number {
     return this.transactionsSignal().reduce((sum, tx) => sum + tx.amount, 0);
   }
@@ -340,79 +361,7 @@ export class DataService {
     return this.transactionsSignal().slice(0, limit);
   }
 
-  // ========== CHART DATA METHODS ==========
-
-  getWeeklyVolume(): number[] {
-    return [520000, 684000, 760000, 945000];
-  }
-
-  getWeeklyLabels(): string[] {
-    return ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
-  }
-
-  getDisputeTrend(): number[] {
-    return [2, 4, 3, 5, 4, 3];
-  }
-
-  getDisputeLabels(): string[] {
-    return ['Wk22', 'Wk23', 'Wk24', 'Wk25', 'Wk26', 'This week'];
-  }
-
-  getTransactionVolumeByDay(days: number = 30): { labels: string[], data: number[] } {
-    const labels: string[] = [];
-    const data: number[] = [];
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      labels.push(date.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' }));
-      data.push(Math.floor(Math.random() * 50000) + 10000);
-    }
-    return { labels, data };
-  }
-
-  getDisputeTrendByWeek(weeks: number = 12): { labels: string[], data: number[] } {
-    const labels: string[] = [];
-    const data: number[] = [];
-    for (let i = weeks - 1; i >= 0; i--) {
-      labels.push(`W${Math.floor(i / 4) + 1}`);
-      data.push(Math.floor(Math.random() * 8) + 1);
-    }
-    return { labels, data };
-  }
-
-  getUserGrowth(): { labels: string[], data: number[] } {
-    return {
-      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
-      data: [45, 78, 120, 189, 245, 312]
-    };
-  }
-
-  getTransactionStatusDistribution(): { labels: string[], data: number[] } {
-    const stats = this.getTransactionStats();
-    return {
-      labels: ['Completed', 'Funds Held', 'Disputed', 'Refunded', 'Cancelled'],
-      data: [stats.completed, stats.fundsHeld, stats.disputed, stats.refunded, stats.cancelled || 0]
-    };
-  }
-
-  getTopSellers(limit: number = 5): { name: string, volume: number, transactions: number }[] {
-    const sellers = new Map<string, { volume: number, transactions: number }>();
-
-    this.transactionsSignal().forEach(tx => {
-      const current = sellers.get(tx.seller) || { volume: 0, transactions: 0 };
-      current.volume += tx.amount;
-      current.transactions += 1;
-      sellers.set(tx.seller, current);
-    });
-
-    return Array.from(sellers.entries())
-      .map(([name, data]) => ({ name, volume: data.volume, transactions: data.transactions }))
-      .sort((a, b) => b.volume - a.volume)
-      .slice(0, limit);
-  }
-
-  // ========== USER MANAGEMENT METHODS ==========
-
+  // ---- USER MANAGEMENT ----
   suspendUser(userId: string): void {
     const users = this.usersSignal();
     const user = users.find(u => u.id === userId);
@@ -477,17 +426,15 @@ export class DataService {
       active: users.filter(u => u.status === 'ACTIVE').length,
       suspended: users.filter(u => u.status === 'SUSPENDED').length,
       phoneVerified: users.filter(u => u.status === 'ACTIVE' && u.blacklistStatus !== 'PERMANENTLY_BANNED').length,
-      kycApproved: 0, // Not implemented in base User interface
+      kycApproved: 0,
       blacklisted: users.filter(u => u.blacklistStatus === 'PERMANENTLY_BANNED').length
     };
   }
 
-  // ========== TRANSACTION MANAGEMENT METHODS ==========
-
+  // ---- TRANSACTION MANAGEMENT ----
   forceReleaseFunds(transactionId: string): void {
     const transactions = this.transactionsSignal();
     const transaction = transactions.find(t => t.id === transactionId);
-
     if (transaction && transaction.status === 'FUNDS_HELD') {
       transaction.status = 'COMPLETED';
       transaction.completedAt = new Date().toISOString().split('T')[0];
@@ -500,7 +447,6 @@ export class DataService {
   forceRefund(transactionId: string): void {
     const transactions = this.transactionsSignal();
     const transaction = transactions.find(t => t.id === transactionId);
-
     if (transaction && (transaction.status === 'FUNDS_HELD' || transaction.status === 'DISPUTED')) {
       transaction.status = 'REFUNDED';
       transaction.completedAt = new Date().toISOString().split('T')[0];
@@ -513,7 +459,6 @@ export class DataService {
   cancelTransaction(transactionId: string): void {
     const transactions = this.transactionsSignal();
     const transaction = transactions.find(t => t.id === transactionId);
-
     if (transaction && transaction.status === 'FUNDS_HELD') {
       transaction.status = 'CANCELLED';
       this.transactionsSignal.set([...transactions]);
@@ -556,8 +501,7 @@ export class DataService {
     };
   }
 
-  // ========== DISPUTE MANAGEMENT METHODS ==========
-
+  // ---- DISPUTE MANAGEMENT ----
   getDisputeById(disputeId: string): Dispute | undefined {
     return this.disputesSignal().find(d => d.id === disputeId);
   }
@@ -584,22 +528,18 @@ export class DataService {
   resolveDisputeRefundBuyer(disputeId: string): void {
     const disputes = this.disputesSignal();
     const dispute = disputes.find(d => d.id === disputeId);
-
     if (dispute && dispute.status !== 'RESOLVED') {
       dispute.status = 'RESOLVED';
       dispute.resolvedAt = new Date().toISOString().split('T')[0];
       dispute.resolution = 'REFUND_BUYER';
-
-      const transactions = this.transactionsSignal();
-      const transaction = transactions.find(t => t.id === dispute.txId);
+      const transaction = this.transactionsSignal().find(t => t.id === dispute.transactionId);
       if (transaction && transaction.status !== 'COMPLETED') {
         transaction.status = 'REFUNDED';
         transaction.completedAt = new Date().toISOString().split('T')[0];
-        this.transactionsSignal.set([...transactions]);
+        this.transactionsSignal.set([...this.transactionsSignal()]);
       }
-
       this.disputesSignal.set([...disputes]);
-      this.addAuditLog('RESOLVE_DISPUTE', disputeId, `Resolved: Refunded KES ${dispute.amount.toLocaleString()} to buyer`);
+      this.addAuditLog('RESOLVE_DISPUTE', disputeId, `Refunded KES ${dispute.amount.toLocaleString()} to buyer`);
       this.notificationService.add('Dispute Resolved', `Refunded KES ${dispute.amount.toLocaleString()} to buyer`, 'success');
     }
   }
@@ -607,22 +547,18 @@ export class DataService {
   resolveDisputeReleaseSeller(disputeId: string): void {
     const disputes = this.disputesSignal();
     const dispute = disputes.find(d => d.id === disputeId);
-
     if (dispute && dispute.status !== 'RESOLVED') {
       dispute.status = 'RESOLVED';
       dispute.resolvedAt = new Date().toISOString().split('T')[0];
       dispute.resolution = 'RELEASE_SELLER';
-
-      const transactions = this.transactionsSignal();
-      const transaction = transactions.find(t => t.id === dispute.txId);
+      const transaction = this.transactionsSignal().find(t => t.id === dispute.transactionId);
       if (transaction && transaction.status !== 'COMPLETED') {
         transaction.status = 'COMPLETED';
         transaction.completedAt = new Date().toISOString().split('T')[0];
-        this.transactionsSignal.set([...transactions]);
+        this.transactionsSignal.set([...this.transactionsSignal()]);
       }
-
       this.disputesSignal.set([...disputes]);
-      this.addAuditLog('RESOLVE_DISPUTE', disputeId, `Resolved: Released KES ${dispute.amount.toLocaleString()} to seller`);
+      this.addAuditLog('RESOLVE_DISPUTE', disputeId, `Released KES ${dispute.amount.toLocaleString()} to seller`);
       this.notificationService.add('Dispute Resolved', `Released KES ${dispute.amount.toLocaleString()} to seller`, 'success');
     }
   }
@@ -630,24 +566,20 @@ export class DataService {
   resolveDisputePartial(disputeId: string, partialAmount: number, notes: string): void {
     const disputes = this.disputesSignal();
     const dispute = disputes.find(d => d.id === disputeId);
-
     if (dispute && dispute.status !== 'RESOLVED' && partialAmount > 0 && partialAmount < dispute.amount) {
       dispute.status = 'RESOLVED';
       dispute.resolvedAt = new Date().toISOString().split('T')[0];
       dispute.resolution = 'PARTIAL_SETTLEMENT';
       dispute.partialAmount = partialAmount;
       dispute.adminNotes = notes;
-
-      const transactions = this.transactionsSignal();
-      const transaction = transactions.find(t => t.id === dispute.txId);
+      const transaction = this.transactionsSignal().find(t => t.id === dispute.transactionId);
       if (transaction) {
         transaction.status = 'COMPLETED';
         transaction.completedAt = new Date().toISOString().split('T')[0];
-        this.transactionsSignal.set([...transactions]);
+        this.transactionsSignal.set([...this.transactionsSignal()]);
       }
-
       this.disputesSignal.set([...disputes]);
-      this.addAuditLog('RESOLVE_DISPUTE', disputeId, `Resolved: Partial settlement of KES ${partialAmount.toLocaleString()}`);
+      this.addAuditLog('RESOLVE_DISPUTE', disputeId, `Partial settlement of KES ${partialAmount.toLocaleString()}`);
       this.notificationService.add('Dispute Resolved', `Partial settlement of KES ${partialAmount.toLocaleString()}`, 'info');
     }
   }
@@ -655,7 +587,6 @@ export class DataService {
   updateDisputeStatus(disputeId: string, status: 'PENDING' | 'UNDER_REVIEW' | 'ESCALATED'): void {
     const disputes = this.disputesSignal();
     const dispute = disputes.find(d => d.id === disputeId);
-
     if (dispute) {
       dispute.status = status;
       this.disputesSignal.set([...disputes]);
@@ -667,7 +598,6 @@ export class DataService {
   addAdminNote(disputeId: string, note: string): void {
     const disputes = this.disputesSignal();
     const dispute = disputes.find(d => d.id === disputeId);
-
     if (dispute) {
       const timestamp = new Date().toLocaleString();
       dispute.adminNotes = dispute.adminNotes
@@ -678,18 +608,16 @@ export class DataService {
     }
   }
 
-  // ========== AUDIT LOG METHODS ==========
-
+  // ---- AUDIT LOG ----
   private addAuditLog(action: string, target: string, details: string): void {
     const newLog: AuditLog = {
       timestamp: new Date().toISOString().replace('T', ' ').substring(0, 19),
       admin: 'admin@escrowx.com',
-      action: action,
-      target: target,
-      details: details
+      action,
+      target,
+      details
     };
-    const currentLogs = this.auditLogsSignal();
-    this.auditLogsSignal.set([newLog, ...currentLogs].slice(0, 500));
+    this.auditLogsSignal.set([newLog, ...this.auditLogsSignal()].slice(0, 500));
   }
 
   getAuditLogs(): AuditLog[] {
@@ -698,11 +626,9 @@ export class DataService {
 
   getFilteredAuditLogs(actionFilter: string = 'all', searchTerm: string = ''): AuditLog[] {
     let filtered = this.auditLogsSignal();
-
     if (actionFilter !== 'all') {
       filtered = filtered.filter(log => log.action === actionFilter);
     }
-
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
       filtered = filtered.filter(log =>
@@ -712,18 +638,15 @@ export class DataService {
         log.admin.toLowerCase().includes(term)
       );
     }
-
     return filtered;
   }
 
-  getAuditLogStats(): { total: number; uniqueActions: number; mostRecent: string; actionBreakdown: { action: string; count: number }[] } {
+  getAuditLogStats() {
     const logs = this.auditLogsSignal();
     const actionCounts = new Map<string, number>();
-
     logs.forEach(log => {
       actionCounts.set(log.action, (actionCounts.get(log.action) || 0) + 1);
     });
-
     return {
       total: logs.length,
       uniqueActions: actionCounts.size,
@@ -734,7 +657,75 @@ export class DataService {
 
   clearAuditLogs(): void {
     this.auditLogsSignal.set([]);
-    this.addAuditLog('CLEAR_AUDIT_LOGS', 'system', 'All audit logs cleared by admin');
+    this.addAuditLog('CLEAR_AUDIT_LOGS', 'system', 'All audit logs cleared');
     this.notificationService.add('Audit Logs Cleared', 'All audit logs have been cleared', 'warning');
+  }
+
+  // ---- CHART DATA ----
+  getWeeklyVolume(): number[] {
+    return [520000, 684000, 760000, 945000];
+  }
+
+  getWeeklyLabels(): string[] {
+    return ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+  }
+
+  getDisputeTrend(): number[] {
+    return [2, 4, 3, 5, 4, 3];
+  }
+
+  getDisputeLabels(): string[] {
+    return ['Wk22', 'Wk23', 'Wk24', 'Wk25', 'Wk26', 'This week'];
+  }
+
+  getTransactionVolumeByDay(days: number = 30): { labels: string[]; data: number[] } {
+    const labels: string[] = [];
+    const data: number[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      labels.push(date.toLocaleDateString('en-KE', { month: 'short', day: 'numeric' }));
+      data.push(Math.floor(Math.random() * 50000) + 10000);
+    }
+    return { labels, data };
+  }
+
+  getDisputeTrendByWeek(weeks: number = 12): { labels: string[]; data: number[] } {
+    const labels: string[] = [];
+    const data: number[] = [];
+    for (let i = weeks - 1; i >= 0; i--) {
+      labels.push(`W${Math.floor(i / 4) + 1}`);
+      data.push(Math.floor(Math.random() * 8) + 1);
+    }
+    return { labels, data };
+  }
+
+  getUserGrowth(): { labels: string[]; data: number[] } {
+    return {
+      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+      data: [45, 78, 120, 189, 245, 312]
+    };
+  }
+
+  getTransactionStatusDistribution(): { labels: string[]; data: number[] } {
+    const stats = this.getTransactionStats();
+    return {
+      labels: ['Completed', 'Funds Held', 'Disputed', 'Refunded', 'Cancelled'],
+      data: [stats.completed, stats.fundsHeld, stats.disputed, stats.refunded, stats.cancelled || 0]
+    };
+  }
+
+  getTopSellers(limit: number = 5): { name: string; volume: number; transactions: number }[] {
+    const sellers = new Map<string, { volume: number; transactions: number }>();
+    this.transactionsSignal().forEach(tx => {
+      const current = sellers.get(tx.seller) || { volume: 0, transactions: 0 };
+      current.volume += tx.amount;
+      current.transactions += 1;
+      sellers.set(tx.seller, current);
+    });
+    return Array.from(sellers.entries())
+      .map(([name, data]) => ({ name, volume: data.volume, transactions: data.transactions }))
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, limit);
   }
 }

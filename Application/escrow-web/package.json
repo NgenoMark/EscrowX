@@ -4,6 +4,7 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
+    "start:prod": "ng serve --configuration production",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
@@ -22,6 +23,7 @@
     "@fortawesome/fontawesome-free": "^7.2.0",
     "chart.js": "^4.5.1",
     "express": "^5.1.0",
+    "ngxsmk-skeleton-loader": "^1.1.1",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

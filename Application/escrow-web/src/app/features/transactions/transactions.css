@@ -1,48 +1,78 @@
-/* Modal animation */
-.fixed {
-  animation: fadeIn 0.2s ease-out;
+/* src/app/features/transactions/transactions.css */
+
+/* ===== STICKY HEADER ===== */
+.sticky-header {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background-color: white;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+/* ===== SCROLLABLE TABLE CONTAINER ===== */
+.table-scroll-container {
+  max-height: calc(100vh - 380px); /* adjust based on stats + header height */
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
-/* Table hover effects */
+.overflow-x-auto {
+  overflow-x: auto;
+}
+
+/* ===== TABLE ROW HOVER ===== */
 tbody tr {
   transition: background-color 0.15s ease;
 }
 
-/* Custom scrollbar */
+/* ===== CUSTOM SCROLLBAR ===== */
 .overflow-x-auto::-webkit-scrollbar {
   height: 6px;
 }
-
 .overflow-x-auto::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 10px;
 }
-
 .overflow-x-auto::-webkit-scrollbar-thumb {
   background: #c7d2fe;
   border-radius: 10px;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #818cf8;
 }
 
 /* Modal scrollbar */
 .modal-scroll::-webkit-scrollbar {
   width: 6px;
 }
-
 .modal-scroll::-webkit-scrollbar-track {
   background: #f1f1f1;
   border-radius: 10px;
 }
-
 .modal-scroll::-webkit-scrollbar-thumb {
   background: #c7d2fe;
   border-radius: 10px;
+}
+
+/* ===== MODAL ANIMATION ===== */
+.fixed {
+  animation: fadeIn 0.2s ease-out;
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ===== RESPONSIVE ADJUSTMENTS ===== */
+@media (max-width: 640px) {
+  .table-scroll-container {
+    max-height: calc(100vh - 420px);
+  }
+  .sticky-header .flex-wrap {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .sticky-header input[type="text"] {
+    width: 100%;
+  }
 }

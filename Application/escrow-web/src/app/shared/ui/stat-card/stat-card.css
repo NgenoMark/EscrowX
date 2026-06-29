@@ -1,3 +1,4 @@
+/* src/app/shared/ui/stat-card/stat-card.css */
 .stat-card {
   position: relative;
   min-height: 9rem;
@@ -6,21 +7,12 @@
   background: #ffffff;
   padding: 1.15rem;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 12px 32px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
 }
 
-.stat-card p {
-  color: #64748b;
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.stat-card strong {
-  display: block;
-  margin-top: 0.35rem;
-  color: #102033;
-  font-size: 1.65rem;
-  font-weight: 800;
-  letter-spacing: 0;
+.stat-content {
+  flex: 1;
 }
 
 .stat-card i {
@@ -34,16 +26,41 @@
   border-radius: 0.7rem;
   background: #ccfbf1;
   color: #0f766e;
-}
-
-.stat-card span {
-  display: block;
-  margin-top: 1.2rem;
-  color: #64748b;
-  font-size: 0.78rem;
+  font-size: 1rem;
 }
 
 .stat-card-danger i {
   background: #fee2e2;
   color: #dc2626;
+}
+
+.stat-action {
+  margin-top: 0.75rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.75rem;
+}
+
+.stat-action-btn {
+  background: none;
+  border: none;
+  color: #2c7be5;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  padding: 0;
+  transition: color 0.15s ease;
+}
+
+.stat-action-btn:hover {
+  color: #1e5fc7;
+}
+
+.stat-action-btn i {
+  position: static;
+  background: transparent;
+  color: inherit;
+  width: auto;
+  height: auto;
+  font-size: 0.7rem;
+  margin-right: 0.25rem;
 }

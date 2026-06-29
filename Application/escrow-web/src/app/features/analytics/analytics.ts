@@ -1,3 +1,4 @@
+// src/app/features/analytics/analytics.ts
 import { Component, inject, signal, computed, OnInit, OnDestroy, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -15,141 +16,227 @@ import Chart from 'chart.js/auto';
 export class AnalyticsComponent implements OnInit, OnDestroy, AfterViewInit {
   private dataService = inject(DataService);
   private searchService = inject(SearchService);
-  
+
   // Date range filter
   dateRange = signal<'week' | 'month' | 'quarter' | 'year'>('month');
-  
+
   // Chart references
   private volumeChart: Chart | null = null;
   private disputeChart: Chart | null = null;
   private distributionChart: Chart | null = null;
   private growthChart: Chart | null = null;
-  
+
   // DOM element references
   @ViewChild('volumeChartCanvas') volumeChartCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('disputeChartCanvas') disputeChartCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('distributionChartCanvas') distributionChartCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('growthChartCanvas') growthChartCanvas!: ElementRef<HTMLCanvasElement>;
-  
-  // Analytics data
-  transactionStats = computed(() => this.dataService.getTransactionStats());
-  disputeStats = computed(() => this.dataService.getDisputeStats());
-  userStats = computed(() => this.dataService.getUserStats());
-  topSellers = computed(() => {
-    const term = this.searchService.query().toLowerCase().trim();
-    const sellers = this.dataService.getTopSellers(5);
 
-    if (!term) return sellers;
+  // --- Shared Color Palette for Distribution Chart & Custom Legend ---
+  private distributionColors = [
+    '#3b82f6', // Blue
+    '#10b981', // Emerald
+    '#f59e0b', // Amber
+    '#ef4444', // Red
+    '#8b5cf6', // Violet
+    '#ec4899', // Pink
+    '#14b8a6', // Teal
+    '#f97316'  // Orange
+  ];
 
-    return sellers.filter(seller =>
-      seller.name.toLowerCase().includes(term) ||
-      seller.volume.toString().includes(term) ||
-      seller.transactions.toString().includes(term)
-    );
+  // --- 1. Date Range Helper ---
+  private getDateRangeLimits() {
+    const now = new Date();
+    let startDate = new Date();
+    switch (this.dateRange()) {
+      case 'week': startDate.setDate(now.getDate() - 7); break;
+      case 'month': startDate.setMonth(now.getMonth() - 1); break;
+      case 'quarter': startDate.setMonth(now.getMonth() - 3); break;
+      case 'year': startDate.setFullYear(now.getFullYear() - 1); break;
+    }
+    return startDate;
+  }
+
+  // Filter transactions by the selected date range
+  private filteredTransactions = computed(() => {
+    const start = this.getDateRangeLimits();
+    return this.dataService.transactions().filter(tx => new Date(tx.created) >= start);
   });
-  
-  // Summary metrics
-  totalVolume = computed(() => this.transactionStats().totalVolume);
-  totalFees = computed(() => this.transactionStats().totalFees);
+
+  // Filter disputes by the selected date range
+  private filteredDisputes = computed(() => {
+    const start = this.getDateRangeLimits();
+    return this.dataService.disputes().filter(d => new Date(d.createdAt) >= start);
+  });
+
+  // --- 2. Macro BI Metrics (Strategic) ---
+  totalVolume = computed(() => {
+    return this.filteredTransactions().reduce((sum, tx) => sum + tx.amount, 0);
+  });
+
+  totalFees = computed(() => {
+    return this.totalVolume() * 0.025;
+  });
+
+  avgTransactionValue = computed(() => {
+    const count = this.filteredTransactions().length;
+    return count === 0 ? 0 : this.totalVolume() / count;
+  });
+
   successRate = computed(() => {
-    const completed = this.transactionStats().completed;
-    const total = this.transactionStats().total;
-    return total === 0 ? 0 : ((completed / total) * 100).toFixed(1);
+    const total = this.filteredTransactions().length;
+    if (total === 0) return 0;
+    const completed = this.filteredTransactions().filter(tx => tx.status === 'COMPLETED').length;
+    return (completed / total) * 100;
   });
-  
-  averageTransactionValue = computed(() => {
-    const total = this.transactionStats().total;
-    return total === 0 ? 0 : (this.totalVolume() / total);
+
+  totalUsers = computed(() => {
+    return this.dataService.users().length;
   });
-  
+
+  // --- 3. Month-over-Month Growth ---
+  monthOverMonthVolume = computed(() => {
+    const now = new Date();
+    const currentMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    const currentVolume = this.dataService.transactions()
+      .filter(tx => new Date(tx.created) >= currentMonthStart)
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    const lastVolume = this.dataService.transactions()
+      .filter(tx => new Date(tx.created) >= lastMonthStart && new Date(tx.created) <= lastMonthEnd)
+      .reduce((sum, tx) => sum + tx.amount, 0);
+
+    if (lastVolume === 0) return currentVolume > 0 ? 100 : 0;
+    return ((currentVolume - lastVolume) / lastVolume) * 100;
+  });
+
+  // --- 4. Top Sellers ---
+  topSellers = computed(() => {
+    const sellers = new Map<string, { name: string; volume: number; transactions: number }>();
+    this.filteredTransactions().forEach(tx => {
+      const current = sellers.get(tx.seller) || { name: tx.seller, volume: 0, transactions: 0 };
+      current.volume += tx.amount;
+      current.transactions += 1;
+      sellers.set(tx.seller, current);
+    });
+    return Array.from(sellers.values())
+      .sort((a, b) => b.volume - a.volume)
+      .slice(0, 5);
+  });
+
+  // --- 5. Chart Data Helpers (Computed for Template) ---
+  volumeChartData = computed(() => {
+    const data = this.filteredTransactions();
+    const map = new Map<string, number>();
+    data.forEach(tx => {
+      const date = new Date(tx.created).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
+      map.set(date, (map.get(date) || 0) + tx.amount);
+    });
+    const sorted = Array.from(map.entries()).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+    return { labels: sorted.map(s => s[0]), data: sorted.map(s => s[1]) };
+  });
+
+  disputeTrendData = computed(() => {
+    const data = this.filteredDisputes();
+    const map = new Map<string, number>();
+    data.forEach(d => {
+      const date = new Date(d.createdAt).toLocaleDateString('en-KE', { month: 'short', day: 'numeric' });
+      map.set(date, (map.get(date) || 0) + 1);
+    });
+    const sorted = Array.from(map.entries()).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+    return { labels: sorted.map(s => s[0]), data: sorted.map(s => s[1]) };
+  });
+
+  // 👇 Exposed to the template for the custom legend
+  distributionData = computed(() => {
+    const txns = this.filteredTransactions();
+    const map = new Map<string, number>();
+    txns.forEach(tx => {
+      map.set(tx.status, (map.get(tx.status) || 0) + 1);
+    });
+    return { labels: Array.from(map.keys()), data: Array.from(map.values()) };
+  });
+
+  growthData = computed(() => {
+    const users = this.dataService.users();
+    const map = new Map<string, number>();
+    users.forEach(u => {
+      const date = new Date(u.createdAt).toLocaleDateString('en-KE', { month: 'short', year: 'numeric' });
+      map.set(date, (map.get(date) || 0) + 1);
+    });
+    const sorted = Array.from(map.entries()).sort((a, b) => new Date(a[0]).getTime() - new Date(b[0]).getTime());
+    return { labels: sorted.map(s => s[0]), data: sorted.map(s => s[1]) };
+  });
+
+  // 👇 Helper for template to get the correct color for each custom legend item
+  getDistributionColor(index: number): string {
+    return this.distributionColors[index % this.distributionColors.length];
+  }
+
+  // --- Lifecycle ---
   ngOnInit() {
-    console.log('Analytics component initialized');
+    console.log('Analytics (BI Hub) initialized');
   }
-  
+
   ngAfterViewInit() {
-    // Initialize charts after view is ready
-    setTimeout(() => {
-      this.initCharts();
-    }, 500);
+    setTimeout(() => this.initCharts(), 300);
   }
-  
+
   ngOnDestroy() {
     this.destroyCharts();
   }
-  
+
   onDateRangeChange(): void {
     this.refreshCharts();
   }
-  
+
+  // --- Chart Management ---
   private initCharts(): void {
-    console.log('Initializing charts...');
     this.initVolumeChart();
     this.initDisputeChart();
     this.initDistributionChart();
     this.initGrowthChart();
   }
-  
+
   private destroyCharts(): void {
-    if (this.volumeChart) { this.volumeChart.destroy(); this.volumeChart = null; }
-    if (this.disputeChart) { this.disputeChart.destroy(); this.disputeChart = null; }
-    if (this.distributionChart) { this.distributionChart.destroy(); this.distributionChart = null; }
-    if (this.growthChart) { this.growthChart.destroy(); this.growthChart = null; }
+    this.volumeChart?.destroy();
+    this.disputeChart?.destroy();
+    this.distributionChart?.destroy();
+    this.growthChart?.destroy();
+    this.volumeChart = null;
+    this.disputeChart = null;
+    this.distributionChart = null;
+    this.growthChart = null;
   }
-  
+
   private refreshCharts(): void {
     this.destroyCharts();
     this.initCharts();
   }
-  
+
+  // --- Volume Chart ---
   private initVolumeChart(): void {
-    if (!this.volumeChartCanvas?.nativeElement) {
-      console.error('Volume chart canvas not found');
-      return;
-    }
-    
-    let volumeData;
-    switch(this.dateRange()) {
-      case 'week':
-        volumeData = this.dataService.getTransactionVolumeByDay(7);
-        break;
-      case 'month':
-        volumeData = this.dataService.getTransactionVolumeByDay(30);
-        break;
-      case 'quarter':
-        volumeData = this.dataService.getTransactionVolumeByDay(90);
-        break;
-      default:
-        volumeData = this.dataService.getTransactionVolumeByDay(30);
-    }
-    
+    if (!this.volumeChartCanvas?.nativeElement) return;
+    const data = this.volumeChartData();
     this.volumeChart = new Chart(this.volumeChartCanvas.nativeElement, {
       type: 'line',
       data: {
-        labels: volumeData.labels,
+        labels: data.labels,
         datasets: [{
           label: 'Transaction Volume (KES)',
-          data: volumeData.data,
+          data: data.data,
           borderColor: '#2c7be5',
           backgroundColor: 'rgba(44, 123, 229, 0.1)',
-          tension: 0,
+          tension: 0.3,
           fill: true,
           pointBackgroundColor: '#ffffff',
-          pointHoverBackgroundColor: '#2c7be5',
           pointBorderColor: '#2c7be5',
           pointBorderWidth: 2,
           pointRadius: 0,
-          pointHoverRadius: 5
-        }, {
-          label: 'Previous Period',
-          data: volumeData.data.map((value, index) => Math.round(value * (index % 3 === 0 ? 0.55 : 0.8))),
-          borderColor: '#27bcfd',
-          borderDash: [4, 3],
-          backgroundColor: 'transparent',
-          tension: 0,
-          fill: false,
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          pointBorderColor: '#fff',
+          pointHoverRadius: 6,
         }]
       },
       options: {
@@ -157,194 +244,138 @@ export class AnalyticsComponent implements OnInit, OnDestroy, AfterViewInit {
         maintainAspectRatio: false,
         plugins: {
           legend: { display: false },
-          tooltip: { 
+          tooltip: {
             callbacks: {
-              label: (context: any) => {
-                const value = context.parsed?.y;
-                if (value === null || value === undefined) return 'KES 0';
-                return `KES ${value.toLocaleString()}`;
-              }
+              label: (ctx: any) => `KES ${ctx.parsed.y.toLocaleString()}`
             }
           }
         },
         scales: {
-          y: {
-            beginAtZero: true,
-            position: 'right',
-            grid: { color: '#e9edf4' },
-            ticks: {
-              color: '#8a97ad',
-              callback: (value: any) => {
-                if (value === null || value === undefined) return 'KES 0';
-                return value.toLocaleString();
-              }
-            }
-          },
-          x: {
-            grid: { color: '#e9edf4' },
-            ticks: { color: '#8a97ad', maxTicksLimit: 7 }
-          }
+          y: { beginAtZero: true, position: 'right', grid: { color: '#e9edf4' } },
+          x: { grid: { display: false } }
         }
       }
     });
-    console.log('Volume chart created');
   }
-  
+
+  // --- Disputes Bar Chart ---
   private initDisputeChart(): void {
-    if (!this.disputeChartCanvas?.nativeElement) {
-      console.error('Dispute chart canvas not found');
-      return;
-    }
-    
-    const disputeData = this.dataService.getDisputeTrendByWeek(12);
-    
+    if (!this.disputeChartCanvas?.nativeElement) return;
+    const data = this.disputeTrendData();
     this.disputeChart = new Chart(this.disputeChartCanvas.nativeElement, {
       type: 'bar',
       data: {
-        labels: disputeData.labels,
+        labels: data.labels,
         datasets: [{
           label: 'Disputes Filed',
-          data: disputeData.data,
+          data: data.data,
           backgroundColor: '#ef4444',
-          borderRadius: 8,
-          barPercentage: 0.7
+          borderRadius: 6,
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
-        plugins: {
-          legend: { position: 'top' },
-          tooltip: { 
-            callbacks: {
-              label: (context: any) => {
-                const value = context.parsed?.y;
-                if (value === null || value === undefined) return '0 dispute(s)';
-                return `${value} dispute(s)`;
-              }
-            }
-          }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { stepSize: 1 }
-          }
-        }
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
       }
     });
-    console.log('Dispute chart created');
   }
-  
+
+  // --- FIXED: Distribution Doughnut Chart (Legend DISABLED) ---
   private initDistributionChart(): void {
-    if (!this.distributionChartCanvas?.nativeElement) {
-      console.error('Distribution chart canvas not found');
-      return;
-    }
-    
-    const distribution = this.dataService.getTransactionStatusDistribution();
-    
+    if (!this.distributionChartCanvas?.nativeElement) return;
+    const data = this.distributionData();
+
     this.distributionChart = new Chart(this.distributionChartCanvas.nativeElement, {
       type: 'doughnut',
       data: {
-        labels: distribution.labels,
+        labels: data.labels,
         datasets: [{
-          data: distribution.data,
-          backgroundColor: ['#22c55e', '#eab308', '#ef4444', '#6b7280', '#9ca3af'],
-          borderWidth: 0
+          data: data.data,
+          backgroundColor: this.distributionColors.slice(0, data.labels.length),
+          borderColor: '#ffffff',
+          borderWidth: 2.5,
+          hoverOffset: 10
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
+        cutout: '65%',
         plugins: {
-          legend: { position: 'bottom' },
-          tooltip: { 
+          // 👇 LEGEND DISABLED – we are using a custom HTML legend
+          legend: { display: false },
+          tooltip: {
             callbacks: {
-              label: (context: any) => {
-                const value = context.parsed;
-                if (value === null || value === undefined) return '0 transactions';
-                return `${context.label}: ${value} transactions`;
+              label: (ctx: any) => {
+                const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
+                if (total === 0) return `${ctx.label}: 0 (0%)`;
+                const percentage = ((ctx.parsed / total) * 100).toFixed(1);
+                return `${ctx.label}: ${ctx.parsed} (${percentage}%)`;
               }
             }
           }
         }
       }
     });
-    console.log('Distribution chart created');
   }
-  
+
+  // --- User Growth Bar Chart ---
   private initGrowthChart(): void {
-    if (!this.growthChartCanvas?.nativeElement) {
-      console.error('Growth chart canvas not found');
-      return;
-    }
-    
-    const growthData = this.dataService.getUserGrowth();
-    
+    if (!this.growthChartCanvas?.nativeElement) return;
+    const data = this.growthData();
     this.growthChart = new Chart(this.growthChartCanvas.nativeElement, {
       type: 'bar',
       data: {
-        labels: growthData.labels,
+        labels: data.labels,
         datasets: [{
           label: 'New Users',
-          data: growthData.data,
+          data: data.data,
           backgroundColor: '#10b981',
-          borderRadius: 8,
-          barPercentage: 0.6
+          borderRadius: 6,
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: true,
-        plugins: {
-          legend: { position: 'top' }
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: { stepSize: 50 }
-          }
-        }
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true } }
       }
     });
-    console.log('Growth chart created');
   }
-  
+
+  // --- Helpers ---
+  formatCurrency(value: number): string {
+    return 'KES ' + value.toLocaleString();
+  }
+
+  formatPercentage(value: number): string {
+    return value.toFixed(1) + '%';
+  }
+
+  formatGrowth(value: number): string {
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value.toFixed(1)}%`;
+  }
+
   exportToCSV(): void {
-    const data = this.topSellers().map(seller => ({
-      'Seller Name': seller.name,
-      'Transaction Volume (KES)': seller.volume,
-      'Number of Transactions': seller.transactions,
-      'Average Transaction (KES)': (seller.volume / seller.transactions).toFixed(2)
+    const data = this.topSellers().map(s => ({
+      'Seller': s.name,
+      'Volume (KES)': s.volume,
+      'Transactions': s.transactions,
+      'Avg Tx': (s.volume / s.transactions).toFixed(2)
     }));
-    
-    if (data.length === 0) {
-      alert('No data to export');
-      return;
-    }
-    
+    if (!data.length) return alert('No data to export');
     const headers = Object.keys(data[0]);
-    const csvRows = [headers.join(',')];
-    
-    for (const row of data) {
-      const values = headers.map(header => {
-        const value = row[header as keyof typeof row];
-        return typeof value === 'string' && value.includes(',') ? `"${value}"` : value;
-      });
-      csvRows.push(values.join(','));
-    }
-    
-    const blob = new Blob([csvRows.join('\n')], { type: 'text/csv' });
+    const rows = [headers.join(',')];
+    data.forEach(row => rows.push(headers.map(h => row[h as keyof typeof row]).join(',')));
+    const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `escrowx-analytics-${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
-  }
-  
-  formatCurrency(value: number): string {
-    return 'KES ' + value.toLocaleString();
   }
 }

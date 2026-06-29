@@ -1,10 +1,14 @@
+<!-- src/app/shared/ui/stat-card/stat-card.html -->
 <article class="stat-card" [class.stat-card-danger]="tone === 'danger'">
-  <div>
-    <p>{{ label }}</p>
-    <strong>{{ value }}</strong>
+  <div class="stat-content">
+    <p class="text-xs font-bold text-gray-500 uppercase tracking-wide">{{ label }}</p>
+    <strong class="text-2xl font-extrabold text-gray-900">{{ value }}</strong>
+    @if (note) {
+      <span class="text-sm text-gray-500">{{ note }}</span>
+    }
   </div>
   <i class="fas {{ icon }}"></i>
-  @if (note) {
-    <span>{{ note }}</span>
-  }
+  <div class="stat-action">
+    <ng-content></ng-content>
+  </div>
 </article>

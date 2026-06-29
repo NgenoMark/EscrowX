@@ -1,3 +1,4 @@
+// src/app/shared/layout/header/header.ts
 import { Component, computed, EventEmitter, Input, Output, signal, HostListener, ElementRef, ViewChild, AfterViewInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -43,7 +44,6 @@ export class HeaderComponent implements AfterViewInit {
 
   availableFilters: GlobalSearchFilter[] = ['all', 'users', 'transactions', 'disputes', 'audit'];
 
-  // Simple getter – works with plain @Input properties
   get isSidebarVisible(): boolean {
     return !this.sidebarCollapsed || this.mobileSidebarOpen;
   }
@@ -97,14 +97,11 @@ export class HeaderComponent implements AfterViewInit {
     this.openGlobalSearch();
   }
 
-  // Click‑outside for notifications
   @HostListener('document:click', ['$event'])
   onDocumentClick(event: MouseEvent): void {
     if (!this.notificationsOpen()) return;
-    
     const target = event.target as HTMLElement;
     const notificationWrap = document.querySelector('.notification-wrap');
-    
     if (notificationWrap && !notificationWrap.contains(target)) {
       this.notificationsOpen.set(false);
     }
@@ -113,11 +110,9 @@ export class HeaderComponent implements AfterViewInit {
   onSearchInput(query: string): void {
     this.searchQuery.set(query);
     this.isSearching.set(true);
-    
     if (this.searchDebounceTimer) {
       clearTimeout(this.searchDebounceTimer);
     }
-    
     this.searchDebounceTimer = setTimeout(() => {
       this.performSearch();
     }, 300);
@@ -170,15 +165,20 @@ export class HeaderComponent implements AfterViewInit {
           }
         }
 
+        // ---------- UPDATED DISPUTES SEARCH ----------
         if (include('disputes')) {
           const disputes = this.dataService.disputes();
           for (const dispute of disputes) {
-            const haystack = `${dispute.id} ${dispute.txId} ${dispute.raisedBy} ${dispute.against} ${dispute.reason} ${dispute.status}`.toLowerCase();
+            const transactionId = dispute.transactionId || dispute.transactionReference || '';
+            const reasonText = dispute.category || dispute.description || 'No reason';
+            const raisedByName = dispute.raisedByName || '';
+
+            const haystack = `${dispute.id} ${transactionId} ${raisedByName} ${dispute.against || ''} ${reasonText} ${dispute.status}`.toLowerCase();
             if (haystack.includes(query)) {
               results.push({
                 type: 'disputes',
                 title: dispute.id,
-                detail: `${dispute.reason} | ${dispute.status}`,
+                detail: `${reasonText} | ${dispute.status}`,
                 route: '/disputes',
                 icon: 'fas fa-gavel'
               });
@@ -220,7 +220,7 @@ export class HeaderComponent implements AfterViewInit {
 
   toggleNotifications(event?: MouseEvent): void {
     if (event) {
-      event.stopPropagation(); // prevent document click from immediately closing
+      event.stopPropagation();
     }
     this.notificationsOpen.set(!this.notificationsOpen());
     if (this.globalSearchOpen()) {

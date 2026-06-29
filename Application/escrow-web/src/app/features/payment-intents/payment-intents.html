@@ -1,0 +1,163 @@
+<!-- src/app/features/payment-intents/payment-intents.html -->
+<div class="space-y-6">
+  
+  <!-- Search and Stats -->
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div class="flex items-center gap-4">
+      <h2 class="text-lg font-bold text-gray-800">Payment Intents</h2>
+      <!-- 👇 Refresh Button -->
+      <button 
+        (click)="refreshIntents()" 
+        [disabled]="isLoading()"
+        class="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+      >
+        <i class="fas fa-sync-alt" [class.fa-spin]="isLoading()"></i>
+        Refresh
+      </button>
+      @if (isLoading()) {
+        <span class="text-sm text-gray-500">Loading...</span>
+      } @else {
+        <span class="text-sm text-gray-500">Total: <strong>{{ filteredIntents().length }}</strong> intents</span>
+      }
+    </div>
+    <div class="relative w-full sm:w-72">
+      <input
+        type="text"
+        placeholder="Search by ID, buyer, seller, status..."
+        (input)="searchService.setQuery($any($event.target).value)"
+        [value]="searchTerm()"
+        class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+      />
+      <button
+        *ngIf="searchTerm()"
+        (click)="clearSearch()"
+        class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+
+  <!-- Intents Table -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+    <div class="overflow-x-auto">
+      <ng-container *ngxsmkSkeleton="isLoading(); type: 'text'; count: 5; width: '100%'; height: '50px'; gap: '2px'; appearance: 'rect'; animation: 'progress'">
+        <table class="min-w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seller</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">MPESA Receipt</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+              <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            @for (intent of filteredIntents(); track intent.id) {
+              <tr class="hover:bg-gray-50 transition">
+                <td class="px-6 py-4 text-xs font-mono text-indigo-600">{{ safeSlice(intent.id, 8) }}</td>
+                <td class="px-6 py-4 text-xs font-mono text-gray-600">{{ safeSlice(intent.transactionId, 8) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">{{ safeSlice(intent.buyerId, 8) }}</td>
+                <td class="px-6 py-4 text-sm text-gray-700">{{ safeSlice(intent.sellerId, 8) }}</td>
+                <td class="px-6 py-4 font-semibold text-gray-800">KES {{ intent.amount | number }}</td>
+                <td class="px-6 py-4">
+                  <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getStatusBadge(intent.status)">
+                    {{ intent.status }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-xs text-gray-500">{{ intent.mpesaReceiptNumber || '-' }}</td>
+                <td class="px-6 py-4 text-sm text-gray-500">{{ formatDate(intent.createdAt) }}</td>
+                <td class="px-6 py-4 text-center">
+                  <button
+                    (click)="viewIntentDetails(intent)"
+                    class="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-medium hover:bg-indigo-100 transition"
+                  >
+                    <i class="fas fa-eye"></i> View
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9" class="px-6 py-10 text-center text-gray-500">
+                  <i class="fas fa-inbox text-4xl block mb-2 text-gray-300"></i>
+                  No payment intents found
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </ng-container>
+    </div>
+  </div>
+</div>
+
+<!-- Detail Modal -->
+<div *ngIf="showModal()" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeModal()">
+  <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
+    <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
+      <h3 class="text-xl font-bold text-gray-800">Payment Intent Details</h3>
+      <button (click)="closeModal()" class="text-gray-400 hover:text-gray-600"><i class="fas fa-times text-xl"></i></button>
+    </div>
+    <div class="p-6 space-y-4" *ngIf="selectedIntent() as intent">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Intent ID</p>
+          <p class="font-mono text-sm text-indigo-600">{{ intent.id }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Transaction ID</p>
+          <p class="font-mono text-sm text-gray-800">{{ intent.transactionId }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Buyer ID</p>
+          <p class="font-mono text-sm text-gray-800">{{ intent.buyerId }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Seller ID</p>
+          <p class="font-mono text-sm text-gray-800">{{ intent.sellerId }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Amount</p>
+          <p class="text-2xl font-bold text-indigo-600">KES {{ intent.amount | number }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Status</p>
+          <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getStatusBadge(intent.status)">
+            {{ intent.status }}
+          </span>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 col-span-2">
+          <p class="text-xs text-gray-500">MPESA Receipt</p>
+          <p class="font-mono text-sm text-gray-800">{{ intent.mpesaReceiptNumber || 'Not available' }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4 col-span-2">
+          <p class="text-xs text-gray-500">Created At</p>
+          <p class="text-sm text-gray-800">{{ formatDate(intent.createdAt) }}</p>
+        </div>
+      </div>
+
+      <div class="border-t border-gray-200 pt-4" *ngIf="isLoadingHistory() || statusHistory().length > 0">
+        <h4 class="font-semibold text-gray-700 mb-3">Status History</h4>
+        <div *ngIf="isLoadingHistory()" class="text-center text-gray-500 py-4">
+          <i class="fas fa-spinner fa-spin"></i> Loading history...
+        </div>
+        <div *ngIf="!isLoadingHistory() && statusHistory().length === 0" class="text-center text-gray-500 py-4">
+          No history available
+        </div>
+        <div *ngIf="!isLoadingHistory() && statusHistory().length > 0" class="space-y-2">
+          <div *ngFor="let entry of statusHistory()" class="flex justify-between items-center border-b border-gray-100 py-2 text-sm">
+            <span class="text-gray-600">{{ entry.from_status || '-' }} → {{ entry.to_status }}</span>
+            <span class="text-gray-400 text-xs">{{ formatDate(entry.created_at || entry.createdAt) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+      <button (click)="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Close</button>
+    </div>
+  </div>
+</div>

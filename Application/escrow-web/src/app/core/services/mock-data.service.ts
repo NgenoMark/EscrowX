@@ -1,3 +1,4 @@
+// src/app/core/services/mock-data.service.ts
 import { Injectable } from '@angular/core';
 import { of } from 'rxjs';
 import { Dispute } from '../models/dispute';
@@ -32,11 +33,70 @@ export class MockDataService {
     ]);
   }
 
+  // MOCK DISPUTES – using the exact fields from the new model
   getDisputes() {
     return of<Dispute[]>([
-      { id: '7d9e1d0a-0101-4000-9000-000000000101', txId: '2c9d1c0a-0003-4000-9000-000000000003', transactionId: '2c9d1c0a-0003-4000-9000-000000000003', raisedById: '55555555-5555-4555-8555-555555555555', raisedBy: 'Peter Omondi', raisedByRole: 'BUYER', against: 'Faith Wanjiku', category: 'NON_DELIVERY', reason: 'Item never delivered after payment', description: 'I paid KES 23,000 for a laptop on May 20th.', evidence: ['screenshot_wa.png', 'payment_receipt.jpg'], status: 'PENDING', amount: 23000, createdAt: '2025-05-26' },
-      { id: '7d9e1d0a-0102-4000-9000-000000000102', txId: '2c9d1c0a-0006-4000-9000-000000000006', transactionId: '2c9d1c0a-0006-4000-9000-000000000006', raisedById: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', raisedBy: 'Brian Odhiambo', raisedByRole: 'BUYER', against: 'Peter Omondi', category: 'NOT_AS_DESCRIBED', reason: 'Received counterfeit phone', description: 'The phone I received is clearly counterfeit.', evidence: ['counterfeit_photo.jpg'], status: 'PENDING', amount: 9200, createdAt: '2025-05-24' },
-      { id: '7d9e1d0a-0103-4000-9000-000000000103', txId: '2c9d1c0a-0001-4000-9000-000000000001', transactionId: '2c9d1c0a-0001-4000-9000-000000000001', raisedById: '22222222-2222-4222-8222-222222222222', raisedBy: 'Mercy Achieng', raisedByRole: 'SELLER', against: 'John Kamau', category: 'OTHER', reason: 'Buyer confirmed then disputed', description: 'The buyer confirmed receipt then opened a dispute.', evidence: ['delivery_proof.png'], status: 'UNDER_REVIEW', amount: 12500, createdAt: '2025-05-28' }
+      {
+        id: '7d9e1d0a-0101-4000-9000-000000000101',
+        transactionId: '2c9d1c0a-0003-4000-9000-000000000003',
+        transactionReference: 'ESC-TX1003',
+        raisedById: '55555555-5555-4555-8555-555555555555',
+        raisedByName: 'Peter Omondi',
+        category: 'NON_DELIVERY',
+        description: 'Item never delivered after payment. I paid KES 23,000 for a laptop on May 20th.',
+        status: 'PENDING',
+        assignedAdminId: null,
+        resolution: null,
+        resolvedAt: null,
+        evidenceUrls: [
+          'https://example.com/evidence/screenshot_wa.png',
+          'https://example.com/evidence/payment_receipt.jpg'
+        ],
+        amount: 23000,
+        createdAt: '2025-05-26T14:15:00Z',
+        updatedAt: '2025-05-26T14:15:00Z',
+        against: 'Faith Wanjiku'
+      },
+      {
+        id: '7d9e1d0a-0102-4000-9000-000000000102',
+        transactionId: '2c9d1c0a-0006-4000-9000-000000000006',
+        transactionReference: 'ESC-TX1006',
+        raisedById: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+        raisedByName: 'Brian Odhiambo',
+        category: 'NOT_AS_DESCRIBED',
+        description: 'Received counterfeit phone. The phone I received is clearly counterfeit.',
+        status: 'PENDING',
+        assignedAdminId: null,
+        resolution: null,
+        resolvedAt: null,
+        evidenceUrls: [
+          'https://example.com/evidence/counterfeit_photo.jpg'
+        ],
+        amount: 9200,
+        createdAt: '2025-05-24T16:10:00Z',
+        updatedAt: '2025-05-24T16:10:00Z',
+        against: 'Peter Omondi'
+      },
+      {
+        id: '7d9e1d0a-0103-4000-9000-000000000103',
+        transactionId: '2c9d1c0a-0001-4000-9000-000000000001',
+        transactionReference: 'ESC-TX1001',
+        raisedById: '22222222-2222-4222-8222-222222222222',
+        raisedByName: 'Mercy Achieng',
+        category: 'OTHER',
+        description: 'Buyer confirmed then disputed. The buyer confirmed receipt then opened a dispute.',
+        status: 'UNDER_REVIEW',
+        assignedAdminId: null,
+        resolution: null,
+        resolvedAt: null,
+        evidenceUrls: [
+          'https://example.com/evidence/delivery_proof.png'
+        ],
+        amount: 12500,
+        createdAt: '2025-05-28T10:00:00Z',
+        updatedAt: '2025-05-28T10:00:00Z',
+        against: 'John Kamau'
+      }
     ]);
   }
 

@@ -1,0 +1,593 @@
+<!-- src/app/features/users/sellers/sellers.html -->
+<div class="space-y-6">
+  
+  <!-- Statistics -->
+  <div class="stats-grid">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-lg font-semibold text-gray-800">Seller Metrics</h2>
+      <button 
+        (click)="refreshSellers()" 
+        [disabled]="isLoading()"
+        class="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+      >
+        <i class="fas fa-sync-alt" [class.fa-spin]="isLoading()"></i>
+        Refresh
+      </button>
+    </div>
+    
+    <ng-container *ngxsmkSkeleton="isLoading(); type: 'text'; count: 6; width: '100%'; height: '80px'; gap: '12px'; appearance: 'rect'; animation: 'progress'">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Total</span>
+            <span class="text-lg font-bold text-gray-800">{{ totalSellers() }}</span>
+          </div>
+          <p class="text-[11px] text-gray-500 mt-1">All sellers</p>
+        </div>
+        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Approved</span>
+            <span class="text-lg font-bold text-green-600">{{ approvedSellers() }}</span>
+          </div>
+          <p class="text-[11px] text-green-600 mt-1">Active sellers</p>
+        </div>
+        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Pending</span>
+            <span class="text-lg font-bold text-yellow-600">{{ pendingSellers() }}</span>
+          </div>
+          <p class="text-[11px] text-yellow-600 mt-1">Awaiting approval</p>
+        </div>
+        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Suspended</span>
+            <span class="text-lg font-bold text-red-600">{{ suspendedSellers() }}</span>
+          </div>
+        </div>
+        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Blacklisted</span>
+            <span class="text-lg font-bold text-gray-700">{{ blacklistedSellers() }}</span>
+          </div>
+        </div>
+        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Active</span>
+            <span class="text-lg font-bold text-indigo-600">{{ activeSellers() }}</span>
+          </div>
+        </div>
+      </div>
+    </ng-container>
+  </div>
+
+  <!-- Seller Management Card -->
+  <div class="user-management-card bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+    
+    <!-- Sticky Header with search + filters -->
+    <div class="search-header px-6 py-4 border-b border-gray-100 sticky-header">
+      <div class="flex flex-col gap-3">
+        <!-- Top row: title + search -->
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h3 class="text-base font-semibold text-gray-800">Seller Directory</h3>
+            <p class="text-xs text-gray-500">Manage seller accounts and approvals</p>
+          </div>
+          <div class="relative w-full sm:w-72">
+            <input type="text" placeholder="Search sellers..." (input)="onSearch($event)" [value]="searchTerm()"
+              class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-300">
+            <button *ngIf="searchTerm()" (click)="clearSearch()"
+              class="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 text-sm">
+              ✕
+            </button>
+          </div>
+        </div>
+
+        <!-- Bottom row: filters + clear -->
+        <div class="flex flex-wrap items-center gap-3">
+          <div class="flex items-center gap-1">
+            <label class="text-xs font-medium text-gray-500">Status</label>
+            <select (change)="filterStatus.set($any($event.target).value)" 
+                    class="px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+              <option value="ALL">All</option>
+              <option value="ACTIVE">Approved</option>
+              <option value="PENDING_VERIFICATION">Pending</option>
+              <option value="SUSPENDED">Suspended</option>
+              <option value="BLACKLISTED">Blacklisted</option>
+            </select>
+          </div>
+
+          <div class="flex items-center gap-1">
+            <label class="text-xs font-medium text-gray-500">Blacklist</label>
+            <select (change)="filterBlacklist.set($any($event.target).value)"
+                    class="px-2 py-1 border border-gray-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-gray-300 bg-white">
+              <option value="ALL">All</option>
+              <option value="NOT_BLACKLISTED">Clean</option>
+              <option value="UNDER_INVESTIGATION">Investigation</option>
+              <option value="PERMANENTLY_BANNED">Banned</option>
+              <option value="TEMPORARILY_MUTED">Muted</option>
+            </select>
+          </div>
+
+          <button (click)="clearFilters()"
+                  class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200 transition">
+            Clear Filters
+          </button>
+
+          @if (filterStatus() !== 'ALL' || filterBlacklist() !== 'ALL' || searchTerm()) {
+            <span class="text-xs text-gray-400">
+              ({{ filteredSellers().length }} results)
+            </span>
+          }
+        </div>
+      </div>
+    </div>
+
+    <!-- Bulk Action Bar -->
+    @if (selectedCount() > 0) {
+      <div class="bulk-action-bar px-6 py-3 bg-purple-50 border-t border-purple-100 flex flex-wrap items-center gap-3">
+        <span class="text-sm font-medium text-purple-800">
+          {{ selectedCount() }} seller{{ selectedCount() > 1 ? 's' : '' }} selected
+        </span>
+        <div class="flex flex-wrap gap-2">
+          <button (click)="bulkAction('approve')"
+                  class="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-medium hover:bg-green-200 transition">
+            Approve
+          </button>
+          <button (click)="bulkAction('suspend')"
+                  class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded text-xs font-medium hover:bg-yellow-200 transition">
+            Suspend
+          </button>
+          <button (click)="bulkAction('blacklist')"
+                  class="px-3 py-1 bg-red-100 text-red-800 rounded text-xs font-medium hover:bg-red-200 transition">
+            Blacklist
+          </button>
+          <button (click)="bulkAction('activate')"
+                  class="px-3 py-1 bg-green-100 text-green-800 rounded text-xs font-medium hover:bg-green-200 transition">
+            Activate
+          </button>
+          <button (click)="bulkAction('restore')"
+                  class="px-3 py-1 bg-gray-100 text-gray-800 rounded text-xs font-medium hover:bg-gray-200 transition">
+            Restore
+          </button>
+          <button (click)="clearSelection()"
+                  class="px-3 py-1 bg-white text-gray-600 rounded text-xs font-medium hover:bg-gray-100 transition border border-gray-300">
+            Clear
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- Scrollable table container -->
+    <div class="table-scroll-container">
+      <div class="table-responsive-wrapper overflow-x-auto">
+        <ng-container *ngxsmkSkeleton="isLoading(); type: 'text'; count: 5; width: '100%'; height: '60px'; gap: '2px'; appearance: 'rect'; animation: 'progress'">
+          <!-- Desktop table -->
+          <table class="min-w-full hidden md:table">
+            <thead class="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th class="px-4 py-3 text-left">
+                  <input type="checkbox"
+                         [checked]="isAllSelected()"
+                         [indeterminate]="isSomeSelected()"
+                         (change)="toggleAll($event.target.checked)"
+                         class="rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seller</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Blacklist</th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+              @for (seller of filteredSellers(); track seller.id) {
+              <tr class="hover:bg-gray-50 transition cursor-pointer" (click)="onRowClick(seller, $event)">
+                <td class="px-4 py-3" (click)="$event.stopPropagation()">
+                  <input type="checkbox"
+                         [checked]="selectedIds().has(seller.id)"
+                         (change)="toggleSelection(seller.id)"
+                         class="rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                </td>
+                <td class="px-6 py-3">
+                  <div class="flex items-center gap-3">
+                    <div class="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-xs font-semibold">
+                      {{ seller.displayName.charAt(0) }}{{ seller.displayName.split(' ')[1]?.charAt(0) || seller.displayName.charAt(1) }}
+                    </div>
+                    <div>
+                      <p class="font-medium text-gray-800 text-sm">{{ seller.displayName }}</p>
+                      <p class="text-xs text-gray-400">ID: {{ seller.id }}</p>
+                    </div>
+                  </div>
+                </td>
+                <td class="px-6 py-3">
+                  <p class="text-sm text-gray-700">{{ seller.phone }}</p>
+                  <p class="text-xs text-gray-400">{{ seller.email }}</p>
+                </td>
+                <td class="px-6 py-3">
+                  <p class="text-sm text-gray-700">{{ seller.businessName || 'N/A' }}</p>
+                </td>
+                <td class="px-6 py-3">
+                  <span class="inline-flex px-2 py-0.5 text-xs font-medium"
+                    [class.bg-green-100]="seller.status === 'ACTIVE'"
+                    [class.bg-red-100]="seller.status === 'SUSPENDED'"
+                    [class.bg-yellow-100]="seller.status === 'PENDING_VERIFICATION'"
+                    [class.bg-gray-100]="seller.status === 'BLACKLISTED'"
+                    [class.text-green-700]="seller.status === 'ACTIVE'"
+                    [class.text-red-700]="seller.status === 'SUSPENDED'"
+                    [class.text-yellow-700]="seller.status === 'PENDING_VERIFICATION'"
+                    [class.text-gray-700]="seller.status === 'BLACKLISTED'">
+                    {{ seller.status === 'ACTIVE' ? 'Approved' : seller.status }}
+                  </span>
+                </td>
+                <td class="px-6 py-3">
+                  <span class="inline-flex px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700">
+                    {{ getBlacklistStatusText(seller.blacklistStatus) }}
+                  </span>
+                </td>
+                <td class="px-6 py-3">
+                  <p class="text-sm text-gray-700">{{ seller.createdAt | date:'MMM d, yyyy' }}</p>
+                </td>
+                <td class="px-6 py-3 actions-column">
+                  <div class="flex gap-1.5 justify-center flex-wrap">
+                    @if (canApprove(seller)) {
+                      <button (click)="openActionModal(seller, 'approve')"
+                        class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200 transition">
+                        Approve
+                      </button>
+                    }
+                    @if (canSuspend(seller)) {
+                      <button (click)="openActionModal(seller, 'suspend')"
+                        class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                        Suspend
+                      </button>
+                    }
+                    @if (canActivate(seller)) {
+                      <button (click)="openActionModal(seller, 'activate')"
+                        class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                        Activate
+                      </button>
+                    }
+                    @if (!isBlacklisted(seller)) {
+                      <button (click)="openActionModal(seller, 'blacklist')"
+                        class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                        Blacklist
+                      </button>
+                    }
+                    @if (isBlacklisted(seller)) {
+                      <button (click)="openActionModal(seller, 'restore')"
+                        class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
+                        Restore
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+              } @empty {
+              <tr>
+                <td colspan="8" class="px-6 py-10 text-center text-gray-500">No sellers found</td>
+              </tr>
+              }
+            </tbody>
+          </table>
+
+          <!-- Mobile Cards -->
+          <div class="mobile-cards-container md:hidden divide-y divide-gray-100">
+            @for (seller of filteredSellers(); track seller.id) {
+            <div class="p-4 space-y-2" (click)="viewProfile(seller)">
+              <div class="flex justify-between items-start">
+                <div class="flex items-center gap-2">
+                  <input type="checkbox"
+                         [checked]="selectedIds().has(seller.id)"
+                         (change)="toggleSelection(seller.id)"
+                         (click)="$event.stopPropagation()"
+                         class="rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+                  <div class="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center text-purple-700 text-sm font-semibold">
+                    {{ seller.displayName.charAt(0) }}{{ seller.displayName.split(' ')[1]?.charAt(0) || seller.displayName.charAt(1) }}
+                  </div>
+                  <div>
+                    <p class="font-medium text-gray-800">{{ seller.displayName }}</p>
+                    <p class="text-xs text-gray-400">{{ seller.businessName || 'No business' }}</p>
+                  </div>
+                </div>
+                <span class="inline-flex px-2 py-0.5 text-xs font-medium"
+                  [class.bg-green-100]="seller.status === 'ACTIVE'"
+                  [class.bg-red-100]="seller.status === 'SUSPENDED'"
+                  [class.bg-yellow-100]="seller.status === 'PENDING_VERIFICATION'"
+                  [class.bg-gray-100]="seller.status === 'BLACKLISTED'"
+                  [class.text-green-700]="seller.status === 'ACTIVE'"
+                  [class.text-red-700]="seller.status === 'SUSPENDED'"
+                  [class.text-yellow-700]="seller.status === 'PENDING_VERIFICATION'"
+                  [class.text-gray-700]="seller.status === 'BLACKLISTED'">
+                  {{ seller.status === 'ACTIVE' ? 'Approved' : seller.status }}
+                </span>
+              </div>
+              <div class="grid grid-cols-2 gap-1 text-sm">
+                <div><span class="text-xs text-gray-400">Phone</span>
+                  <p class="text-gray-700">{{ seller.phone }}</p>
+                </div>
+                <div><span class="text-xs text-gray-400">Email</span>
+                  <p class="text-gray-700 truncate">{{ seller.email }}</p>
+                </div>
+                <div><span class="text-xs text-gray-400">Blacklist</span>
+                  <p class="text-gray-700">{{ getBlacklistStatusText(seller.blacklistStatus) }}</p>
+                </div>
+                <div><span class="text-xs text-gray-400">Created</span>
+                  <p class="text-gray-700">{{ seller.createdAt | date:'MMM d, yyyy' }}</p>
+                </div>
+              </div>
+              <div class="flex flex-wrap gap-2 pt-2">
+                @if (canApprove(seller)) {
+                  <button (click)="openActionModal(seller, 'approve')"
+                    class="flex-1 py-1.5 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200 transition">Approve</button>
+                }
+                @if (canSuspend(seller)) {
+                  <button (click)="openActionModal(seller, 'suspend')"
+                    class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Suspend</button>
+                }
+                @if (canActivate(seller)) {
+                  <button (click)="openActionModal(seller, 'activate')"
+                    class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Activate</button>
+                }
+                @if (!isBlacklisted(seller)) {
+                  <button (click)="openActionModal(seller, 'blacklist')"
+                    class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Blacklist</button>
+                }
+                @if (isBlacklisted(seller)) {
+                  <button (click)="openActionModal(seller, 'restore')"
+                    class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Restore</button>
+                }
+              </div>
+            </div>
+            } @empty {
+            <div class="p-6 text-center text-gray-500">No sellers found</div>
+            }
+          </div>
+        </ng-container>
+      </div>
+    </div>
+
+    <!-- Pagination -->
+    <div class="px-6 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+      <span class="text-xs text-gray-500">
+        Showing {{ getStartIndex() }} - {{ getEndIndex() }} of {{ totalElements() }} sellers
+      </span>
+      <div class="flex gap-2">
+        <button (click)="prevPage()" [disabled]="currentPage() === 0"
+                class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+          Previous
+        </button>
+        <span class="px-3 py-1 text-sm text-gray-600">
+          Page {{ currentPage() + 1 }} of {{ totalPages() }}
+        </span>
+        <button (click)="nextPage()" [disabled]="currentPage() >= totalPages() - 1"
+                class="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">
+          Next
+        </button>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="card-footer px-6 py-3 bg-gray-50 border-t border-gray-100 text-xs text-gray-500 flex justify-between">
+      <span>Audit logged</span>
+    </div>
+  </div>
+</div>
+
+<!-- ================== SINGLE ACTION MODAL ================== -->
+@if (showModal()) {
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeModal()">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full" (click)="$event.stopPropagation()">
+      <div class="p-6">
+        <h3 class="text-xl font-bold text-gray-800 mb-2">
+          @if (modalAction() === 'approve') { Approve Seller }
+          @else if (modalAction() === 'suspend') { Suspend Seller }
+          @else if (modalAction() === 'blacklist') { Blacklist Seller }
+          @else if (modalAction() === 'activate') { Activate Seller }
+          @else if (modalAction() === 'restore') { Restore Seller }
+        </h3>
+        <p class="text-gray-600 mb-4">
+          @if (modalAction() === 'approve') {
+            You are about to approve <strong>{{ modalUser()?.displayName }}</strong> as a verified seller.
+          } @else if (modalAction() === 'suspend') {
+            You are about to suspend <strong>{{ modalUser()?.displayName }}</strong>.
+          } @else if (modalAction() === 'blacklist') {
+            You are about to permanently blacklist <strong>{{ modalUser()?.displayName }}</strong>.
+            This action is irreversible.
+          } @else if (modalAction() === 'activate') {
+            Activate <strong>{{ modalUser()?.displayName }}</strong>? They will regain full access.
+          } @else if (modalAction() === 'restore') {
+            Remove <strong>{{ modalUser()?.displayName }}</strong> from blacklist.
+            Their status will become "Pending Verification".
+          }
+        </p>
+
+        @if (modalAction() === 'approve') {
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Approval Note (optional)</label>
+            <textarea
+              [(ngModel)]="modalReason"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Add any notes about this approval..."
+            ></textarea>
+          </div>
+        }
+
+        @if (modalAction() === 'suspend' || modalAction() === 'blacklist') {
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
+            <textarea
+              [(ngModel)]="modalReason"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Provide a detailed reason for this action..."
+            ></textarea>
+          </div>
+        }
+
+        <div class="flex justify-end gap-3">
+          <button (click)="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">
+            Cancel
+          </button>
+          <button (click)="confirmAction()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ================== PROFILE MODAL ================== -->
+@if (showProfileModal()) {
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeProfileModal()">
+    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
+      <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
+        <h3 class="text-xl font-bold text-gray-800">
+          <i class="fas fa-store text-purple-600 mr-2"></i>
+          Seller Profile
+        </h3>
+        <button (click)="closeProfileModal()" class="text-gray-400 hover:text-gray-600 transition">
+          <i class="fas fa-times text-xl"></i>
+        </button>
+      </div>
+      <div class="p-6" *ngIf="selectedUserForProfile() as user">
+        <div class="flex items-center gap-4 mb-6">
+          <div class="h-20 w-20 rounded-full bg-purple-100 flex items-center justify-center text-purple-600 text-3xl font-bold">
+            {{ user.displayName.charAt(0) }}{{ user.displayName.split(' ')[1]?.charAt(0) || user.displayName.charAt(1) }}
+          </div>
+          <div>
+            <h4 class="text-2xl font-bold text-gray-800">{{ user.displayName }}</h4>
+            <p class="text-sm text-purple-600 font-medium">{{ user.businessName || 'No business name' }}</p>
+            <p class="text-xs text-gray-400">ID: {{ user.id }}</p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Email</p>
+            <p class="font-medium text-gray-800">{{ user.email }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Phone</p>
+            <p class="font-medium text-gray-800">{{ user.phone }}</p>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Role</p>
+            <span class="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800">
+              {{ user.role }}
+            </span>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Status</p>
+            <span class="px-2 py-0.5 text-xs font-medium rounded-full" [class]="getStatusBadgeClass(user.status)">
+              {{ user.status === 'ACTIVE' ? 'Approved' : user.status }}
+            </span>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Blacklist Status</p>
+            <span class="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700">
+              {{ getBlacklistStatusText(user.blacklistStatus) }}
+            </span>
+          </div>
+          <div class="bg-gray-50 rounded-xl p-4">
+            <p class="text-xs text-gray-500">Created At</p>
+            <p class="font-medium text-gray-800">{{ user.createdAt | date:'medium' }}</p>
+          </div>
+        </div>
+        <div class="border-t border-gray-200 pt-4 mt-4">
+          <p class="text-sm font-semibold text-gray-700 mb-2">Quick Actions</p>
+          <div class="flex gap-2 flex-wrap">
+            @if (canApprove(user)) {
+              <button (click)="openActionModal(user, 'approve'); closeProfileModal()"
+                class="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-xs font-medium hover:bg-green-200 transition">
+                Approve
+              </button>
+            }
+            @if (canSuspend(user)) {
+              <button (click)="openActionModal(user, 'suspend'); closeProfileModal()"
+                class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-lg text-xs font-medium hover:bg-yellow-200 transition">
+                Suspend
+              </button>
+            }
+            @if (canActivate(user)) {
+              <button (click)="openActionModal(user, 'activate'); closeProfileModal()"
+                class="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-xs font-medium hover:bg-green-200 transition">
+                Activate
+              </button>
+            }
+            @if (!isBlacklisted(user)) {
+              <button (click)="openActionModal(user, 'blacklist'); closeProfileModal()"
+                class="px-3 py-1 bg-red-100 text-red-800 rounded-lg text-xs font-medium hover:bg-red-200 transition">
+                Blacklist
+              </button>
+            }
+            @if (isBlacklisted(user)) {
+              <button (click)="openActionModal(user, 'restore'); closeProfileModal()"
+                class="px-3 py-1 bg-gray-100 text-gray-800 rounded-lg text-xs font-medium hover:bg-gray-200 transition">
+                Restore
+              </button>
+            }
+          </div>
+        </div>
+      </div>
+      <div class="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+        <button (click)="closeProfileModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ================== BULK ACTION CONFIRM MODAL ================== -->
+@if (showBulkModal()) {
+  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeBulkModal()">
+    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full" (click)="$event.stopPropagation()">
+      <div class="p-6">
+        <h3 class="text-xl font-bold text-gray-800 mb-2">
+          @if (bulkActionType() === 'approve') { Bulk Approve Sellers }
+          @else if (bulkActionType() === 'suspend') { Bulk Suspend Sellers }
+          @else if (bulkActionType() === 'blacklist') { Bulk Blacklist Sellers }
+        </h3>
+        <p class="text-gray-600 mb-4">
+          You are about to {{ bulkActionType() }} <strong>{{ selectedCount() }}</strong> seller(s).
+          @if (bulkActionType() === 'blacklist') {
+            This action is irreversible.
+          }
+        </p>
+        @if (bulkActionType() !== 'approve') {
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
+            <textarea
+              [(ngModel)]="bulkReason"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Provide a reason for this bulk action..."
+            ></textarea>
+          </div>
+        }
+        @if (bulkActionType() === 'approve') {
+          <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Approval Note (optional)</label>
+            <textarea
+              [(ngModel)]="bulkReason"
+              rows="3"
+              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              placeholder="Add any notes about this bulk approval..."
+            ></textarea>
+          </div>
+        }
+        <div class="flex justify-end gap-3">
+          <button (click)="closeBulkModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">
+            Cancel
+          </button>
+          <button (click)="confirmBulkAction()" class="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition">
+            Confirm
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+}

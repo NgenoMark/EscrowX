@@ -1,32 +1,48 @@
+<!-- src/app/features/analytics/analytics.html -->
 <div class="analytics-simple">
+  
+  <!-- 1. STRATEGIC METRICS (Macro) -->
   <section class="summary-grid">
     <article class="summary-card">
       <span>Total Volume</span>
       <strong>{{ formatCurrency(totalVolume()) }}</strong>
-      <small>All escrow transactions</small>
+      <small>Selected period</small>
     </article>
     <article class="summary-card">
       <span>Platform Fees</span>
       <strong>{{ formatCurrency(totalFees()) }}</strong>
-      <small>Estimated at 2.5%</small>
+      <small>Estimated 2.5% fee</small>
+    </article>
+    <article class="summary-card">
+      <span>Average Tx Value</span>
+      <strong>{{ formatCurrency(avgTransactionValue()) }}</strong>
+      <small>Per transaction</small>
     </article>
     <article class="summary-card">
       <span>Success Rate</span>
-      <strong>{{ successRate() }}%</strong>
+      <strong>{{ formatPercentage(successRate()) }}</strong>
       <small>Completed transactions</small>
     </article>
     <article class="summary-card">
-      <span>Open Disputes</span>
-      <strong>{{ disputeStats().total }}</strong>
-      <small>Cases needing review</small>
+      <span>Total Users</span>
+      <strong>{{ totalUsers() }}</strong>
+      <small>Registered lifetime</small>
+    </article>
+    <article class="summary-card highlight-growth">
+      <span>MoM Growth</span>
+      <strong [class.text-green-600]="monthOverMonthVolume() >= 0" [class.text-red-600]="monthOverMonthVolume() < 0">
+        {{ formatGrowth(monthOverMonthVolume()) }}
+      </strong>
+      <small>Volume vs last month</small>
     </article>
   </section>
 
+  <!-- 2. VOLUME TREND (Main Chart) -->
   <section class="main-chart-card">
     <header>
       <div>
-        <h2>Transaction Volume</h2>
-        <p>Track escrow activity over the selected period.</p>
+        <h2>Transaction Volume Over Time</h2>
+        <p>Daily escrow activity for the selected period.</p>
       </div>
       <select (change)="onDateRangeChange()" [(ngModel)]="dateRange" aria-label="Date range">
         <option value="week">Last 7 days</option>
@@ -40,47 +56,81 @@
     </div>
   </section>
 
+  <!-- 3. SECONDARY CHARTS (Disputes, Distribution with Custom Legend) -->
   <div class="analytics-grid">
+    <!-- Disputes Trend -->
     <section class="panel-card">
       <header>
         <h3>Disputes Filed</h3>
+        <p>Trend over time</p>
       </header>
       <div class="small-chart">
         <canvas #disputeChartCanvas></canvas>
       </div>
     </section>
 
+    <!-- Status Distribution (Doughnut with Custom Legend) -->
     <section class="panel-card">
       <header>
         <h3>Transaction Status</h3>
+        <p>Composition of all transactions</p>
       </header>
-      <div class="small-chart">
-        <canvas #distributionChartCanvas></canvas>
+      <!-- 👇 NEW LAYOUT: Flex container for Chart + Custom Legend -->
+      <div class="distribution-layout">
+        <!-- Chart -->
+        <div class="chart-wrapper small-chart">
+          <canvas #distributionChartCanvas></canvas>
+        </div>
+        <!-- Custom Legend Grid -->
+        <div class="legend-wrapper">
+          @for (label of distributionData().labels; track label; let i = $index) {
+            <div class="legend-item">
+              <span class="color-dot" [style.background]="getDistributionColor(i)"></span>
+              <span class="label">{{ label }}</span>
+              <span class="count">{{ distributionData().data[i] }}</span>
+            </div>
+          } @empty {
+            <div class="legend-empty">No transactions</div>
+          }
+        </div>
       </div>
     </section>
   </div>
 
-  <section class="panel-card sellers-card">
-    <header>
-      <div>
-        <h3>Top Sellers</h3>
-        <p>Ranked by transaction volume.</p>
+  <!-- 4. USER GROWTH & TOP SELLERS -->
+  <div class="analytics-grid bottom-grid">
+    <!-- User Growth -->
+    <section class="panel-card">
+      <header>
+        <h3>User Growth</h3>
+        <p>Monthly registrations</p>
+      </header>
+      <div class="small-chart">
+        <canvas #growthChartCanvas></canvas>
       </div>
-      <button type="button" (click)="exportToCSV()">Export CSV</button>
-    </header>
-    <div class="seller-list">
-      @for (seller of topSellers(); track seller.name; let i = $index) {
-        <div class="seller-row">
-          <span>{{ i + 1 }}</span>
-          <strong>{{ seller.name }}</strong>
-          <em>{{ seller.transactions }} txns</em>
-          <b>{{ formatCurrency(seller.volume) }}</b>
-        </div>
-      } @empty {
-        <p class="empty-state">No seller data available</p>
-      }
-    </div>
-  </section>
+    </section>
 
-  <canvas #growthChartCanvas class="hidden-chart"></canvas>
+    <!-- Top Sellers -->
+    <section class="panel-card sellers-card">
+      <header>
+        <div>
+          <h3>Top Sellers</h3>
+          <p>Ranked by volume in this period</p>
+        </div>
+        <button type="button" (click)="exportToCSV()">Export CSV</button>
+      </header>
+      <div class="seller-list">
+        @for (seller of topSellers(); track seller.name; let i = $index) {
+          <div class="seller-row">
+            <span>{{ i + 1 }}</span>
+            <strong>{{ seller.name }}</strong>
+            <em>{{ seller.transactions }} txns</em>
+            <b>{{ formatCurrency(seller.volume) }}</b>
+          </div>
+        } @empty {
+          <p class="empty-state">No sellers active in this period</p>
+        }
+      </div>
+    </section>
+  </div>
 </div>

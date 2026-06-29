@@ -1,0 +1,14 @@
+/* Any custom styles for the history page */
+.bg-indigo-500 {
+  background: #6366f1;
+}
+
+/* Ensure the timeline dot is aligned */
+.fas.fa-circle {
+  font-size: 0.65rem;
+}
+
+/* Optional: add a vertical line connecting dots */
+.timeline-line {
+  border-left: 2px solid #e5e7eb;
+}
