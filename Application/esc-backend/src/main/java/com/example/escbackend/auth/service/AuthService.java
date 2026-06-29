@@ -28,9 +28,13 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.example.escbackend.common.constants.BlackListStatus; // Assumed package for your new Enum
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthService.class);
 
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
@@ -112,6 +116,11 @@ public class AuthService {
         otpService.verify(request.getEmail(), "REGISTER", request.getOtp());
         if (user.getRole() == UserRole.SELLER) {
             user.setStatus(UserStatus.PENDING_ADMIN_APPROVAL);
+            try {
+                otpDeliveryService.sendSellerAcknowledgmentEmail(user.getEmail());
+            } catch (Exception ex) {
+                log.warn("Seller acknowledgment email failed for {}", user.getEmail(), ex);
+            }
         } else {
             user.setStatus(UserStatus.ACTIVE);
         }

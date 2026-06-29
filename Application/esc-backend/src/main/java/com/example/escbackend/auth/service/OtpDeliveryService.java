@@ -6,4 +6,6 @@ public interface OtpDeliveryService {
     void sendPasswordResetOtp(String email, String otp);
 
     void sendUpdatePasswordAndPhoneOtp(String email , String otp);
+
+    void sendSellerAcknowledgmentEmail(String email);
 }
