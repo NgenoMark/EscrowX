@@ -11,8 +11,12 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -20,10 +24,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -39,7 +47,7 @@ import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 import mobile.project.escrowx.ui.theme.BrandBlue
 
-class ResetPasswordActivity : ComponentActivity() {
+class ForgotPasswordActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -60,6 +68,7 @@ private fun ResetPasswordScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val colorScheme = MaterialTheme.colorScheme
+    val scrollState = rememberScrollState()
 
     // Step state
     var currentStep by remember { mutableStateOf(ResetStep.REQUEST_OTP) }
@@ -293,7 +302,9 @@ private fun ResetPasswordScreen() {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(24.dp)
-                    .padding(top = 40.dp),
+                    .padding(top = 40.dp)
+                    .verticalScroll(scrollState)
+                    .imePadding(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // ===== LOGO =====
@@ -600,6 +611,12 @@ fun VerifyOtpForm(
     email: String,
     colorScheme: ColorScheme
 ) {
+    val focusRequesters = remember { List(6) { FocusRequester() } }
+
+    LaunchedEffect(Unit) {
+        focusRequesters.firstOrNull()?.requestFocus()
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
@@ -608,16 +625,27 @@ fun VerifyOtpForm(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             repeat(6) { index ->
                 OtpInputFieldEnhanced(
                     value = otpCode[index],
                     onValueChange = { newValue ->
+                        val previousValue = otpCode[index]
                         onOtpChange(index, newValue)
+
+                        if (newValue.isNotEmpty() && newValue != previousValue && index < 5) {
+                            focusRequesters[index + 1].requestFocus()
+                        }
+
+                        if (newValue.isEmpty() && previousValue.isNotEmpty() && index > 0) {
+                            focusRequesters[index - 1].requestFocus()
+                        }
                     },
                     isError = otpError,
                     modifier = Modifier.weight(1f),
+                    focusRequester = focusRequesters[index],
+                    imeAction = if (index == 5) ImeAction.Done else ImeAction.Next,
                     colorScheme = colorScheme
                 )
             }
@@ -771,7 +799,8 @@ fun SetNewPasswordForm(
             visualTransformation = if (isNewPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (newPassword.isNotEmpty() && isPasswordValid) {
                         Icon(
@@ -859,7 +888,8 @@ fun SetNewPasswordForm(
             visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailingIcon = {
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (confirmPassword.isNotEmpty() && doPasswordsMatch) {
                         Icon(
@@ -953,19 +983,30 @@ fun OtpInputFieldEnhanced(
     onValueChange: (String) -> Unit,
     isError: Boolean,
     modifier: Modifier = Modifier,
+    focusRequester: FocusRequester,
+    imeAction: ImeAction,
     colorScheme: ColorScheme
 ) {
     OutlinedTextField(
         value = value,
-        onValueChange = onValueChange,
-        modifier = modifier,
+        onValueChange = { input ->
+            val digit = input.takeLast(1).filter { it.isDigit() }
+            onValueChange(digit)
+        },
+        modifier = modifier
+            .height(58.dp)
+            .focusRequester(focusRequester),
         textStyle = androidx.compose.ui.text.TextStyle(
-            fontSize = 24.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             color = colorScheme.onSurface
         ),
-        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number),
+        keyboardOptions = KeyboardOptions(
+            keyboardType = KeyboardType.Number,
+            imeAction = imeAction
+        ),
+        keyboardActions = KeyboardActions(),
         singleLine = true,
         maxLines = 1,
         shape = RoundedCornerShape(12.dp),
@@ -984,24 +1025,7 @@ fun OtpInputFieldEnhanced(
             errorContainerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.04f),
             errorTextColor = MaterialTheme.colorScheme.error
         ),
-        isError = isError,
-        placeholder = {
-            Text(
-                "•",
-                fontSize = 20.sp,
-                color = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
-            )
-        },
-        trailingIcon = {
-            if (value.isNotEmpty() && !isError) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp),
-                    tint = Color(0xFF10B981)
-                )
-            }
-        }
+        isError = isError
     )
 }
 
