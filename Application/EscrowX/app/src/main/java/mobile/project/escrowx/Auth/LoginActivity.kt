@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.dash.BuyerDashboardActivity
+import mobile.project.escrowx.dash.RiderDashboardActvity
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -102,6 +103,11 @@ private fun LoginScreen() {
                             userRole.equals("SELLER", ignoreCase = true) -> {
                                 context.startActivity(Intent(context, SellerDashboardActivity::class.java).apply {
                                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                })
+                            }
+                            userRole.equals("RIDER", ignoreCase = true) -> {
+                                context.startActivity(Intent(context, RiderDashboardActvity::class.java).apply {
+                                    flags = Intent.FLAG_ACTIVITY_CLEAR_TASK
                                 })
                             }
                             else -> Toast.makeText(context, "Welcome $userRole!", Toast.LENGTH_LONG).show()
