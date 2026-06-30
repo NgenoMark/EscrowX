@@ -26,7 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -38,9 +40,12 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 
 class SignUpActivity : ComponentActivity() {
 
@@ -72,7 +77,7 @@ private fun SignUpScreen() {
     }
 
     var displayName by remember { mutableStateOf("") }
-    var phone by remember { mutableStateOf(kenyaCodePrefix) }
+    var phoneSuffix by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var isPasswordVisible by remember { mutableStateOf(false) }
@@ -87,22 +92,17 @@ private fun SignUpScreen() {
     val isPasswordValid = hasLength && hasUpper && hasNumber
 
     // Form validation
-    val subscriberDigits = phone.removePrefix(kenyaCodePrefix).filter { it.isDigit() }
-    val hasValidKenyanSubscriberNumber = subscriberDigits.length >= 9
+    val hasValidKenyanSubscriberNumber = phoneSuffix.filter { it.isDigit() }.length == 9
     val isFormValid = displayName.isNotBlank() &&
             hasValidKenyanSubscriberNumber &&
             email.isNotBlank() &&
             isPasswordValid
 
-    fun normalizeKenyanPhoneInput(input: String): String {
-        val normalized = if (input.startsWith(kenyaCodePrefix)) input else "$kenyaCodePrefix$input"
-        val subscriberOnlyDigits = normalized.removePrefix(kenyaCodePrefix).filter { it.isDigit() }
-        return "$kenyaCodePrefix$subscriberOnlyDigits"
-    }
+    val fullPhoneNumber = "$kenyaCodePrefix${phoneSuffix.filter { it.isDigit() }}"
 
     fun performSignUp() {
         val trimmedName = displayName.trim()
-        val trimmedPhone = normalizeKenyanPhoneInput(phone.trim())
+        val trimmedPhone = fullPhoneNumber
         val trimmedEmail = email.trim()
         val trimmedPassword = password.trim()
         val trimmedBusiness = businessName.trim().ifEmpty { null }
@@ -112,7 +112,7 @@ private fun SignUpScreen() {
             return
         }
 
-        if (trimmedPhone.removePrefix(kenyaCodePrefix).length < 9) {
+        if (phoneSuffix.filter { it.isDigit() }.length != 9) {
             Toast.makeText(context, "Enter a valid phone number after +254", Toast.LENGTH_SHORT).show()
             return
         }
@@ -161,34 +161,48 @@ private fun SignUpScreen() {
     Scaffold(
         containerColor = colorScheme.background
     ) { paddingValues ->
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
+                .padding(horizontal = 24.dp, vertical = 20.dp)
                 .background(colorScheme.background)
+                .imePadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Logo
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.74f)
+                    .height(84.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = colorScheme.surface,
+                tonalElevation = 1.dp
+            ) {
+                AsyncImage(
+                    model = ImageRequest.Builder(context)
+                        .data("asset:///EscrowX.svg")
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = "EscrowX logo",
+                    error = painterResource(id = R.drawable.escrowx_logo1),
+                    fallback = painterResource(id = R.drawable.escrowx_logo1),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    contentScale = ContentScale.Fit
+                )
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp)
-                    .padding(top = 24.dp)
+                    .weight(1f)
+                    .fillMaxWidth()
                     .verticalScroll(scrollState),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    TextButton(onClick = {
-                        context.startActivity(Intent(context, LoginActivity::class.java))
-                        (context as? SignUpActivity)?.finish()
-                    }) {
-                        Text("Back to Login", fontWeight = FontWeight.SemiBold)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
                 // ===== TITLE =====
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
@@ -267,10 +281,12 @@ private fun SignUpScreen() {
                         )
                     )
 
-                    // Phone
+                    // Phone - with static +254 prefix
                     OutlinedTextField(
-                        value = phone,
-                        onValueChange = { phone = normalizeKenyanPhoneInput(it) },
+                        value = phoneSuffix,
+                        onValueChange = {
+                            phoneSuffix = it.filter { char -> char.isDigit() }.take(9)
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         label = { Text("Phone Number", color = colorScheme.onSurfaceVariant) },
                         leadingIcon = {
@@ -280,7 +296,7 @@ private fun SignUpScreen() {
                                 tint = colorScheme.onSurfaceVariant
                             )
                         },
-                        placeholder = { Text("+254700000000", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
+                        placeholder = { Text("700000000", color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
@@ -289,9 +305,16 @@ private fun SignUpScreen() {
                             unfocusedBorderColor = colorScheme.outlineVariant,
                             cursorColor = colorScheme.primary
                         ),
+                        prefix = {
+                            Text(
+                                "+254 ",
+                                fontWeight = FontWeight.Medium,
+                                color = colorScheme.onSurface
+                            )
+                        },
                         supportingText = {
                             Text(
-                                if (hasValidKenyanSubscriberNumber) "✓ Using Kenya format" else "Phone starts with +254. Enter remaining digits",
+                                if (hasValidKenyanSubscriberNumber) "✓ Valid Kenya number" else "Enter 9 digits after +254",
                                 color = if (hasValidKenyanSubscriberNumber) Color(0xFF10B981) else colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
@@ -461,7 +484,7 @@ private fun SignUpScreen() {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(20.dp))
 
                 // ===== LOGIN LINK =====
                 Row(
@@ -470,7 +493,7 @@ private fun SignUpScreen() {
                 ) {
                     Text(
                         "Already have an account?",
-                        fontSize = 13.sp,
+                        fontSize = 14.sp,
                         color = colorScheme.onSurfaceVariant
                     )
                     TextButton(
@@ -484,22 +507,23 @@ private fun SignUpScreen() {
                     ) {
                         Text(
                             "Sign In",
-                            fontSize = 14.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // ===== FOOTER =====
-                Text(
-                    "Secured by EscrowX",
-                    fontSize = 11.sp,
-                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                    letterSpacing = 1.sp
-                )
             }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // ===== FOOTER =====
+            Text(
+                "Secured by EscrowX",
+                fontSize = 11.sp,
+                color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                letterSpacing = 1.sp,
+                modifier = Modifier.padding(bottom = 4.dp)
+            )
         }
     }
 }
