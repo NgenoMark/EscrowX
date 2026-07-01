@@ -37,6 +37,12 @@ interface AuthApiService {
     @POST("api/v1/auth/logout")
     suspend fun logout(@Body request: LogoutRequest): Response<LogoutResponse>
 
+    @POST("api/v1/notifications/devices/register")
+    suspend fun registerDeviceToken(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Body request: RegisterDeviceTokenRequest
+    ): Response<RegisterDeviceTokenResponse>
+
     // USER ENDPOINTS
     @GET("api/v1/users/by-email/{email}")
     suspend fun getUserByEmail(@Path("email") email: String): Response<UserDetailsResponse>

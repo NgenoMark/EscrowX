@@ -75,3 +75,16 @@ data class PasswordResetConfirmResponse(
     val message: String? = null,
     val passwordUpdated: Boolean? = null
 )
+
+data class RegisterDeviceTokenRequest(
+    val token: String,
+    val platform: String = "ANDROID"
+)
+
+data class RegisterDeviceTokenResponse(
+    val id: String? = null,
+    val userId: String? = null,
+    val platform: String? = null,
+    val active: Boolean? = null,
+    val lastSeenAt: String? = null
+)
