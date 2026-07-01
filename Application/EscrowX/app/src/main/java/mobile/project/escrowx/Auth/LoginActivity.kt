@@ -35,6 +35,7 @@ import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.dash.BuyerDashboardActivity
 import mobile.project.escrowx.dash.RiderDashboardActvity
+import mobile.project.escrowx.notifications.FcmTokenRegistrar
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -103,6 +104,8 @@ private fun LoginScreen() {
                             userId = userId,
                             role = userRole
                         )
+
+                        FcmTokenRegistrar.register(context, userId)
 
                         when {
                             userRole.equals("BUYER", ignoreCase = true) -> {

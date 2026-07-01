@@ -41,6 +41,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mobile.project.escrowx.RetrofitClient
+import mobile.project.escrowx.notifications.FcmTokenRegistrar
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 import mobile.project.escrowx.ui.theme.BrandBlue
@@ -101,6 +102,9 @@ private fun VerificationScreen(email: String) {
                     if (response.isSuccessful && response.body() != null && response.body()!!.confirmed) {
                         val accountStatus = response.body()!!.status.uppercase()
                         isSuccess = true
+
+                        FcmTokenRegistrar.registerByEmail(context, email)
+
                         if (accountStatus == "PENDING_ADMIN_APPROVAL") {
                             Toast.makeText(
                                 context,

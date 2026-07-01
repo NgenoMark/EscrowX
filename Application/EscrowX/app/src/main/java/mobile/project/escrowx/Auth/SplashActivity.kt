@@ -20,6 +20,7 @@ import kotlinx.coroutines.withContext
 import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.dash.BuyerDashboardActivity
+import mobile.project.escrowx.notifications.FcmTokenRegistrar
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -69,6 +70,8 @@ class SplashActivity : ComponentActivity() {
                     userId = user.id,
                     role = user.role
                 )
+
+                FcmTokenRegistrar.register(this@SplashActivity, user.id)
 
                 when {
                     user.role.equals("BUYER", ignoreCase = true) -> openBuyerDashboard()
