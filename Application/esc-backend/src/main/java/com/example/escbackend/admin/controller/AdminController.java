@@ -59,6 +59,14 @@ public class AdminController {
 		return userService.createEmployee(actorUserId, request, UserRole.SUPER_ADMIN);
 	}
 
+	@PostMapping("/users/employees/rider")
+	public UserDetailsResponse createRider(
+		@RequestHeader("X-Actor-User-Id") UUID actorUserId,
+		@Valid @RequestBody CreateEmployeeRequest request
+	) {
+		return userService.createEmployee(actorUserId, request, UserRole.RIDER);
+	}
+
 	@PostMapping("/users/{id}/approve-seller")
 	public UserRoleStatusUpdateResponse approveSeller(
 		@PathVariable UUID id,

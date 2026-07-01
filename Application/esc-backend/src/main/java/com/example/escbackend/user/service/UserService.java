@@ -7,6 +7,12 @@ import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.auth.service.OtpDeliveryService;
 import com.example.escbackend.audit.entity.AuditLogEntity;
 import com.example.escbackend.audit.repository.AuditLogRepository;
+import com.example.escbackend.notification.entity.InAppNotificationEntity;
+import com.example.escbackend.notification.entity.NotificationDeliveryLogEntity;
+import com.example.escbackend.notification.repository.InAppNotificationRepository;
+import com.example.escbackend.notification.repository.NotificationDeliveryLogRepository;
+import com.example.escbackend.notification.service.PushNotificationService;
+import com.example.escbackend.notification.service.PushSendResult;
 import com.example.escbackend.user.dto.*;
 import com.example.escbackend.user.entity.ProfileEntity;
 import com.example.escbackend.user.entity.UserBlacklistEntity;
@@ -43,6 +49,9 @@ public class UserService {
     private final AuditLogRepository auditRepo;
     private final PasswordEncoder passwordEncoder;
     private final OtpDeliveryService otpDeliveryService;
+    private final PushNotificationService pushNotificationService;
+    private final InAppNotificationRepository inAppNotificationRepository;
+    private final NotificationDeliveryLogRepository notificationDeliveryLogRepository;
 
     public UserService(
         UserRepository userRepository,
@@ -52,7 +61,10 @@ public class UserService {
         AdminAuthorizationService authz,
         AuditLogRepository auditRepo,
         PasswordEncoder passwordEncoder,
-        OtpDeliveryService otpDeliveryService
+        OtpDeliveryService otpDeliveryService,
+        PushNotificationService pushNotificationService,
+        InAppNotificationRepository inAppNotificationRepository,
+        NotificationDeliveryLogRepository notificationDeliveryLogRepository
     ) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
@@ -62,6 +74,9 @@ public class UserService {
         this.auditRepo = auditRepo;
         this.passwordEncoder = passwordEncoder;
         this.otpDeliveryService = otpDeliveryService;
+        this.pushNotificationService = pushNotificationService;
+        this.inAppNotificationRepository = inAppNotificationRepository;
+        this.notificationDeliveryLogRepository = notificationDeliveryLogRepository;
     }
 
     public UserDetailsResponse getById(UUID id) {
@@ -123,8 +138,8 @@ public class UserService {
     public Page<UserDetailsResponse> listEmployees(UUID actorUserId, String phone, String status, int page, int size) {
         UserEntity actor = authz.requireAdminOrSuperAdmin(actorUserId);
         List<UserRole> visibleRoles = actor.getRole() == UserRole.SUPER_ADMIN
-            ? List.of(UserRole.ADMIN, UserRole.SUPER_ADMIN)
-            : List.of(UserRole.ADMIN);
+            ? List.of(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.RIDER)
+            : List.of(UserRole.ADMIN, UserRole.RIDER);
 
         return listByRoles(phone, status, page, size, visibleRoles);
     }
@@ -133,8 +148,8 @@ public class UserService {
     public UserDetailsResponse createEmployee(UUID actorUserId, CreateEmployeeRequest request, UserRole targetRole) {
         authz.requireSuperAdmin(actorUserId);
 
-        if (targetRole != UserRole.ADMIN && targetRole != UserRole.SUPER_ADMIN) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Only ADMIN or SUPER_ADMIN can be created via this API");
+        if (targetRole != UserRole.ADMIN && targetRole != UserRole.SUPER_ADMIN && targetRole != UserRole.RIDER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only ADMIN, SUPER_ADMIN, or RIDER can be created via this API");
         }
 
         if (userRepository.existsByEmail(request.getEmail())) {
@@ -242,6 +257,73 @@ public class UserService {
             otpDeliveryService.sendAdminApprovalEmail(target.getEmail());
         } catch (Exception ex){
             log.warn("Admin-approval email failed for {}", target.getEmail() , ex);
+        }
+
+        String title = "Seller account approved";
+        String body = "Your seller account is now active. You can log in and start transacting.";
+        Map<String, String> payload = Map.of(
+            "type", "SELLER_APPROVED",
+            "userId", target.getId().toString()
+        );
+
+        InAppNotificationEntity inAppNotification = new InAppNotificationEntity();
+        inAppNotification.setUserId(target.getId());
+        inAppNotification.setTitle(title);
+        inAppNotification.setBody(body);
+        inAppNotification.setType("SELLER_APPROVED");
+        inAppNotification.setStatus("UNREAD");
+        inAppNotification.setReferenceId(target.getId());
+        inAppNotification.setReferenceType("USER");
+        inAppNotification.setPayloadJson(Map.of(
+            "type", "SELLER_APPROVED",
+            "userId", target.getId().toString()
+        ));
+        InAppNotificationEntity savedNotification = inAppNotificationRepository.save(inAppNotification);
+
+        NotificationDeliveryLogEntity inAppLog = new NotificationDeliveryLogEntity();
+        inAppLog.setNotificationId(savedNotification.getId());
+        inAppLog.setUserId(target.getId());
+        inAppLog.setChannel("IN_APP");
+        inAppLog.setProvider("LOCAL");
+        inAppLog.setStatus("SENT");
+        inAppLog.setDeliveredAt(OffsetDateTime.now());
+        notificationDeliveryLogRepository.save(inAppLog);
+
+        try {
+            PushSendResult pushResult = pushNotificationService.sendToUser(target.getId(), title, body, payload);
+
+            NotificationDeliveryLogEntity pushLog = new NotificationDeliveryLogEntity();
+            pushLog.setNotificationId(savedNotification.getId());
+            pushLog.setUserId(target.getId());
+            pushLog.setChannel("PUSH");
+            pushLog.setProvider("FIREBASE");
+
+            if (!pushResult.enabled() || pushResult.tokenCount() == 0) {
+                pushLog.setStatus("DROPPED");
+                pushLog.setErrorMessage(pushResult.message());
+            } else if (pushResult.successCount() > 0) {
+                pushLog.setStatus("SENT");
+                pushLog.setDeliveredAt(OffsetDateTime.now());
+                if (pushResult.failedCount() > 0) {
+                    pushLog.setErrorMessage("Partial delivery: " + pushResult.message());
+                }
+            } else {
+                pushLog.setStatus("FAILED");
+                pushLog.setErrorMessage(pushResult.message());
+            }
+
+            notificationDeliveryLogRepository.save(pushLog);
+        } catch (Exception ex) {
+            log.warn("Seller approval push notification failed for {}", target.getId(), ex);
+
+            NotificationDeliveryLogEntity pushLog = new NotificationDeliveryLogEntity();
+            pushLog.setNotificationId(savedNotification.getId());
+            pushLog.setUserId(target.getId());
+            pushLog.setChannel("PUSH");
+            pushLog.setProvider("FIREBASE");
+            pushLog.setStatus("FAILED");
+            pushLog.setErrorMessage(ex.getMessage());
+            notificationDeliveryLogRepository.save(pushLog);
         }
 
         return UserRoleStatusUpdateResponse.builder()
