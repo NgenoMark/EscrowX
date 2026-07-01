@@ -1,0 +1,9 @@
+package com.example.escbackend.notification.repository;
+
+import com.example.escbackend.notification.entity.InAppNotificationEntity;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.UUID;
+
+public interface InAppNotificationRepository extends JpaRepository<InAppNotificationEntity, UUID> {
+}
