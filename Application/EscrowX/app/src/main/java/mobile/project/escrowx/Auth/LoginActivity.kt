@@ -1,11 +1,15 @@
 package mobile.project.escrowx.auth
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Build
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -44,8 +48,15 @@ import coil.request.ImageRequest
 
 class LoginActivity : ComponentActivity() {
 
+    private val notificationPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* no-op */ }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        ensureNotificationPermission()
+
         setContent {
             EscrowXTheme(
                 darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
@@ -53,6 +64,19 @@ class LoginActivity : ComponentActivity() {
             ) {
                 LoginScreen()
             }
+        }
+    }
+
+    private fun ensureNotificationPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
+
+        val granted = ContextCompat.checkSelfPermission(
+            this,
+            android.Manifest.permission.POST_NOTIFICATIONS
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (!granted) {
+            notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }
