@@ -4,6 +4,7 @@ import com.example.escbackend.common.exception.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -34,10 +35,11 @@ public class TokenService {
         UserSession existingSession = activeSessionsByUser.get(userId);
 
         if (existingSession != null && existingSession.accessExpiresAt().isAfter(now)) {
+            long remainingSeconds = Duration.between(now, existingSession.accessExpiresAt()).getSeconds();
             return new TokenPair(
                 existingSession.accessToken(),
                 existingSession.refreshToken(),
-                ACCESS_TOKEN_TTL_SECONDS
+                Math.max(remainingSeconds, 0)
             );
         }
 
