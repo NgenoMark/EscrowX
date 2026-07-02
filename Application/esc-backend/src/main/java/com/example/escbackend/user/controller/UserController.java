@@ -67,6 +67,18 @@ public class UserController {
         return userService.listSellers(actorUserId, phone, status, page, size);
     }
 
+
+    @GetMapping("/riders")
+    public Page<UserDetailsResponse> listRiders(
+            @RequestParam("X-Actor-User-Id") UUID actorUserId,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ){
+        return userService.listRiders(actorUserId, phone, status, page , size);
+    }
+
     @GetMapping("/employees")
     public Page<UserDetailsResponse> listEmployees(
         @RequestHeader("X-Actor-User-Id") UUID actorUserId,

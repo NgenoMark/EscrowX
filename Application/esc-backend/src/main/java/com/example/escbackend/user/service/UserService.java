@@ -135,6 +135,11 @@ public class UserService {
         return listByRoles(phone, status, page, size, List.of(UserRole.SELLER));
     }
 
+    public Page<UserDetailsResponse> listRiders (UUID actorUserId, String phone, String Status, int page, int size) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        return listByRoles(phone, Status, page, size, List.of(UserRole.RIDER));
+    }
+
     public Page<UserDetailsResponse> listEmployees(UUID actorUserId, String phone, String status, int page, int size) {
         UserEntity actor = authz.requireAdminOrSuperAdmin(actorUserId);
         List<UserRole> visibleRoles = actor.getRole() == UserRole.SUPER_ADMIN
