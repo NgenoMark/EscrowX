@@ -84,6 +84,11 @@
             android:screenOrientation="unspecified" />
 
         <activity
+            android:name=".dash.RiderDashboardActvity"
+            android:exported="false"
+            android:screenOrientation="unspecified" />
+
+        <activity
             android:name=".dash.CreateEscrowActivity"
             android:exported="false"
             android:screenOrientation="unspecified" />
