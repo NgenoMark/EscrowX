@@ -87,6 +87,7 @@ fun SellerDashboardScreen() {
     var buyerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isLoading by remember { mutableStateOf(true) }
     var selectedBottomTab by remember { mutableIntStateOf(0) }
+    var unreadCount by remember { mutableIntStateOf(0) }
 
     val sellerName = userProfile?.businessName?.takeIf { it.isNotBlank() }
         ?: userProfile?.displayName?.takeIf { it.isNotBlank() }
@@ -113,10 +114,6 @@ fun SellerDashboardScreen() {
                 .filter { isCompletedState(it.status) }
                 .sumOf { it.amount }
         )
-    }
-
-    val unreadCount = remember(sellerOrders) {
-        sellerOrders.count { isAttentionNeededState(it.status) }
     }
 
     val currentDate = remember {
@@ -167,6 +164,13 @@ fun SellerDashboardScreen() {
                         fetchedBuyerNames[buyerId] = buyerName ?: fallback
                     }
                     buyerNamesById = fetchedBuyerNames
+                }
+            } catch (_: Exception) { }
+
+            try {
+                val unreadResponse = api.getUnreadNotificationsCount(sellerId)
+                if (unreadResponse.isSuccessful) {
+                    unreadCount = (unreadResponse.body()?.get("unreadCount") ?: 0L).toInt()
                 }
             } catch (_: Exception) { }
         }
@@ -226,7 +230,9 @@ fun SellerDashboardScreen() {
                     onProfileClick = {
                         context.startActivity(Intent(context, ProfileActivity::class.java))
                     },
-                    onNotificationClick = { /* Handle notifications */ },
+                    onNotificationClick = {
+                        context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
+                    },
                     colorScheme = colorScheme
                 )
             },
