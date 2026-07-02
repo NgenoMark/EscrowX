@@ -39,6 +39,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -48,6 +51,7 @@ import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.LoginActivity
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.seller.SellerNotificationsActivity
 import mobile.project.escrowx.ui.components.BuyerNavBar
 import mobile.project.escrowx.ui.components.BuyerNavItem
 import mobile.project.escrowx.ui.components.navigateTab
@@ -75,6 +79,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
     val context = LocalContext.current
     val session = SessionManager(context)
     val colorScheme = MaterialTheme.colorScheme
+    val lifecycleOwner = LocalLifecycleOwner.current
     val userName by viewModel.userName.collectAsState()
     var selectedTab by remember { mutableIntStateOf(0) }
 
@@ -82,6 +87,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
     val scope = rememberCoroutineScope()
 
     var userProfile by remember { mutableStateOf<UserDetailsResponse?>(null) }
+    var unreadNotificationsCount by remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
         session.getEmail()?.let { email ->
@@ -95,6 +101,41 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     }
                 } catch (_: Exception) { }
             }
+        }
+    }
+
+    fun loadUnreadNotificationsCount() {
+        val token = session.getAccessToken()
+        val actorId = session.getUserId()
+        if (token.isNullOrBlank() || actorId.isNullOrBlank()) {
+            unreadNotificationsCount = 0
+            return
+        }
+
+        scope.launch {
+            try {
+                val response = RetrofitClient.authenticated(token).getUnreadNotificationsCount(actorId)
+                if (response.isSuccessful) {
+                    val count = (response.body()?.get("count") ?: 0L).toInt()
+                    unreadNotificationsCount = count
+                }
+            } catch (_: Exception) { }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        loadUnreadNotificationsCount()
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                loadUnreadNotificationsCount()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -344,14 +385,37 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         }
                     },
                     actions = {
-                        IconButton(onClick = {
-                            context.startActivity(Intent(context, ProfileActivity::class.java))
-                        }) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = "Profile",
-                                tint = colorScheme.primary
-                            )
+                        Box {
+                            IconButton(onClick = {
+                                context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
+                                loadUnreadNotificationsCount()
+                            }) {
+                                Icon(
+                                    Icons.Default.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = colorScheme.primary
+                                )
+                            }
+
+                            if (unreadNotificationsCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(top = 4.dp, end = 4.dp)
+                                        .size(18.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFDC2626)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString(),
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1
+                                    )
+                                }
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -577,7 +641,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                     .padding(20.dp)
             ) {
                 Text(
-                    text = "Welcome back, 👋",
+                    text = "Welcome back",
                     fontSize = 14.sp,
                     color = colorScheme.onSurfaceVariant,
                     fontWeight = FontWeight.Medium
