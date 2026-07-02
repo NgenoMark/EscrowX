@@ -88,3 +88,31 @@ data class RegisterDeviceTokenResponse(
     val active: Boolean? = null,
     val lastSeenAt: String? = null
 )
+
+data class InAppNotificationResponse(
+    val id: String,
+    val userId: String,
+    val title: String,
+    val body: String,
+    val type: String,
+    val status: String,
+    val referenceId: String? = null,
+    val referenceType: String? = null,
+    val payloadJson: Map<String, Any?>? = null,
+    val createdAt: String,
+    val readAt: String? = null
+)
+
+data class NotificationStatusUpdateResponse(
+    val notificationId: String,
+    val status: String,
+    val updatedAt: String
+)
+
+data class PageResponse<T>(
+    val content: List<T>,
+    val totalElements: Long,
+    val totalPages: Int,
+    val number: Int,
+    val size: Int
+)

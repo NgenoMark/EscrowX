@@ -43,6 +43,36 @@ interface AuthApiService {
         @Body request: RegisterDeviceTokenRequest
     ): Response<RegisterDeviceTokenResponse>
 
+    @GET("api/v1/notifications")
+    suspend fun getNotifications(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Query("page") page: Int = 0,
+        @Query("size") size: Int = 20,
+        @Query("status") status: String? = null
+    ): Response<PageResponse<InAppNotificationResponse>>
+
+    @GET("api/v1/notifications/unread-count")
+    suspend fun getUnreadNotificationsCount(
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<Map<String, Long>>
+
+    @GET("api/v1/notifications/counts")
+    suspend fun getNotificationCounts(
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<Map<String, Long>>
+
+    @PATCH("api/v1/notifications/{id}/read")
+    suspend fun markNotificationRead(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") notificationId: String
+    ): Response<NotificationStatusUpdateResponse>
+
+    @PATCH("api/v1/notifications/{id}/archive")
+    suspend fun archiveNotification(
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Path("id") notificationId: String
+    ): Response<NotificationStatusUpdateResponse>
+
     // USER ENDPOINTS
     @GET("api/v1/users/by-email/{email}")
     suspend fun getUserByEmail(@Path("email") email: String): Response<UserDetailsResponse>
