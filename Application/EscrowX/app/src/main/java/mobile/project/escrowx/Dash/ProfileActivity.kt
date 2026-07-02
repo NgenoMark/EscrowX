@@ -12,6 +12,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -63,6 +69,52 @@ import java.util.*
 
 private const val MAX_PROFILE_IMAGE_BYTES = 5L * 1024L * 1024L
 
+private val KENYA_COUNTIES = listOf(
+    "Baringo", "Bomet", "Bungoma", "Busia", "Elgeyo-Marakwet", "Embu", "Garissa",
+    "Homa Bay", "Isiolo", "Kajiado", "Kakamega", "Kericho", "Kiambu", "Kilifi",
+    "Kirinyaga", "Kisii", "Kisumu", "Kitui", "Kwale", "Laikipia", "Lamu", "Machakos",
+    "Makueni", "Mandera", "Marsabit", "Meru", "Migori", "Mombasa", "Murang'a",
+    "Nairobi", "Nakuru", "Nandi", "Narok", "Nyamira", "Nyandarua", "Nyeri",
+    "Samburu", "Siaya", "Taita-Taveta", "Tana River", "Tharaka-Nithi", "Trans Nzoia",
+    "Turkana", "Uasin Gishu", "Vihiga", "Wajir", "West Pokot"
+)
+
+private fun parseLocation(raw: String): Pair<String, String> {
+    val value = raw.trim()
+    if (value.isBlank()) return "" to ""
+
+    val pipeIndex = value.indexOf("|")
+    if (pipeIndex > -1) {
+        val county = value.substring(0, pipeIndex).trim()
+        val description = value.substring(pipeIndex + 1).trim()
+        if (county in KENYA_COUNTIES) return county to description
+    }
+
+    val matchedCounty = KENYA_COUNTIES.firstOrNull { county ->
+        value.equals(county, ignoreCase = true) || value.startsWith("$county ", ignoreCase = true)
+    }
+
+    if (matchedCounty != null) {
+        val description = value
+            .removePrefix(matchedCounty)
+            .trimStart(' ', '-', ',', ':')
+            .trim()
+        return matchedCounty to description
+    }
+
+    return "" to value
+}
+
+private fun buildLocationValue(county: String, description: String): String {
+    val countyClean = county.trim()
+    val descriptionClean = description.trim()
+    return when {
+        countyClean.isBlank() -> descriptionClean
+        descriptionClean.isBlank() -> countyClean
+        else -> "$countyClean | $descriptionClean"
+    }
+}
+
 class ProfileActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -96,6 +148,8 @@ fun ProfileScreenContent() {
     var businessName by remember { mutableStateOf("") }
     var address by remember { mutableStateOf("") }
     var shopLocation by remember { mutableStateOf("") }
+    var locationCounty by remember { mutableStateOf("") }
+    var locationDescription by remember { mutableStateOf("") }
 
     var profileImageUri by remember { mutableStateOf<Uri?>(null) }
     var profileImageUrl by remember { mutableStateOf<String?>(null) }
@@ -126,6 +180,10 @@ fun ProfileScreenContent() {
                         businessName = userProfile?.businessName ?: ""
                         address = userProfile?.address ?: ""
                         shopLocation = userProfile?.shopLocation ?: ""
+                        val existingLocation = if (isSeller) shopLocation else address
+                        val parsedLocation = parseLocation(existingLocation)
+                        locationCounty = parsedLocation.first
+                        locationDescription = parsedLocation.second
                         profileImageUrl = RetrofitClient.resolveApiUrl(userProfile?.avatarUrl)
                     } else {
                         errorMessage = "Failed to load profile: ${response.code()}"
@@ -146,6 +204,10 @@ fun ProfileScreenContent() {
             Toast.makeText(context, "Please enter your full name", Toast.LENGTH_SHORT).show()
             return
         }
+        if (locationDescription.isNotBlank() && locationCounty.isBlank()) {
+            Toast.makeText(context, "Please select a county", Toast.LENGTH_SHORT).show()
+            return
+        }
         isSaving = true
         saveButtonText = "Updating..."
 
@@ -160,12 +222,14 @@ fun ProfileScreenContent() {
                     return@launch
                 }
 
+                val composedLocation = buildLocationValue(locationCounty, locationDescription)
+
                 val request = UpdateProfileRequest(
                     displayName = fullName.takeIf { it.isNotBlank() },
                     phone = phoneNumber.takeIf { it.isNotBlank() },
                     businessName = businessName.takeIf { it.isNotBlank() },
-                    address = if (isSeller) null else address.takeIf { it.isNotBlank() },
-                    shopLocation = if (isSeller) shopLocation.takeIf { it.isNotBlank() } else null,
+                    address = if (isSeller) null else composedLocation.takeIf { it.isNotBlank() },
+                    shopLocation = if (isSeller) composedLocation.takeIf { it.isNotBlank() } else null,
                     avatarUrl = RetrofitClient.toBackendRelativePath(profileImageUrl)
                 )
 
@@ -179,8 +243,14 @@ fun ProfileScreenContent() {
                     businessName = updatedProfile.businessName ?: ""
                     if (isSeller) {
                         shopLocation = updatedProfile.shopLocation ?: ""
+                        val parsedLocation = parseLocation(shopLocation)
+                        locationCounty = parsedLocation.first
+                        locationDescription = parsedLocation.second
                     } else {
                         address = updatedProfile.address ?: ""
+                        val parsedLocation = parseLocation(address)
+                        locationCounty = parsedLocation.first
+                        locationDescription = parsedLocation.second
                     }
 
                     saveButtonText = "Saved Successfully"
@@ -542,8 +612,10 @@ fun ProfileScreenContent() {
                                 onPhoneNumberChange = { phoneNumber = it },
                                 businessName = businessName,
                                 onBusinessNameChange = { businessName = it },
-                                locationValue = if (isSeller) shopLocation else address,
-                                onLocationChange = if (isSeller) { newValue -> shopLocation = newValue } else { newValue -> address = newValue },
+                                countyValue = locationCounty,
+                                onCountyChange = { locationCounty = it },
+                                locationDescriptionValue = locationDescription,
+                                onLocationDescriptionChange = { locationDescription = it },
                                 userRole = userProfile?.role ?: "BUYER",
                                 isSeller = isSeller
                             )
@@ -953,8 +1025,10 @@ fun ProfileFormFields(
     onPhoneNumberChange: (String) -> Unit,
     businessName: String,
     onBusinessNameChange: (String) -> Unit,
-    locationValue: String,
-    onLocationChange: (String) -> Unit,
+    countyValue: String,
+    onCountyChange: (String) -> Unit,
+    locationDescriptionValue: String,
+    onLocationDescriptionChange: (String) -> Unit,
     userRole: String,
     isSeller: Boolean
 ) {
@@ -1010,15 +1084,159 @@ fun ProfileFormFields(
                 )
             }
 
+            KenyaCountyDropdownField(
+                selectedCounty = countyValue,
+                onCountySelected = onCountyChange,
+                label = if (isSeller) "Shop County" else "Delivery County",
+                leadingIcon = Icons.Default.LocationOn,
+                colorScheme = colorScheme
+            )
+
             ProfileTextField(
-                value = locationValue,
-                onValueChange = onLocationChange,
-                label = if (isSeller) "Shop Location" else "Delivery Address",
-                leadingIcon = if (isSeller) Icons.Default.LocationOn else Icons.Default.Home,
+                value = locationDescriptionValue,
+                onValueChange = onLocationDescriptionChange,
+                label = if (isSeller) "Shop Location Description" else "Delivery Address Description",
+                placeholder = "Estate, street, building, nearest landmark",
                 minLines = 2,
                 maxLines = 4,
                 colorScheme = colorScheme
             )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun KenyaCountyDropdownField(
+    selectedCounty: String,
+    onCountySelected: (String) -> Unit,
+    label: String,
+    leadingIcon: androidx.compose.ui.graphics.vector.ImageVector,
+    colorScheme: ColorScheme
+) {
+    var expanded by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
+    val accentColor = BrandBlue
+    val filteredCounties = remember(searchQuery, selectedCounty, expanded) {
+        val query = if (expanded) searchQuery.trim() else selectedCounty.trim()
+        if (query.isBlank()) {
+            KENYA_COUNTIES
+        } else {
+            KENYA_COUNTIES.filter { it.contains(query, ignoreCase = true) }
+        }
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = {
+            expanded = !expanded
+            if (expanded) {
+                searchQuery = selectedCounty
+            } else {
+                searchQuery = ""
+            }
+        }
+    ) {
+        OutlinedTextField(
+            value = if (expanded) searchQuery else selectedCounty,
+            onValueChange = {
+                searchQuery = it
+                if (!expanded) {
+                    expanded = true
+                }
+            },
+            readOnly = false,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true),
+            label = {
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colorScheme.onSurfaceVariant
+                )
+            },
+            placeholder = {
+                Text(
+                    text = "Select County",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
+            },
+            leadingIcon = {
+                Icon(
+                    leadingIcon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = colorScheme.onSurfaceVariant
+                )
+            },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = accentColor,
+                unfocusedBorderColor = colorScheme.outlineVariant.copy(alpha = 0.5f),
+                focusedLabelColor = accentColor,
+                unfocusedLabelColor = colorScheme.onSurfaceVariant,
+                cursorColor = accentColor,
+                focusedLeadingIconColor = accentColor,
+                unfocusedLeadingIconColor = colorScheme.onSurfaceVariant,
+                focusedTrailingIconColor = accentColor,
+                unfocusedTrailingIconColor = colorScheme.onSurfaceVariant
+            ),
+            textStyle = LocalTextStyle.current.copy(
+                fontSize = 14.sp,
+                color = colorScheme.onSurface
+            )
+        )
+
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = {
+                expanded = false
+                searchQuery = ""
+            },
+            containerColor = colorScheme.surface
+        ) {
+            if (filteredCounties.isEmpty()) {
+                DropdownMenuItem(
+                    enabled = false,
+                    text = {
+                        Text(
+                            text = "No county found",
+                            fontSize = 13.sp,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    },
+                    onClick = {}
+                )
+            } else {
+                filteredCounties.forEach { county ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = county,
+                                fontSize = 14.sp,
+                                color = colorScheme.onSurface
+                            )
+                        },
+                        colors = MenuDefaults.itemColors(
+                            textColor = colorScheme.onSurface,
+                            disabledTextColor = colorScheme.onSurfaceVariant,
+                            leadingIconColor = colorScheme.onSurfaceVariant,
+                            trailingIconColor = colorScheme.onSurfaceVariant
+                        ),
+                        onClick = {
+                            onCountySelected(county)
+                            expanded = false
+                            searchQuery = ""
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -1032,6 +1250,9 @@ fun ProfileTextField(
     placeholder: String? = null,
     minLines: Int = 1,
     maxLines: Int = 1,
+    centerLabel: Boolean = false,
+    centerPlaceholder: Boolean = false,
+    centerInputText: Boolean = false,
     colorScheme: ColorScheme
 ) {
     OutlinedTextField(
@@ -1039,19 +1260,25 @@ fun ProfileTextField(
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
         label = {
-            Text(
-                text = label,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Medium,
-                color = colorScheme.onSurfaceVariant
-            )
+            Box(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = label,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = colorScheme.onSurfaceVariant,
+                    textAlign = if (centerLabel) TextAlign.Center else TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         },
         placeholder = placeholder?.let {
             {
                 Text(
                     text = it,
                     fontSize = 14.sp,
-                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                    textAlign = if (centerPlaceholder) TextAlign.Center else TextAlign.Start,
+                    modifier = Modifier.fillMaxWidth()
                 )
             }
         },
@@ -1080,7 +1307,8 @@ fun ProfileTextField(
         textStyle = LocalTextStyle.current.copy(
             fontSize = 14.sp,
             color = colorScheme.onSurface,
-            lineHeight = 20.sp
+            lineHeight = 20.sp,
+            textAlign = if (centerInputText) TextAlign.Center else TextAlign.Start
         )
     )
 }
@@ -1293,77 +1521,322 @@ fun ProfileSaveButton(
     onClick: () -> Unit
 ) {
     val colorScheme = MaterialTheme.colorScheme
+    val buttonColor = when {
+        isSuccess -> Color(0xFF10B981)
+        isSaving -> colorScheme.primary
+        else -> colorScheme.primary
+    }
 
-    Button(
-        onClick = onClick,
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .height(56.dp),
-        shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = when {
-                isSuccess -> Color(0xFF10B981)
-                isSaving -> colorScheme.primary
-                else -> colorScheme.primary
-            },
-            disabledContainerColor = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
         ),
-        enabled = !isSaving,
-        elevation = ButtonDefaults.buttonElevation(
+        elevation = CardDefaults.cardElevation(
             defaultElevation = 4.dp,
             pressedElevation = 2.dp
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = colorScheme.outlineVariant.copy(alpha = 0.15f)
         )
     ) {
-        when {
-            isSaving -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(22.dp),
-                    color = Color.White,
-                    strokeWidth = 2.5.dp
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = buttonText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    letterSpacing = 0.5.sp
-                )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // Progress indicator row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Status indicators
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    StatusDot(
+                        label = "Profile",
+                        isActive = !isSaving && !isSuccess,
+                        isComplete = isSuccess,
+                        colorScheme = colorScheme
+                    )
+                    StatusLine(isComplete = isSuccess, colorScheme = colorScheme)
+                    StatusDot(
+                        label = "Save",
+                        isActive = isSaving,
+                        isComplete = isSuccess,
+                        colorScheme = colorScheme
+                    )
+                }
             }
-            isSuccess -> {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = Color.White
-                )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = buttonText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    letterSpacing = 0.5.sp
-                )
+
+            // Main Button
+            Button(
+                onClick = onClick,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = buttonColor,
+                    contentColor = Color.White,
+                    disabledContainerColor = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                ),
+                elevation = ButtonDefaults.buttonElevation(
+                    defaultElevation = 2.dp,
+                    pressedElevation = 0.dp,
+                    disabledElevation = 0.dp
+                ),
+                enabled = !isSaving
+            ) {
+                when {
+                    isSaving -> {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .padding(2.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.fillMaxSize(),
+                                color = Color.White,
+                                strokeWidth = 2.5.dp
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = buttonText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            letterSpacing = 0.5.sp
+                        )
+                        // Animated dots
+                        AnimatedDots()
+                    }
+                    isSuccess -> {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(Color.White.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.Check,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color.White
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = buttonText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    else -> {
+                        Icon(
+                            Icons.Default.Save,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp),
+                            tint = Color.White
+                        )
+                        Spacer(Modifier.width(12.dp))
+                        Text(
+                            text = buttonText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            letterSpacing = 0.5.sp
+                        )
+                        // Subtle shine effect
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    brush = Brush.horizontalGradient(
+                                        colors = listOf(
+                                            Color.White.copy(alpha = 0f),
+                                            Color.White.copy(alpha = 0.05f),
+                                            Color.White.copy(alpha = 0f)
+                                        ),
+                                        startX = 0f,
+                                        endX = 1f
+                                    )
+                                )
+                        )
+                    }
+                }
             }
-            else -> {
-                Icon(
-                    Icons.Default.Save,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = Color.White
+
+            // Security & info row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SecurityBadge(
+                    icon = Icons.Default.Lock,
+                    text = "Encrypted",
+                    colorScheme = colorScheme
                 )
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = buttonText,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
-                    letterSpacing = 0.5.sp
+                SecurityBadge(
+                    icon = Icons.Default.Shield,
+                    text = "Protected",
+                    colorScheme = colorScheme
+                )
+                SecurityBadge(
+                    icon = Icons.Default.Verified,
+                    text = "Secure",
+                    colorScheme = colorScheme
                 )
             }
         }
+    }
+}
+
+@Composable
+fun StatusDot(
+    label: String,
+    isActive: Boolean,
+    isComplete: Boolean,
+    colorScheme: ColorScheme
+) {
+    val dotColor = when {
+        isComplete -> Color(0xFF10B981)
+        isActive -> colorScheme.primary
+        else -> colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(10.dp)
+                .clip(CircleShape)
+                .background(dotColor)
+                .then(
+                    if (isActive) {
+                        Modifier
+                            .size(14.dp)
+                            .background(
+                                brush = Brush.radialGradient(
+                                    colors = listOf(
+                                        dotColor.copy(alpha = 0.2f),
+                                        dotColor.copy(alpha = 0f)
+                                    ),
+                                    radius = 10f
+                                )
+                            )
+                    } else Modifier
+                )
+        )
+        Text(
+            label,
+            fontSize = 8.sp,
+            color = if (isActive || isComplete) colorScheme.onSurface else colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
+@Composable
+fun StatusLine(
+    isComplete: Boolean,
+    colorScheme: ColorScheme
+) {
+    Box(
+        modifier = Modifier
+            .width(24.dp)
+            .height(2.dp)
+            .background(
+                if (isComplete) Color(0xFF10B981)
+                else colorScheme.onSurfaceVariant.copy(alpha = 0.15f)
+            )
+    )
+}
+
+@Composable
+fun AnimatedDots() {
+    val infiniteTransition = rememberInfiniteTransition()
+    val dot1 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+    val dot2 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, delayMillis = 100, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+    val dot3 by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, delayMillis = 200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        )
+    )
+
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Dot(dot1)
+        Dot(dot2)
+        Dot(dot3)
+    }
+}
+
+@Composable
+fun Dot(scale: Float) {
+    Box(
+        modifier = Modifier
+            .size((4 + scale * 2).dp)
+            .clip(CircleShape)
+            .background(Color.White.copy(alpha = 0.5f + scale * 0.5f))
+    )
+}
+
+@Composable
+fun SecurityBadge(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    text: String,
+    colorScheme: ColorScheme
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(12.dp),
+            tint = colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        )
+        Text(
+            text,
+            fontSize = 10.sp,
+            color = colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+            fontWeight = FontWeight.Medium
+        )
     }
 }
 
