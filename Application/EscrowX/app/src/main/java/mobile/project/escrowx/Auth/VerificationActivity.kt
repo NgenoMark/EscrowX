@@ -12,9 +12,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -69,6 +71,7 @@ private fun VerificationScreen(email: String) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val colorScheme = MaterialTheme.colorScheme
+    val scrollState = rememberScrollState()
 
     var otpCode by remember { mutableStateOf(List(6) { "" }) }
     var isLoading by remember { mutableStateOf(false) }
@@ -214,7 +217,9 @@ private fun VerificationScreen(email: String) {
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(24.dp)
-                    .padding(top = 40.dp),
+                    .padding(top = 40.dp)
+                    .verticalScroll(scrollState)
+                    .imePadding(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 // ===== ANIMATED ICON =====

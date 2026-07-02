@@ -144,7 +144,7 @@ private fun LoginScreen() {
                             }
                             userRole.equals("RIDER", ignoreCase = true) -> {
                                 context.startActivity(Intent(context, RiderDashboardActvity::class.java).apply {
-                                    flags = Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                                 })
                             }
                             else -> Toast.makeText(context, "Welcome $userRole!", Toast.LENGTH_LONG).show()
@@ -177,6 +177,7 @@ private fun LoginScreen() {
                 .padding(paddingValues)
                 .padding(horizontal = 24.dp, vertical = 20.dp)
                 .background(colorScheme.background)
+                .verticalScroll(scrollState)
                 .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -206,75 +207,67 @@ private fun LoginScreen() {
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                // ===== TITLE =====
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "Welcome Back",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Sign in to continue managing your escrows",
-                        fontSize = 14.sp,
-                        color = colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // ===== FORM =====
-                LoginForm(
-                    email = email,
-                    onEmailChange = { email = it },
-                    password = password,
-                    onPasswordChange = { password = it },
-                    isPasswordVisible = isPasswordVisible,
-                    onPasswordVisibilityToggle = { isPasswordVisible = !isPasswordVisible },
-                    isLoading = isLoading,
-                    onLogin = { performLogin() },
-                    onForgotPassword = {
-                        context.startActivity(Intent(context, ForgotPasswordActivity::class.java))
-                    },
-                    colorScheme = colorScheme
+            // ===== TITLE =====
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Welcome Back",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    letterSpacing = 0.5.sp
                 )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Sign in to continue managing your escrows",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
 
-                Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-                // ===== SIGN UP REDIRECT =====
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // ===== FORM =====
+            LoginForm(
+                email = email,
+                onEmailChange = { email = it },
+                password = password,
+                onPasswordChange = { password = it },
+                isPasswordVisible = isPasswordVisible,
+                onPasswordVisibilityToggle = { isPasswordVisible = !isPasswordVisible },
+                isLoading = isLoading,
+                onLogin = { performLogin() },
+                onForgotPassword = {
+                    context.startActivity(Intent(context, ForgotPasswordActivity::class.java))
+                },
+                colorScheme = colorScheme
+            )
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // ===== SIGN UP REDIRECT =====
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    "Don't have an account?",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant
+                )
+                TextButton(
+                    onClick = {
+                        context.startActivity(Intent(context, SignUpActivity::class.java))
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = colorScheme.primary
+                    )
                 ) {
                     Text(
-                        "Don't have an account?",
-                        fontSize = 14.sp,
-                        color = colorScheme.onSurfaceVariant
+                        "Sign Up",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    TextButton(
-                        onClick = {
-                            context.startActivity(Intent(context, SignUpActivity::class.java))
-                        },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = colorScheme.primary
-                        )
-                    ) {
-                        Text(
-                            "Sign Up",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                 }
             }
 

@@ -167,6 +167,7 @@ private fun SignUpScreen() {
                 .padding(paddingValues)
                 .padding(horizontal = 24.dp, vertical = 20.dp)
                 .background(colorScheme.background)
+                .verticalScroll(scrollState)
                 .imePadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -196,37 +197,30 @@ private fun SignUpScreen() {
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            // ===== TITLE =====
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Create Account",
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface,
+                    letterSpacing = 0.5.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    "Start your secure escrow journey today",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+
+            // ===== FORM =====
             Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .verticalScroll(scrollState),
-                horizontalAlignment = Alignment.CenterHorizontally
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // ===== TITLE =====
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        "Create Account",
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface,
-                        letterSpacing = 0.5.sp
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        "Start your secure escrow journey today",
-                        fontSize = 14.sp,
-                        color = colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(28.dp))
-
-                // ===== FORM =====
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
                     // Full Name
                     OutlinedTextField(
                         value = displayName,
@@ -482,35 +476,34 @@ private fun SignUpScreen() {
                             Text("Create Account", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
                         }
                     }
-                }
+            }
 
-                Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-                // ===== LOGIN LINK =====
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+            // ===== LOGIN LINK =====
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Text(
+                    "Already have an account?",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant
+                )
+                TextButton(
+                    onClick = {
+                        context.startActivity(Intent(context, LoginActivity::class.java))
+                        (context as? SignUpActivity)?.finish()
+                    },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = colorScheme.primary
+                    )
                 ) {
                     Text(
-                        "Already have an account?",
-                        fontSize = 14.sp,
-                        color = colorScheme.onSurfaceVariant
+                        "Sign In",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    TextButton(
-                        onClick = {
-                            context.startActivity(Intent(context, LoginActivity::class.java))
-                            (context as? SignUpActivity)?.finish()
-                        },
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = colorScheme.primary
-                        )
-                    ) {
-                        Text(
-                            "Sign In",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
                 }
             }
 
