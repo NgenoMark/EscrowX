@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalShipping
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -25,6 +26,12 @@ enum class BuyerNavItem(val index: Int) {
 enum class SellerNavItem(val index: Int) {
     Home(0),
     Transactions(1),
+    Profile(2)
+}
+
+enum class RiderNavItem(val index: Int) {
+    Home(0),
+    Assignments(1),
     Profile(2)
 }
 
@@ -82,6 +89,44 @@ fun SellerNavBar(
             SellerNavItem.Home to ("Home" to Icons.Default.Home),
             SellerNavItem.Transactions to ("Transactions" to Icons.Default.AccountBalanceWallet),
             SellerNavItem.Profile to ("Profile" to Icons.Default.Person)
+        )
+
+        items.forEach { (item, ui) ->
+            val (label, icon) = ui
+            val selected = selectedIndex == item.index
+            NavigationBarItem(
+                selected = selected,
+                onClick = { onItemSelected(item) },
+                icon = { Icon(icon, contentDescription = label) },
+                label = { Text(label, fontSize = 11.sp) },
+                colors = NavigationBarItemDefaults.colors(
+                    selectedIconColor = colorScheme.primary,
+                    selectedTextColor = colorScheme.primary,
+                    unselectedIconColor = colorScheme.onSurfaceVariant,
+                    unselectedTextColor = colorScheme.onSurfaceVariant,
+                    indicatorColor = colorScheme.surfaceVariant
+                )
+            )
+        }
+    }
+}
+
+@Composable
+fun RiderNavBar(
+    selectedIndex: Int,
+    onItemSelected: (RiderNavItem) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    NavigationBar(
+        modifier = modifier.height(80.dp),
+        containerColor = colorScheme.surface,
+        tonalElevation = 0.dp
+    ) {
+        val items = listOf(
+            RiderNavItem.Home to ("Home" to Icons.Default.Home),
+            RiderNavItem.Assignments to ("Assignments" to Icons.Default.LocalShipping),
+            RiderNavItem.Profile to ("Profile" to Icons.Default.Person)
         )
 
         items.forEach { (item, ui) ->
