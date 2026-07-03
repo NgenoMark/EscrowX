@@ -24,6 +24,7 @@ import kotlinx.coroutines.withContext
 import mobile.project.escrowx.R
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.dash.BuyerDashboardActivity
+import mobile.project.escrowx.dash.RiderDashboardActvity
 import mobile.project.escrowx.notifications.FcmTokenRegistrar
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.ui.theme.EscrowXTheme
@@ -87,6 +88,7 @@ class SplashActivity : ComponentActivity() {
                 when {
                     user.role.equals("BUYER", ignoreCase = true) -> openBuyerDashboard()
                     user.role.equals("SELLER", ignoreCase = true) -> openSellerDashboard()
+                    user.role.equals("RIDER", ignoreCase = true) -> openRiderDashboard()
                     else -> openLogin()
                 }
             } catch (_: Exception) {
@@ -129,6 +131,15 @@ class SplashActivity : ComponentActivity() {
 
     private fun openSellerDashboard() {
         val intent = Intent(this, SellerDashboardActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        startActivity(intent)
+        overridePendingTransition(0, 0)
+        finish()
+    }
+
+    private fun openRiderDashboard() {
+        val intent = Intent(this, RiderDashboardActvity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
         startActivity(intent)
