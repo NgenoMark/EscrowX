@@ -4,58 +4,32 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Assignment
-import androidx.compose.material.icons.filled.Badge
-import androidx.compose.material.icons.filled.DirectionsBike
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.LocalShipping
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.WorkHistory
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -73,6 +47,9 @@ import mobile.project.escrowx.ui.components.RiderNavBar
 import mobile.project.escrowx.ui.components.RiderNavItem
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
+import mobile.project.escrowx.ui.theme.BrandBlue
+import java.text.SimpleDateFormat
+import java.util.*
 
 private data class RiderAssignmentItem(
     val notification: InAppNotificationResponse,
@@ -96,7 +73,7 @@ class RiderDashboardActvity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RiderDashboardScreen() {
-    val context = androidx.compose.ui.platform.LocalContext.current
+    val context = LocalContext.current
     val session = remember { SessionManager(context) }
     val scope = rememberCoroutineScope()
     val colorScheme = MaterialTheme.colorScheme
@@ -106,13 +83,18 @@ private fun RiderDashboardScreen() {
     var profile by remember { mutableStateOf<UserDetailsResponse?>(null) }
     var assignments by remember { mutableStateOf<List<RiderAssignmentItem>>(emptyList()) }
     var newAssignmentsCount by remember { mutableIntStateOf(0) }
+    var isRefreshing by remember { mutableStateOf(false) }
 
-    fun loadRiderData() {
+    fun loadRiderData(showLoading: Boolean = true) {
+        if (showLoading) isLoading = true
+        isRefreshing = true
+
         val token = session.getAccessToken()
         val email = session.getEmail()
         val userId = session.getUserId()
         if (token.isNullOrBlank() || email.isNullOrBlank() || userId.isNullOrBlank()) {
             isLoading = false
+            isRefreshing = false
             return
         }
 
@@ -137,7 +119,7 @@ private fun RiderDashboardScreen() {
                     val type = it.type.uppercase()
                     val title = it.title.uppercase()
                     type.contains("ASSIGN") || title.contains("ASSIGN") ||
-                        (it.referenceType?.equals("TRANSACTION", ignoreCase = true) == true)
+                            (it.referenceType?.equals("TRANSACTION", ignoreCase = true) == true)
                 }
 
                 newAssignmentsCount = assignmentNotifications.count { it.status.equals("UNREAD", ignoreCase = true) }
@@ -171,6 +153,7 @@ private fun RiderDashboardScreen() {
             } finally {
                 withContext(Dispatchers.Main) {
                     isLoading = false
+                    isRefreshing = false
                 }
             }
         }
@@ -185,26 +168,72 @@ private fun RiderDashboardScreen() {
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = "Rider Workspace",
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        colors = listOf(
+                                            BrandBlue,
+                                            BrandBlue.copy(alpha = 0.7f)
+                                        )
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Default.DirectionsBike,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp),
+                                tint = Color.White
+                            )
+                        }
+                        Text(
+                            text = "Rider Workspace",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 18.sp,
+                            color = colorScheme.onSurface,
+                            letterSpacing = 0.3.sp
+                        )
+                    }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        isLoading = true
-                        loadRiderData()
-                    }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = colorScheme.primary)
+                    // Refresh Button
+                    IconButton(
+                        onClick = { loadRiderData(showLoading = false) },
+                        enabled = !isRefreshing
+                    ) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = colorScheme.primary
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = colorScheme.onSurface
+                            )
+                        }
                     }
+                    // Logout Button
                     IconButton(onClick = {
                         session.clearSession()
                         context.startActivity(Intent(context, LoginActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                         })
                     }) {
-                        Icon(Icons.Default.ExitToApp, contentDescription = "Logout", tint = colorScheme.primary)
+                        Icon(
+                            Icons.Default.Logout,
+                            contentDescription = "Logout",
+                            tint = colorScheme.onSurface
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -222,14 +251,7 @@ private fun RiderDashboardScreen() {
     ) { padding ->
         when {
             isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator(color = colorScheme.primary)
-                }
+                RiderLoadingState(colorScheme = colorScheme)
             }
             selectedTab == RiderNavItem.Home.index -> {
                 RiderHomeTab(
@@ -238,13 +260,19 @@ private fun RiderDashboardScreen() {
                         ?: profile?.email?.substringBefore("@")
                         ?: "Rider",
                     newAssignmentsCount = newAssignmentsCount,
-                    assignments = assignments
+                    assignments = assignments,
+                    onRefresh = { loadRiderData(showLoading = false) },
+                    colorScheme = colorScheme
                 )
             }
             selectedTab == RiderNavItem.Assignments.index -> {
                 RiderAssignmentsTab(
                     padding = padding,
-                    assignments = assignments
+                    assignments = assignments,
+                    colorScheme = colorScheme,
+                    onOpenAssignmentsPage = {
+                        context.startActivity(Intent(context, RiderAssignmentsActivity::class.java))
+                    }
                 )
             }
             else -> {
@@ -254,26 +282,67 @@ private fun RiderDashboardScreen() {
                     onOpenProfile = {
                         context.startActivity(Intent(context, RiderProfileDetailsActivity::class.java))
                     },
-                    onOpenRiderProfile = {
-                        context.startActivity(Intent(context, RiderProfileDetailsActivity::class.java))
-                    }
+                    colorScheme = colorScheme
                 )
             }
         }
     }
 }
+
+// ===================== LOADING STATE =====================
+
+@Composable
+fun RiderLoadingState(colorScheme: ColorScheme) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(colorScheme.primary.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    color = colorScheme.primary,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+            Text(
+                "Loading your dashboard...",
+                fontSize = 14.sp,
+                color = colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+// ===================== HOME TAB =====================
 
 @Composable
 private fun RiderHomeTab(
     padding: PaddingValues,
     riderName: String,
     newAssignmentsCount: Int,
-    assignments: List<RiderAssignmentItem>
+    assignments: List<RiderAssignmentItem>,
+    onRefresh: () -> Unit,
+    colorScheme: ColorScheme
 ) {
-    val colorScheme = MaterialTheme.colorScheme
     val activeCount = assignments.count {
         val status = it.transaction?.status?.uppercase() ?: ""
         status == "SELLER_ACCEPTED" || status == "IN_DELIVERY"
+    }
+    val completedCount = assignments.count {
+        val status = it.transaction?.status?.uppercase() ?: ""
+        status == "COMPLETED" || status == "DELIVERED"
     }
 
     LazyColumn(
@@ -282,67 +351,95 @@ private fun RiderHomeTab(
             .padding(padding)
             .background(colorScheme.background),
         contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Welcome Card
         item {
-            Text(
-                text = "Welcome, $riderName",
-                fontSize = 24.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorScheme.onBackground
+            WelcomeCard(
+                riderName = riderName,
+                newAssignmentsCount = newAssignmentsCount,
+                colorScheme = colorScheme
             )
         }
 
+        // Stats Row
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                SummaryCard(
+                StatsCard(
                     modifier = Modifier.weight(1f),
-                    title = "New Assignments",
+                    title = "New",
                     value = newAssignmentsCount.toString(),
                     icon = Icons.Default.Assignment,
-                    tint = Color(0xFF2563EB)
+                    color = Color(0xFF2563EB),
+                    colorScheme = colorScheme
                 )
-                SummaryCard(
+                StatsCard(
                     modifier = Modifier.weight(1f),
-                    title = "Active Deliveries",
+                    title = "Active",
                     value = activeCount.toString(),
                     icon = Icons.Default.LocalShipping,
-                    tint = Color(0xFF10B981)
+                    color = Color(0xFF10B981),
+                    colorScheme = colorScheme
+                )
+                StatsCard(
+                    modifier = Modifier.weight(1f),
+                    title = "Completed",
+                    value = completedCount.toString(),
+                    icon = Icons.Default.CheckCircle,
+                    color = Color(0xFF7C3AED),
+                    colorScheme = colorScheme
                 )
             }
         }
 
+        // Quick Actions
         item {
-            Text(
-                text = "Current assignment status",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colorScheme.onSurface
+            QuickActionsRow(
+                onRefresh = onRefresh,
+                colorScheme = colorScheme
             )
         }
 
-        val previewItems = assignments.take(3)
+        // Recent Assignments Header
+        item {
+            SectionHeader(
+                title = "Recent Assignments",
+                count = assignments.size,
+                colorScheme = colorScheme
+            )
+        }
+
+        val previewItems = assignments.take(5)
         if (previewItems.isEmpty()) {
             item {
-                EmptyStateCard("No assignments yet. New delivery assignments will appear here.")
+                EmptyStateCard(
+                    message = "No assignments yet. New delivery assignments will appear here.",
+                    colorScheme = colorScheme
+                )
             }
         } else {
             items(previewItems) { item ->
-                AssignmentCard(item)
+                AssignmentCardEnhanced(
+                    item = item,
+                    colorScheme = colorScheme
+                )
             }
         }
     }
 }
 
+// ===================== ASSIGNMENTS TAB =====================
+
 @Composable
 private fun RiderAssignmentsTab(
     padding: PaddingValues,
-    assignments: List<RiderAssignmentItem>
+    assignments: List<RiderAssignmentItem>,
+    colorScheme: ColorScheme,
+    onOpenAssignmentsPage: () -> Unit
 ) {
-    val colorScheme = MaterialTheme.colorScheme
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -352,149 +449,608 @@ private fun RiderAssignmentsTab(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Text(
-                text = "Assigned Deliveries",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = colorScheme.onSurface
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "All Assignments",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
+                Surface(
+                    shape = CircleShape,
+                    color = colorScheme.primary.copy(alpha = 0.08f)
+                ) {
+                    Text(
+                        "${assignments.size}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+
+        item {
+            OutlinedButton(
+                onClick = onOpenAssignmentsPage,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.OpenInNew, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Open Assignments Page")
+            }
         }
 
         if (assignments.isEmpty()) {
             item {
-                EmptyStateCard("No assigned deliveries found.")
+                EmptyStateCard(
+                    message = "No assigned deliveries found.",
+                    colorScheme = colorScheme
+                )
             }
         } else {
             items(assignments) { item ->
-                AssignmentCard(item)
+                AssignmentCardEnhanced(
+                    item = item,
+                    showFullDetails = true,
+                    colorScheme = colorScheme
+                )
             }
         }
     }
 }
+
+// ===================== PROFILE TAB =====================
 
 @Composable
 private fun RiderProfileTab(
     padding: PaddingValues,
     profile: UserDetailsResponse?,
     onOpenProfile: () -> Unit,
-    onOpenRiderProfile: () -> Unit
+    colorScheme: ColorScheme
 ) {
-    val colorScheme = MaterialTheme.colorScheme
+    val context = LocalContext.current
+    val riderName = profile?.displayName?.ifBlank { null }
+        ?: profile?.email?.substringBefore("@")
+        ?: "Rider"
+    val riderInitials = riderName
+        .split(" ")
+        .filter { it.isNotBlank() }
+        .take(2)
+        .joinToString("") { it.take(1).uppercase(Locale.getDefault()) }
+        .ifBlank { "RD" }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(padding)
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Text(
-            text = "Rider Profile",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = colorScheme.onSurface
-        )
-
+        // Profile Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+            border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Name: ${profile?.displayName ?: "-"}", color = colorScheme.onSurface)
-                Text("Email: ${profile?.email ?: "-"}", color = colorScheme.onSurfaceVariant)
-                Text("Role: ${profile?.role ?: "RIDER"}", color = colorScheme.onSurfaceVariant)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    BrandBlue,
+                                    BrandBlue.copy(alpha = 0.7f)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        riderInitials,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                }
+                Text(
+                    riderName,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = colorScheme.primary.copy(alpha = 0.08f)
+                ) {
+                    Text(
+                        "Rider",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
+                    )
+                }
+
+                HorizontalDivider(
+                    color = colorScheme.outlineVariant.copy(alpha = 0.2f),
+                    thickness = 0.5.dp
+                )
+
+                ProfileInfoRow(
+                    icon = Icons.Default.Email,
+                    label = "Email",
+                    value = profile?.email ?: "-",
+                    colorScheme = colorScheme
+                )
+                ProfileInfoRow(
+                    icon = Icons.Default.Phone,
+                    label = "Phone",
+                    value = profile?.phone ?: "Not set",
+                    colorScheme = colorScheme
+                )
+                ProfileInfoRow(
+                    icon = Icons.Default.Badge,
+                    label = "Status",
+                    value = profile?.status ?: "Active",
+                    colorScheme = colorScheme
+                )
             }
         }
 
+        // Action Buttons
         Button(
             onClick = onOpenProfile,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colorScheme.primary,
+                contentColor = Color.White
+            ),
+            elevation = ButtonDefaults.buttonElevation(
+                defaultElevation = 2.dp,
+                pressedElevation = 0.dp
+            )
         ) {
-            Icon(Icons.Default.AccountCircle, contentDescription = null)
-            Text(" Open Profile DB")
+            Icon(
+                Icons.Default.Person,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                "View Full Profile",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
         }
 
-        Button(
-            onClick = onOpenRiderProfile,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+        // Logout Button
+        OutlinedButton(
+            onClick = {
+                val session = SessionManager(context)
+                session.clearSession()
+                context.startActivity(Intent(context, LoginActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                })
+            },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(14.dp),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = MaterialTheme.colorScheme.error
+            ),
+            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
         ) {
-            Icon(Icons.Default.Badge, contentDescription = null)
-            Text(" Open Rider Profile DB")
+            Icon(
+                Icons.Default.Logout,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                "Logout",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+// ===================== COMPONENTS =====================
+
+@Composable
+fun WelcomeCard(
+    riderName: String,
+    newAssignmentsCount: Int,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Text(
+                    "Welcome back, 👋",
+                    fontSize = 14.sp,
+                    color = colorScheme.onSurfaceVariant
+                )
+                Text(
+                    riderName,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
+                Text(
+                    "Ready for your next delivery?",
+                    fontSize = 13.sp,
+                    color = colorScheme.onSurfaceVariant
+                )
+            }
+            if (newAssignmentsCount > 0) {
+                Box(
+                    modifier = Modifier
+                        .size(48.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.horizontalGradient(
+                                colors = listOf(
+                                    Color(0xFF2563EB),
+                                    Color(0xFF3B82F6)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            newAssignmentsCount.toString(),
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Text(
+                            "NEW",
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun SummaryCard(
+fun StatsCard(
     modifier: Modifier,
     title: String,
     value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    tint: Color
+    icon: ImageVector,
+    color: Color,
+    colorScheme: ColorScheme
 ) {
-    val colorScheme = MaterialTheme.colorScheme
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.15f))
     ) {
         Column(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(icon, contentDescription = null, tint = tint)
-                Spacer(modifier = Modifier.size(6.dp))
-                Text(title, fontSize = 12.sp, color = colorScheme.onSurfaceVariant)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(color.copy(alpha = 0.12f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = color
+                    )
+                }
+                Text(
+                    title,
+                    fontSize = 11.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
             }
-            Text(value, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = colorScheme.onSurface)
+            Text(
+                value,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorScheme.onSurface
+            )
         }
     }
 }
 
 @Composable
-private fun AssignmentCard(item: RiderAssignmentItem) {
-    val colorScheme = MaterialTheme.colorScheme
-    val status = item.transaction?.status ?: "ASSIGNED"
-
-    Card(
+fun QuickActionsRow(
+    onRefresh: () -> Unit,
+    colorScheme: ColorScheme
+) {
+    Row(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+        QuickActionButton(
+            modifier = Modifier.weight(1f),
+            icon = Icons.Default.Refresh,
+            label = "Refresh",
+            onClick = onRefresh,
+            colorScheme = colorScheme
+        )
+        QuickActionButton(
+            modifier = Modifier.weight(1f),
+            icon = Icons.Default.DirectionsBike,
+            label = "History",
+            onClick = { /* Navigate to history */ },
+            colorScheme = colorScheme
+        )
+        QuickActionButton(
+            modifier = Modifier.weight(1f),
+            icon = Icons.Default.Place,
+            label = "Live Map",
+            onClick = { /* Open map */ },
+            colorScheme = colorScheme
+        )
+    }
+}
+
+@Composable
+fun QuickActionButton(
+    modifier: Modifier,
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+    colorScheme: ColorScheme
+) {
+    Surface(
+        modifier = modifier
+            .height(44.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(10.dp),
+        color = colorScheme.surfaceVariant.copy(alpha = 0.3f),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.2f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = item.transaction?.title ?: item.notification.title,
-                fontWeight = FontWeight.SemiBold,
-                color = colorScheme.onSurface
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = item.transaction?.deliveryAddress ?: item.notification.body,
-                fontSize = 13.sp,
+                label,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
                 color = colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+fun SectionHeader(
+    title: String,
+    count: Int,
+    colorScheme: ColorScheme
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            title,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorScheme.onSurface
+        )
+        if (count > 0) {
+            Text(
+                "$count items",
+                fontSize = 12.sp,
+                color = colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun AssignmentCardEnhanced(
+    item: RiderAssignmentItem,
+    showFullDetails: Boolean = false,
+    colorScheme: ColorScheme
+) {
+    val status = item.transaction?.status ?: "ASSIGNED"
+    val statusConfig = getRiderStatusConfig(status)
+    val formattedDate = formatRiderDate(item.notification.createdAt)
+    val title = item.transaction?.title ?: item.notification.title
+    val address = item.transaction?.deliveryAddress ?: item.notification.body
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { /* Navigate to details */ },
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 1.dp,
+            pressedElevation = 3.dp
+        ),
+        border = BorderStroke(
+            1.dp,
+            if (item.notification.status.equals("UNREAD", ignoreCase = true))
+                colorScheme.primary.copy(alpha = 0.15f)
+            else
+                colorScheme.outlineVariant.copy(alpha = 0.2f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Header: Status & Date
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.WorkHistory, contentDescription = null, tint = colorScheme.primary)
-                    Spacer(modifier = Modifier.size(4.dp))
-                    Text(status, fontSize = 12.sp, color = colorScheme.primary, fontWeight = FontWeight.Medium)
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = statusConfig.backgroundColor,
+                    border = BorderStroke(1.dp, statusConfig.backgroundColor.copy(alpha = 0.3f))
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(CircleShape)
+                                .background(statusConfig.dotColor)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            statusConfig.label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = statusConfig.textColor
+                        )
+                    }
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Schedule, contentDescription = null, tint = colorScheme.onSurfaceVariant)
-                    Spacer(modifier = Modifier.size(4.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Schedule,
+                        contentDescription = null,
+                        modifier = Modifier.size(12.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
                     Text(
-                        text = item.transaction?.updatedAt ?: item.notification.createdAt,
+                        formattedDate,
                         fontSize = 11.sp,
                         color = colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Title & Address
+            Text(
+                title,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            if (address.isNotBlank()) {
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Place,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        address,
+                        fontSize = 13.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = if (showFullDetails) 3 else 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            // View Details Button
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(
+                    onClick = { /* Navigate to details */ },
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = colorScheme.primary
+                    )
+                ) {
+                    Text("View Details", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowForward,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
                     )
                 }
             }
@@ -503,15 +1059,155 @@ private fun AssignmentCard(item: RiderAssignmentItem) {
 }
 
 @Composable
-private fun EmptyStateCard(message: String) {
-    val colorScheme = MaterialTheme.colorScheme
-    Surface(
+fun EmptyStateCard(
+    message: String,
+    colorScheme: ColorScheme
+) {
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        color = colorScheme.surface,
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.2f))
     ) {
-        Box(modifier = Modifier.padding(16.dp), contentAlignment = Alignment.Center) {
-            Text(message, color = colorScheme.onSurfaceVariant)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                message,
+                fontSize = 13.sp,
+                color = colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
         }
+    }
+}
+
+@Composable
+fun ProfileInfoRow(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    colorScheme: ColorScheme
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = colorScheme.onSurfaceVariant
+        )
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                label,
+                fontSize = 11.sp,
+                color = colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                value,
+                fontSize = 14.sp,
+                color = colorScheme.onSurface,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+// ===================== HELPER FUNCTIONS =====================
+
+data class RiderStatusConfig(
+    val label: String,
+    val dotColor: Color,
+    val textColor: Color,
+    val backgroundColor: Color
+)
+
+fun getRiderStatusConfig(status: String): RiderStatusConfig {
+    val normalized = status.uppercase()
+    return when {
+        normalized.contains("COMPLETED") -> RiderStatusConfig(
+            label = "Completed",
+            dotColor = Color(0xFF10B981),
+            textColor = Color(0xFF10B981),
+            backgroundColor = Color(0xFF10B981).copy(alpha = 0.12f)
+        )
+        normalized.contains("DELIVERED") -> RiderStatusConfig(
+            label = "Delivered",
+            dotColor = Color(0xFF10B981),
+            textColor = Color(0xFF10B981),
+            backgroundColor = Color(0xFF10B981).copy(alpha = 0.12f)
+        )
+        normalized.contains("IN_DELIVERY") || normalized.contains("IN TRANSIT") -> RiderStatusConfig(
+            label = "In Transit",
+            dotColor = Color(0xFFF59E0B),
+            textColor = Color(0xFFF59E0B),
+            backgroundColor = Color(0xFFF59E0B).copy(alpha = 0.12f)
+        )
+        normalized.contains("ASSIGNED") || normalized.contains("PENDING") -> RiderStatusConfig(
+            label = "Pending",
+            dotColor = Color(0xFF3B82F6),
+            textColor = Color(0xFF3B82F6),
+            backgroundColor = Color(0xFF3B82F6).copy(alpha = 0.12f)
+        )
+        else -> RiderStatusConfig(
+            label = status,
+            dotColor = Color(0xFF6B7280),
+            textColor = Color(0xFF6B7280),
+            backgroundColor = Color(0xFF6B7280).copy(alpha = 0.12f)
+        )
+    }
+}
+
+fun formatRiderDate(dateString: String): String {
+    return try {
+        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.getDefault())
+        parser.timeZone = TimeZone.getTimeZone("UTC")
+        val date = parser.parse(dateString)
+        if (date != null) {
+            val now = Date()
+            val diff = now.time - date.time
+            when {
+                diff < 60000 -> "Just now"
+                diff < 3600000 -> "${diff / 60000}m ago"
+                diff < 86400000 -> "${diff / 3600000}h ago"
+                diff < 172800000 -> "Yesterday"
+                else -> SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(date)
+            }
+        } else {
+            dateString
+        }
+    } catch (_: Exception) {
+        dateString
+    }
+}
+
+// ===== PREVIEW =====
+
+@Preview(showBackground = true, widthDp = 428, heightDp = 920)
+@Composable
+fun RiderDashboardScreenPreview() {
+    EscrowXTheme(darkTheme = false) {
+        RiderDashboardScreen()
+    }
+}
+
+@Preview(showBackground = true, widthDp = 428, heightDp = 920)
+@Composable
+fun RiderDashboardScreenPreviewDark() {
+    EscrowXTheme(darkTheme = true) {
+        RiderDashboardScreen()
     }
 }
