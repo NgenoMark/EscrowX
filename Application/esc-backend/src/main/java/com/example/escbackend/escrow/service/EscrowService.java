@@ -1,12 +1,14 @@
 package com.example.escbackend.escrow.service;
 
 import com.example.escbackend.common.exception.ApiException;
+import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
 import com.example.escbackend.escrow.dto.EscrowResponse;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.EscrowRepository;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.UserRepository;
+import com.example.escbackend.user.service.AdminAuthorizationService;
 import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -29,14 +31,17 @@ public class EscrowService {
     private final EscrowRepository escrowRepository;
     private final UserRepository userRepository;
     private final TransactionStatusHistoryService transactionStatusHistoryService;
+    private final AdminAuthorizationService adminAuthorizationService;
 
     public EscrowService(
             EscrowRepository escrowRepository,
             UserRepository userRepository,
-            TransactionStatusHistoryService transactionStatusHistoryService) {
+            TransactionStatusHistoryService transactionStatusHistoryService,
+            AdminAuthorizationService adminAuthorizationService) {
         this.escrowRepository = escrowRepository;
         this.userRepository = userRepository;
         this.transactionStatusHistoryService = transactionStatusHistoryService;
+        this.adminAuthorizationService = adminAuthorizationService;
     }
 
     @Transactional
@@ -100,6 +105,30 @@ public class EscrowService {
         return transactions.stream()
                 .map(this::toResponse)
                 .toList();
+    }
+
+    public List<EscrowResponse> getByRiderId(UUID riderId) {
+        List<EscrowTransaction> transactions = escrowRepository.findByRiderId(riderId);
+        return transactions.stream()
+            .map(this::toResponse)
+            .toList();
+    }
+
+    @Transactional
+    public EscrowResponse assignRider(UUID transactionId, UUID riderId, UUID actorUserId) {
+        adminAuthorizationService.requireAdminOrSuperAdmin(actorUserId);
+
+        EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        UserEntity rider = userRepository.findById(riderId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Rider not found"));
+
+        if (rider.getRole() != UserRole.RIDER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Provided user is not a RIDER");
+        }
+
+        transaction.setRider(rider);
+        EscrowTransaction saved = escrowRepository.save(transaction);
+        return toResponse(saved);
     }
 
 
@@ -248,6 +277,7 @@ public class EscrowService {
             .reference(transaction.getReference())
             .buyerId(transaction.getBuyer().getId())
             .sellerId(transaction.getSeller().getId())
+            .riderId(transaction.getRider() != null ? transaction.getRider().getId() : null)
             .title(transaction.getTitle())
             .productDescription(transaction.getProductDescription())
             .amount(transaction.getAmount())

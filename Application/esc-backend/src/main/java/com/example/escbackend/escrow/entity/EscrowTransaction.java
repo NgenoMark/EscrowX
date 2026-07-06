@@ -36,6 +36,10 @@ public class EscrowTransaction {
     @JoinColumn(name = "seller_id", nullable = false)
     private UserEntity seller;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "rider_id")
+    private UserEntity rider;
+
     @Size(max = 200)
     @NotNull
     @Column(name = "title", nullable = false, length = 200)

@@ -14,4 +14,6 @@ public interface EscrowRepository extends JpaRepository<EscrowTransaction, UUID>
 
     List <EscrowTransaction> findByBuyerId(UUID buyerId);
 
+    List <EscrowTransaction> findByRiderId(UUID riderId);
+
 }

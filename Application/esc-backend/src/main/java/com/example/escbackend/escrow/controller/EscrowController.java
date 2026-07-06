@@ -1,10 +1,10 @@
 package com.example.escbackend.escrow.controller;
 
 
+import com.example.escbackend.escrow.dto.AssignRiderRequest;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
 import com.example.escbackend.escrow.dto.EscrowResponse;
 import com.example.escbackend.escrow.service.EscrowService;
-import jakarta.persistence.Entity;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -44,6 +44,11 @@ public class EscrowController {
     @GetMapping("/transactions/buyer/{buyerId}")
     public List <EscrowResponse> getByBuyerId(@PathVariable UUID buyerId){
         return escrowService.getByBuyerId(buyerId);
+    }
+
+    @GetMapping("/transactions/rider/{riderId}")
+    public List<EscrowResponse> getByRiderId(@PathVariable UUID riderId) {
+        return escrowService.getByRiderId(riderId);
     }
 
     @GetMapping("/transactions/search")
@@ -92,6 +97,15 @@ public class EscrowController {
         @RequestHeader("X-Actor-User-Id") UUID actorUserId
     ) {
         return escrowService.markInDelivery(id, actorUserId);
+    }
+
+    @PostMapping("/transactions/{id}/assign-rider")
+    public EscrowResponse assignRider(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+        @Valid @RequestBody AssignRiderRequest request
+    ) {
+        return escrowService.assignRider(id, request.getRiderId(), actorUserId);
     }
 
     @PostMapping("/transactions/{id}/seller-confirm-delivery")
