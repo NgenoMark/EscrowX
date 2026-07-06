@@ -4,7 +4,9 @@ import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
 import com.example.escbackend.escrow.dto.EscrowResponse;
+import com.example.escbackend.escrow.entity.DeliveryAssignmentEntity;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
+import com.example.escbackend.escrow.repository.DeliveryAssignmentRepository;
 import com.example.escbackend.escrow.repository.EscrowRepository;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.UserRepository;
@@ -29,16 +31,19 @@ import java.util.UUID;
 public class EscrowService {
 
     private final EscrowRepository escrowRepository;
+    private final DeliveryAssignmentRepository deliveryAssignmentRepository;
     private final UserRepository userRepository;
     private final TransactionStatusHistoryService transactionStatusHistoryService;
     private final AdminAuthorizationService adminAuthorizationService;
 
     public EscrowService(
             EscrowRepository escrowRepository,
+            DeliveryAssignmentRepository deliveryAssignmentRepository,
             UserRepository userRepository,
             TransactionStatusHistoryService transactionStatusHistoryService,
             AdminAuthorizationService adminAuthorizationService) {
         this.escrowRepository = escrowRepository;
+        this.deliveryAssignmentRepository = deliveryAssignmentRepository;
         this.userRepository = userRepository;
         this.transactionStatusHistoryService = transactionStatusHistoryService;
         this.adminAuthorizationService = adminAuthorizationService;
@@ -128,6 +133,17 @@ public class EscrowService {
 
         transaction.setRider(rider);
         EscrowTransaction saved = escrowRepository.save(transaction);
+
+        DeliveryAssignmentEntity assignment = deliveryAssignmentRepository
+            .findTopByTransactionIdOrderByCreatedAtDesc(transactionId)
+            .orElseGet(DeliveryAssignmentEntity::new);
+        assignment.setTransactionId(transactionId);
+        assignment.setRiderUserId(riderId);
+        assignment.setAssignedByUserId(actorUserId);
+        assignment.setStatus("ASSIGNED");
+        assignment.setDropoffAddress(saved.getDeliveryAddress());
+        deliveryAssignmentRepository.save(assignment);
+
         return toResponse(saved);
     }
 
