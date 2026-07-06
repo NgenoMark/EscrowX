@@ -232,6 +232,13 @@ private fun RiderDashboardScreen() {
                     newAssignmentsCount = newAssignmentsCount,
                     assignments = assignments,
                     onRefresh = { loadRiderData(showLoading = false) },
+                    onOpenAssignmentDetails = { transaction ->
+                        context.startActivity(
+                            Intent(context, RiderAssignmentDetailsActivity::class.java).apply {
+                                putExtra(RiderAssignmentDetailsActivity.EXTRA_TRANSACTION_ID, transaction.id)
+                            }
+                        )
+                    },
                     colorScheme = colorScheme
                 )
             }
@@ -240,6 +247,13 @@ private fun RiderDashboardScreen() {
                     padding = padding,
                     assignments = assignments,
                     colorScheme = colorScheme,
+                    onOpenAssignmentDetails = { transaction ->
+                        context.startActivity(
+                            Intent(context, RiderAssignmentDetailsActivity::class.java).apply {
+                                putExtra(RiderAssignmentDetailsActivity.EXTRA_TRANSACTION_ID, transaction.id)
+                            }
+                        )
+                    },
                     onOpenAssignmentsPage = {
                         context.startActivity(Intent(context, RiderAssignmentsActivity::class.java))
                     }
@@ -304,6 +318,7 @@ private fun RiderHomeTab(
     newAssignmentsCount: Int,
     assignments: List<RiderAssignmentItem>,
     onRefresh: () -> Unit,
+    onOpenAssignmentDetails: (EscrowResponse) -> Unit,
     colorScheme: ColorScheme
 ) {
     val activeCount = assignments.count {
@@ -394,6 +409,7 @@ private fun RiderHomeTab(
             items(previewItems) { item ->
                 AssignmentCardEnhanced(
                     item = item,
+                    onOpenDetails = onOpenAssignmentDetails,
                     colorScheme = colorScheme
                 )
             }
@@ -408,6 +424,7 @@ private fun RiderAssignmentsTab(
     padding: PaddingValues,
     assignments: List<RiderAssignmentItem>,
     colorScheme: ColorScheme,
+    onOpenAssignmentDetails: (EscrowResponse) -> Unit,
     onOpenAssignmentsPage: () -> Unit
 ) {
     LazyColumn(
@@ -468,7 +485,7 @@ private fun RiderAssignmentsTab(
             items(assignments) { item ->
                 AssignmentCardEnhanced(
                     item = item,
-                    showFullDetails = true,
+                    onOpenDetails = onOpenAssignmentDetails,
                     colorScheme = colorScheme
                 )
             }
@@ -891,7 +908,7 @@ fun SectionHeader(
 @Composable
 private fun AssignmentCardEnhanced(
     item: RiderAssignmentItem,
-    showFullDetails: Boolean = false,
+    onOpenDetails: (EscrowResponse) -> Unit,
     colorScheme: ColorScheme
 ) {
     val status = item.transaction.status
@@ -902,22 +919,17 @@ private fun AssignmentCardEnhanced(
 
     Card(
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable { /* Navigate to details */ },
+            .fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(
-            defaultElevation = 1.dp,
-            pressedElevation = 3.dp
-        ),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp, pressedElevation = 3.dp),
         border = BorderStroke(
             1.dp,
-            if (item.transaction.status.equals("ASSIGNED", ignoreCase = true))
+            if (item.transaction.status.equals("ASSIGNED", ignoreCase = true)) {
                 colorScheme.primary.copy(alpha = 0.15f)
-            else
+            } else {
                 colorScheme.outlineVariant.copy(alpha = 0.2f)
+            }
         )
     ) {
         Column(
@@ -926,7 +938,6 @@ private fun AssignmentCardEnhanced(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Header: Status & Date
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -956,6 +967,7 @@ private fun AssignmentCardEnhanced(
                         )
                     }
                 }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -974,7 +986,6 @@ private fun AssignmentCardEnhanced(
                 }
             }
 
-            // Title & Address
             Text(
                 title,
                 fontSize = 15.sp,
@@ -999,24 +1010,25 @@ private fun AssignmentCardEnhanced(
                         address,
                         fontSize = 13.sp,
                         color = colorScheme.onSurfaceVariant,
-                        maxLines = if (showFullDetails) 3 else 1,
+                        maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
             }
 
-            // View Details Button
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
                 TextButton(
-                    onClick = { /* Navigate to details */ },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = colorScheme.primary
-                    )
+                    onClick = { onOpenDetails(item.transaction) },
+                    colors = ButtonDefaults.textButtonColors(contentColor = colorScheme.primary)
                 ) {
-                    Text("View Details", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = "View Details",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = null,

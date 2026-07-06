@@ -1,9 +1,11 @@
 package mobile.project.escrowx.dash
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -180,7 +182,16 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(assignments) { item ->
-                        AssignmentRow(item)
+                        AssignmentRow(
+                            item = item,
+                            onOpenDetails = { transaction ->
+                                context.startActivity(
+                                    Intent(context, RiderAssignmentDetailsActivity::class.java).apply {
+                                        putExtra(RiderAssignmentDetailsActivity.EXTRA_TRANSACTION_ID, transaction.id)
+                                    }
+                                )
+                            }
+                        )
                     }
                 }
             }
@@ -189,12 +200,17 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun AssignmentRow(item: RiderAssignmentRecord) {
+private fun AssignmentRow(
+    item: RiderAssignmentRecord,
+    onOpenDetails: (EscrowResponse) -> Unit
+) {
     val colorScheme = MaterialTheme.colorScheme
     val status = item.transaction.status
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenDetails(item.transaction) },
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
@@ -246,6 +262,15 @@ private fun AssignmentRow(item: RiderAssignmentRecord) {
                     )
                 }
             }
+            Text(
+                text = "Tap to view details",
+                fontSize = 12.sp,
+                color = colorScheme.primary,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .padding(top = 4.dp)
+            )
         }
     }
 }
