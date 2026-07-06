@@ -99,6 +99,14 @@ public class EscrowController {
         return escrowService.markInDelivery(id, actorUserId);
     }
 
+    @PostMapping("/transactions/{id}/rider-accept-delivery")
+    public EscrowResponse riderAcceptDelivery(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return escrowService.riderAcceptDelivery(id, actorUserId);
+    }
+
     @PostMapping("/transactions/{id}/assign-rider")
     public EscrowResponse assignRider(
         @PathVariable UUID id,

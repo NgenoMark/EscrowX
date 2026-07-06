@@ -186,10 +186,51 @@ public class EscrowService {
     }
 
     @Transactional
+    public EscrowResponse riderAcceptDelivery(UUID transactionId, UUID actorUserId) {
+        EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+
+        if (transaction.getRider() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "No rider has been assigned to this transaction");
+        }
+        if (!transaction.getRider().getId().equals(actorUserId)) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the assigned rider can accept this delivery");
+        }
+
+        DeliveryAssignmentEntity assignment = deliveryAssignmentRepository
+            .findTopByTransactionIdAndRiderUserIdOrderByCreatedAtDesc(transactionId, actorUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "No active delivery assignment found for this rider"));
+
+        if ("CANCELLED".equalsIgnoreCase(assignment.getStatus()) || "FAILED".equalsIgnoreCase(assignment.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "This delivery assignment is no longer active");
+        }
+        if (!"ASSIGNED".equalsIgnoreCase(assignment.getStatus()) && !"ACCEPTED".equalsIgnoreCase(assignment.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Assignment cannot be accepted from status: " + assignment.getStatus());
+        }
+
+        assignment.setStatus("ACCEPTED");
+        deliveryAssignmentRepository.save(assignment);
+
+        return toResponse(transaction);
+    }
+
+    @Transactional
     public EscrowResponse markInDelivery(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsSeller(transaction, actorUserId);
         assertState(transaction, "SELLER_ACCEPTED");
+
+        if (transaction.getRider() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Assign a rider before marking in delivery");
+        }
+
+        DeliveryAssignmentEntity assignment = deliveryAssignmentRepository
+            .findTopByTransactionIdAndRiderUserIdOrderByCreatedAtDesc(transactionId, transaction.getRider().getId())
+            .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "No delivery assignment found for assigned rider"));
+
+        if (!"ACCEPTED".equalsIgnoreCase(assignment.getStatus())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Rider must ACCEPT delivery before transaction can move to IN_DELIVERY");
+        }
+
         return updateTransactionStatus(transaction, "IN_DELIVERY", actorUserId, "Seller marked in delivery");
     }
 
