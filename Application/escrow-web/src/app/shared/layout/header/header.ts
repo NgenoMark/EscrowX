@@ -57,6 +57,19 @@ export class HeaderComponent implements AfterViewInit {
 
   ngAfterViewInit() {}
 
+  // NEW: handle sidebar toggle and close overlays
+  onToggleSidebar(): void {
+    // Close any open overlays to avoid collision
+    if (this.globalSearchOpen()) {
+      this.closeGlobalSearch();
+    }
+    if (this.notificationsOpen()) {
+      this.notificationsOpen.set(false);
+    }
+    // Emit the toggle event to parent
+    this.toggleSidebar.emit();
+  }
+
   openGlobalSearch(): void {
     this.globalSearchOpen.set(true);
     this.searchQuery.set('');
@@ -165,7 +178,6 @@ export class HeaderComponent implements AfterViewInit {
           }
         }
 
-        // ---------- UPDATED DISPUTES SEARCH ----------
         if (include('disputes')) {
           const disputes = this.dataService.disputes();
           for (const dispute of disputes) {

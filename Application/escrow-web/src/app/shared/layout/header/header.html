@@ -5,7 +5,7 @@
         type="button" 
         class="icon-button menu-button" 
         [attr.aria-label]="isSidebarVisible ? 'Close navigation' : 'Open navigation'"
-        (click)="toggleSidebar.emit()"
+        (click)="onToggleSidebar()"
       >
         <i class="fas" [class.fa-bars]="!isSidebarVisible" [class.fa-times]="isSidebarVisible"></i>
       </button>

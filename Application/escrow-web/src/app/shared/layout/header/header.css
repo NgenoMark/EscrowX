@@ -1,5 +1,5 @@
 /* ============================================
-   Topbar Component (original)
+   Topbar Component
    ============================================ */
 
 .topbar {
@@ -146,12 +146,14 @@
   letter-spacing: 0.5px;
 }
 
-/* Notification panel – standard colors */
+/* ============================================
+   Notification Panel
+   ============================================ */
 .notification-panel {
   position: absolute;
   top: calc(100% + 0.75rem);
   right: 0;
-  z-index: 60;
+  z-index: 200;
   width: 24rem;
   background: #ffffff;
   border-radius: 0.75rem;
@@ -293,10 +295,8 @@
 }
 
 /* ============================================
-   Global Search Modal – Harmonized with Topbar
+   Global Search Modal
    ============================================ */
-
-/* Modal overlay – matches topbar's subtle glass backdrop */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -318,7 +318,6 @@
   }
 }
 
-/* Modal container – refined with softer borders & elevated shadow */
 .modal-container {
   width: min(90%, 760px);
   margin-top: 10vh;
@@ -341,7 +340,6 @@
   }
 }
 
-/* Modal header – clean, minimal, aligned with topbar spacing */
 .modal-header {
   display: flex;
   align-items: center;
@@ -351,7 +349,6 @@
   background: #ffffff;
 }
 
-/* Search input wrapper – pill-shaped, inspired by .search-trigger */
 .search-input-wrapper {
   position: relative;
   flex: 1;
@@ -359,7 +356,6 @@
   align-items: center;
 }
 
-/* Main search input – matches the topbar search trigger aesthetics */
 .modal-search-input {
   width: 100%;
   border: 1px solid #d8e2ef;
@@ -381,7 +377,6 @@
   color: #9da9bb;
 }
 
-/* Search icon – consistent color with topbar icons */
 .search-icon {
   position: absolute;
   left: 1rem;
@@ -390,7 +385,6 @@
   pointer-events: none;
 }
 
-/* Clear search button – matches icon-button hover behaviour */
 .clear-search {
   position: absolute;
   right: 0.75rem;
@@ -418,7 +412,6 @@
   transform: scale(0.94);
 }
 
-/* Modal close button – behaves like .icon-button from topbar */
 .modal-close {
   display: inline-flex;
   align-items: center;
@@ -443,7 +436,6 @@
   transform: scale(0.96);
 }
 
-/* Filter chips container – subtle separator */
 .filter-chips {
   display: flex;
   flex-wrap: wrap;
@@ -453,7 +445,6 @@
   background: #ffffff;
 }
 
-/* Base chip style – blends with topbar's neutral tones */
 .filter-chip,
 .filter-chip-active {
   display: inline-flex;
@@ -480,7 +471,6 @@
   transform: scale(0.96);
 }
 
-/* Active chip – uses the same primary blue as topbar interaction */
 .filter-chip-active {
   border-color: #2c7be5;
   background: #2c7be5;
@@ -492,7 +482,6 @@
   border-color: #1e6cd9;
 }
 
-/* Modal body – smooth scrolling */
 .modal-body {
   max-height: 60vh;
   overflow-y: auto;
@@ -513,7 +502,6 @@
   border-radius: 4px;
 }
 
-/* Empty & loading states – calm typography */
 .empty-state,
 .loading-state {
   display: flex;
@@ -533,7 +521,6 @@
   color: #cbd5e1;
 }
 
-/* Results header – matches .section-kicker styling */
 .results-header {
   padding: 0.75rem 1.25rem;
   background: #fafbfc;
@@ -545,7 +532,6 @@
   letter-spacing: 0.5px;
 }
 
-/* Individual result item – clean, hover mimics topbar buttons */
 .result-item {
   display: flex;
   align-items: center;
@@ -568,7 +554,6 @@
   background: #f1f4f9;
 }
 
-/* Result icon – soft blue background, matches primary color */
 .result-icon {
   display: grid;
   width: 2.5rem;
@@ -581,7 +566,6 @@
   flex-shrink: 0;
 }
 
-/* Result content area */
 .result-content {
   flex: 1;
   min-width: 0;
@@ -634,36 +618,8 @@
   transform: translateX(2px);
 }
 
-/* Keyboard shortcuts (if needed) */
-.keyboard-shortcuts {
-  display: flex;
-  justify-content: center;
-  gap: 1rem;
-  padding: 0.75rem;
-  border-top: 1px solid #eef2f6;
-  background: #fafbfc;
-  color: #9da9bb;
-  font-size: 0.75rem;
-}
-
-.keyboard-shortcuts kbd {
-  border-radius: 0.25rem;
-  background: #edf2f9;
-  color: #5e6e82;
-  font-size: 0.7rem;
-  padding: 0.15rem 0.4rem;
-  font-family: monospace;
-}
-
-/* Optional: smooth focus ring for all interactive elements inside modal */
-.modal-container button:focus-visible,
-.modal-container .modal-search-input:focus-visible {
-  outline: 2px solid #2c7be5;
-  outline-offset: 2px;
-}
-
 /* ============================================
-   Responsive adjustments (topbar + modal)
+   Responsive adjustments
    ============================================ */
 
 @media (max-width: 767px) {
@@ -698,7 +654,6 @@
     width: min(22rem, 92vw);
   }
 
-  /* Modal responsive overrides */
   .modal-container {
     margin-top: 5vh;
     width: min(95%, 96vw);

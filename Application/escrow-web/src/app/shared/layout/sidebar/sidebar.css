@@ -1,6 +1,5 @@
 /* src/app/shared/layout/sidebar/sidebar.css */
 
-/* Make sidebar fill parent height for footer stickiness */
 .layout-body {
   display: flex;
   flex: 1;
@@ -17,14 +16,17 @@
   color: #5e6e82;
   transition: width 180ms ease, margin 180ms ease;
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
+  position: relative;
+  z-index: 10;
 }
 
 .sidebar-collapsed {
-  width: 5rem;
+  width: 5rem;                /* only icons visible */
+  overflow: visible;          /* allow popup to escape */
 }
 
-/* Collapsed hover expansion: overlay without shifting content */
+/* --- HOVER EXPANSION (only on hover, not on dropdown open) --- */
 .sidebar-collapsed:hover {
   width: 16.25rem;
   margin-right: -11.25rem;
@@ -32,25 +34,10 @@
   z-index: 100;
   background: #edf2f9;
   box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.1);
+  overflow-y: auto;
 }
 
-/* Hide text labels, brand copy, and user info (avatar + text) when collapsed */
-.sidebar-collapsed .nav-item span,
-.sidebar-collapsed .nav-item strong,
-.sidebar-collapsed .brand-copy,
-.sidebar-collapsed .admin-avatar,
-.sidebar-collapsed .admin-copy,
-.sidebar-collapsed .dropdown-arrow,
-.sidebar-collapsed .active-child-label {
-  display: none;
-}
-
-/* Show active child label when collapsed and dropdown is open */
-.sidebar-collapsed .nav-dropdown-trigger .active-child-label {
-  display: none;
-}
-
-/* On hover: show everything (including avatar and user info) */
+/* Show hidden elements on hover */
 .sidebar-collapsed:hover .nav-item span,
 .sidebar-collapsed:hover .nav-item strong,
 .sidebar-collapsed:hover .brand-copy,
@@ -61,20 +48,31 @@
   display: inline;
 }
 .sidebar-collapsed:hover .admin-avatar {
-  display: grid; /* restore grid display for avatar */
+  display: grid;
 }
 .sidebar-collapsed:hover .admin-copy {
   display: block;
 }
 
-/* Collapsed nav‑item alignment */
+/* Nav‑item alignment when expanded on hover */
+.sidebar-collapsed:hover .nav-item {
+  justify-content: flex-start;
+  padding: 0 0.65rem;
+}
 .sidebar-collapsed .nav-item {
   justify-content: center;
   padding: 0;
 }
-.sidebar-collapsed:hover .nav-item {
-  justify-content: flex-start;
-  padding: 0 0.65rem;
+
+/* Hide everything except icons when collapsed (default) */
+.sidebar-collapsed .nav-item span,
+.sidebar-collapsed .nav-item strong,
+.sidebar-collapsed .brand-copy,
+.sidebar-collapsed .admin-avatar,
+.sidebar-collapsed .admin-copy,
+.sidebar-collapsed .dropdown-arrow,
+.sidebar-collapsed .active-child-label {
+  display: none;
 }
 
 /* Brand row – more comfortable padding */
@@ -108,7 +106,7 @@
   gap: 0.2rem;
   overflow-y: auto;
   padding: 0.5rem 0.75rem;
-  position: relative;  /* <-- added: anchor for absolute indicator */
+  position: relative;
 }
 
 /* Section headers (if used) */
@@ -138,8 +136,8 @@
   padding: 0.4rem 0.8rem;
   text-decoration: none;
   transition: background 0.25s ease, color 0.25s ease, transform 0.2s ease;
-  position: relative;   /* ensure it stays above the indicator */
-  z-index: 1;           /* above the indicator */
+  position: relative;
+  z-index: 1;
   cursor: pointer;
 }
 .nav-item i {
@@ -147,6 +145,7 @@
   color: #748194;
   text-align: center;
   font-size: 1rem;
+  flex-shrink: 0;
 }
 .nav-item strong {
   margin-left: auto;
@@ -170,12 +169,13 @@
   margin-left: auto;
   transition: transform 0.3s ease;
   font-size: 0.7rem;
+  flex-shrink: 0;
 }
 .dropdown-arrow.rotated {
   transform: rotate(180deg);
 }
 
-/* Active child label in collapsed state */
+/* Active child label in collapsed state (hidden by default) */
 .active-child-label {
   margin-left: auto;
   font-size: 0.65rem;
@@ -183,6 +183,7 @@
   background: rgba(44, 123, 229, 0.1);
   padding: 0.1rem 0.4rem;
   border-radius: 0.25rem;
+  flex-shrink: 0;
 }
 
 /* ===== DROPDOWN WRAPPER ===== */
@@ -190,13 +191,14 @@
   display: flex;
   flex-direction: column;
   position: relative;
+  overflow: visible;   /* allow popup to escape */
 }
 
 .nav-dropdown-trigger {
   cursor: pointer;
 }
 
-/* Dropdown children container */
+/* Dropdown children container – expanded state (sidebar not collapsed) */
 .nav-dropdown-children {
   display: flex;
   flex-direction: column;
@@ -208,12 +210,14 @@
   opacity: 0;
   padding: 0 0 0 1.5rem;
   gap: 0.1rem;
+  position: relative;
 }
 
 .nav-dropdown-children.open {
   max-height: 300px;
   opacity: 1;
   padding: 0.2rem 0 0.2rem 1.5rem;
+  overflow: visible;
 }
 
 /* Child nav items */
@@ -225,12 +229,10 @@
   border-left: 2px solid transparent;
   padding-left: 2.8rem;
 }
-
 .nav-item-child i {
   font-size: 0.85rem;
   width: 1rem;
 }
-
 .nav-item-child:hover {
   background: rgba(44, 123, 229, 0.05);
   border-left-color: #2c7be5;
@@ -259,22 +261,21 @@
 .active-indicator {
   position: absolute;
   top: 0;
-  left: 0.75rem;          /* match nav-list padding-left */
-  right: 0.75rem;         /* match nav-list padding-right */
-  height: 2.5rem;         /* fallback, will be overridden by JS */
+  left: 0.75rem;
+  right: 0.75rem;
+  height: 2.5rem;
   background: rgba(44, 123, 229, 0.12);
   border-radius: 0.5rem;
-  pointer-events: none;   /* allow clicks to pass to the nav items */
+  pointer-events: none;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
               height 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   will-change: transform, height;
   z-index: 0;
 }
 
-/* ===== ACTIVE NAV ITEM – remove static background, keep text colour ===== */
+/* ===== ACTIVE NAV ITEM ===== */
 .nav-active {
-  background: rgba(44, 123, 229, 0.12);  
-  border: 3px solid #000;               
+  background: rgba(44, 123, 229, 0.12);
   color: #2c7be5;
 }
 .nav-active i {
@@ -353,22 +354,28 @@
   align-items: center;
   justify-content: center;
   transition: background 0.2s ease;
+  flex-shrink: 0;
 }
 .sidebar-status button:hover {
   background: rgba(44, 123, 229, 0.1);
   color: #2c7be5;
 }
 
-/* ===== COLLAPSED STATE - DROPDOWN BEHAVIOR ===== */
+/* ============================================================
+   COLLAPSED STATE – DROPDOWN BEHAVIOR (FLYOUT)
+   ============================================================ */
+
+/* By default, hide children */
 .sidebar-collapsed .nav-dropdown-children {
   display: none;
 }
 
+/* When dropdown is open in collapsed state -> show as flyout popup */
 .sidebar-collapsed .nav-dropdown-children.collapsed-open {
   display: flex;
-  position: absolute;
-  left: 100%;
-  top: 0;
+  position: fixed;                /* escape the sidebar */
+  left: 5.5rem;                  /* adjust to sit beside the collapsed icon */
+  top: auto;                     /* will be positioned via JS or relative to trigger */
   background: #edf2f9;
   border-radius: 0.5rem;
   padding: 0.3rem 0.5rem;
@@ -376,53 +383,84 @@
   box-shadow: 0 0.5rem 1rem rgba(15, 23, 42, 0.15);
   max-height: 300px;
   opacity: 1;
-  z-index: 200;
-  margin-left: 0.25rem;
+  z-index: 1000;
+  overflow-y: auto;
+  flex-direction: column;
+  gap: 0.1rem;
 }
 
+/* Style flyout items */
 .sidebar-collapsed .nav-dropdown-children.collapsed-open .nav-item-child {
   padding-left: 0.8rem;
   border-left: none;
 }
-
 .sidebar-collapsed .nav-dropdown-children.collapsed-open .nav-item-child:hover {
   background: rgba(44, 123, 229, 0.1);
   border-left: 2px solid #2c7be5;
 }
-
 .sidebar-collapsed .nav-dropdown-children.collapsed-open .nav-active-child {
   background: rgba(44, 123, 229, 0.12);
   border-left: 2px solid #2c7be5;
 }
 
-/* When hovering over collapsed sidebar, show dropdown inline */
-.sidebar-collapsed:hover .nav-dropdown-children {
-  display: flex;
-  position: relative;
-  left: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 0.2rem 0 0.2rem 1.5rem;
-  min-width: auto;
-  max-height: 300px;
-  opacity: 1;
-  margin-left: 0;
+/* ----- When sidebar is hovered (expanded) -> revert to inline ----- */
+.sidebar-collapsed:hover .nav-dropdown-children.collapsed-open {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0.2rem 0 0.2rem 1.5rem !important;
+  min-width: auto !important;
+  max-height: 300px !important;
+  margin-left: 0 !important;
+  overflow: visible !important;
+  z-index: 1 !important;
 }
 
-.sidebar-collapsed:hover .nav-dropdown-children .nav-item-child {
-  padding-left: 2.8rem;
-  border-left: 2px solid transparent;
+.sidebar-collapsed:hover .nav-dropdown-children.collapsed-open .nav-item-child {
+  padding-left: 2.8rem !important;
+  border-left: 2px solid transparent !important;
+}
+.sidebar-collapsed:hover .nav-dropdown-children.collapsed-open .nav-item-child:hover {
+  border-left-color: #2c7be5 !important;
+}
+.sidebar-collapsed:hover .nav-dropdown-children.collapsed-open .nav-active-child {
+  border-left-color: #2c7be5 !important;
 }
 
-.sidebar-collapsed:hover .nav-dropdown-children .nav-item-child:hover {
-  border-left-color: #2c7be5;
+/* Ensure wrapper doesn't clip */
+.sidebar-collapsed .nav-dropdown-wrapper {
+  overflow: visible;
 }
 
-.sidebar-collapsed:hover .nav-dropdown-children .nav-active-child {
-  border-left-color: #2c7be5;
+/* Prevent sidebar from clipping children */
+.sidebar-collapsed {
+  overflow: visible !important;
+}
+.sidebar-collapsed:hover {
+  overflow-y: auto !important;
+  overflow-x: visible !important;
+}
+.sidebar-collapsed .nav-list {
+  overflow: visible !important;
+}
+.sidebar-collapsed:hover .nav-list {
+  overflow-y: auto !important;
 }
 
-/* Mobile slide‑out panel (no hover expansion) */
+/* Clickable trigger always */
+.sidebar-collapsed .nav-dropdown-trigger {
+  cursor: pointer;
+  z-index: 2;
+}
+.sidebar-collapsed .nav-dropdown-trigger:hover {
+  background: rgba(44, 123, 229, 0.07);
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
 @media (max-width: 767px) {
   .sidebar {
     position: fixed;
@@ -432,52 +470,74 @@
     transition: transform 180ms ease;
     width: 16.25rem;
     height: 100vh;
+    overflow-y: auto !important;
   }
   .sidebar-collapsed {
-    width: 16.25rem; /* on mobile, collapsed is ignored when open */
+    width: 16.25rem;   /* on mobile, collapsed is ignored when open */
   }
   .sidebar-open {
     transform: translateX(0);
   }
-  /* Mobile always shows avatar and user info when sidebar is open */
+
   .sidebar-collapsed .admin-avatar,
   .sidebar-collapsed .admin-copy {
-    display: flex; /* or grid for avatar */
+    display: flex !important;
   }
   .sidebar-collapsed .admin-avatar {
-    display: grid;
+    display: grid !important;
   }
   .sidebar-collapsed .sidebar-status {
     justify-content: flex-start;
     gap: 0.75rem;
   }
-  /* No hover expansion on mobile */
+
+  /* On mobile, dropdown children are always inline (no flyout) */
+  .sidebar-collapsed .nav-dropdown-children {
+    position: relative !important;
+    left: 0 !important;
+    top: auto !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 0 0 1.5rem !important;
+    min-width: auto !important;
+    margin-left: 0 !important;
+    display: flex !important;
+    overflow: hidden !important;
+  }
+
+  .sidebar-collapsed .nav-dropdown-children.collapsed-open {
+    max-height: 300px;
+    opacity: 1;
+    padding: 0.2rem 0 0.2rem 1.5rem !important;
+  }
+
+  .sidebar-collapsed .nav-dropdown-children .nav-item-child {
+    padding-left: 2.8rem !important;
+    border-left: 2px solid transparent !important;
+  }
+  .sidebar-collapsed .nav-dropdown-children .nav-item-child:hover {
+    border-left-color: #2c7be5 !important;
+  }
+  .sidebar-collapsed .nav-dropdown-children .nav-active-child {
+    border-left-color: #2c7be5 !important;
+  }
+
+  .sidebar-collapsed .nav-dropdown-wrapper {
+    overflow: visible;
+  }
+  .sidebar-collapsed .nav-list {
+    overflow-y: auto !important;
+  }
+
+  /* Remove any hover expansion effects on mobile */
   .sidebar-collapsed:hover {
     width: 16.25rem;
     margin-right: 0;
     box-shadow: none;
+    overflow-y: auto !important;
   }
   .sidebar-collapsed:hover .nav-item span,
   .sidebar-collapsed:hover .admin-copy {
-    display: block;
-  }
-
-  /* Mobile dropdown children */
-  .nav-dropdown-children {
-    padding: 0 0 0 1.5rem;
-  }
-  
-  .nav-item-child {
-    padding-left: 2.8rem;
-  }
-  
-  .sidebar-collapsed .nav-dropdown-children.collapsed-open {
-    position: relative;
-    left: 0;
-    background: transparent;
-    box-shadow: none;
-    padding: 0.2rem 0 0.2rem 1.5rem;
-    min-width: auto;
-    margin-left: 0;
+    display: block !important;
   }
 }
