@@ -47,20 +47,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mobile.project.escrowx.EscrowResponse
 import mobile.project.escrowx.RetrofitClient
-import mobile.project.escrowx.auth.InAppNotificationResponse
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 data class RiderAssignmentRecord(
-    val notification: InAppNotificationResponse,
-    val transaction: EscrowResponse?
+    val transaction: EscrowResponse
 )
 
 class RiderAssignmentsActivity : ComponentActivity() {
@@ -100,30 +96,16 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
         scope.launch(Dispatchers.IO) {
             try {
                 val api = RetrofitClient.authenticated(token)
-                val response = api.getNotifications(actorId, 0, 100, "ACTIVE")
-                val assignmentNotifications = response.body()?.content.orEmpty().filter {
-                    val type = it.type.uppercase()
-                    val title = it.title.uppercase()
-                    type.contains("ASSIGN") || title.contains("ASSIGN") ||
-                        (it.referenceType?.equals("TRANSACTION", ignoreCase = true) == true)
+                val response = api.getTransactionsByRider(actorId)
+                val riderTransactions = if (response.isSuccessful) {
+                    response.body().orEmpty()
+                } else {
+                    emptyList()
                 }
 
-                val transactionIds = assignmentNotifications.mapNotNull { it.referenceId }.distinct()
-                val transactionMap = transactionIds.map { txnId ->
-                    async {
-                        val txn = try {
-                            val txnResponse = api.getTransactionById(txnId)
-                            if (txnResponse.isSuccessful) txnResponse.body() else null
-                        } catch (_: Exception) {
-                            null
-                        }
-                        txnId to txn
-                    }
-                }.awaitAll().toMap()
-
-                assignments = assignmentNotifications
-                    .sortedByDescending { it.createdAt }
-                    .map { note -> RiderAssignmentRecord(note, note.referenceId?.let { transactionMap[it] }) }
+                assignments = riderTransactions
+                    .sortedByDescending { it.updatedAt }
+                    .map { RiderAssignmentRecord(it) }
             } catch (_: Exception) {
                 assignments = emptyList()
             } finally {
@@ -209,7 +191,7 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
 @Composable
 private fun AssignmentRow(item: RiderAssignmentRecord) {
     val colorScheme = MaterialTheme.colorScheme
-    val status = item.transaction?.status ?: "ASSIGNED"
+    val status = item.transaction.status
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -219,13 +201,13 @@ private fun AssignmentRow(item: RiderAssignmentRecord) {
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(
-                text = item.transaction?.title ?: item.notification.title,
+                text = item.transaction.title,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colorScheme.onSurface
             )
             Text(
-                text = item.transaction?.deliveryAddress ?: item.notification.body,
+                text = item.transaction.deliveryAddress,
                 fontSize = 13.sp,
                 color = colorScheme.onSurfaceVariant
             )
@@ -258,7 +240,7 @@ private fun AssignmentRow(item: RiderAssignmentRecord) {
                     )
                     Spacer(modifier = Modifier.size(4.dp))
                     Text(
-                        text = item.transaction?.updatedAt ?: item.notification.createdAt,
+                        text = item.transaction.updatedAt,
                         fontSize = 11.sp,
                         color = colorScheme.onSurfaceVariant
                     )

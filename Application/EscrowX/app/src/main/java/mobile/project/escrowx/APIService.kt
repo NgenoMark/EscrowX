@@ -116,6 +116,11 @@ interface AuthApiService {
         @Query("status") status: String? = null
     ): Response<List<EscrowResponse>>
 
+    @GET("api/v1/transactions/rider/{riderId}")
+    suspend fun getTransactionsByRider(
+        @Path("riderId") riderId: String
+    ): Response<List<EscrowResponse>>
+
     @GET("api/v1/transactions/{id}")
     suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
 
@@ -346,6 +351,7 @@ data class EscrowResponse(
     val reference: String?,
     val buyerId: String,
     val sellerId: String,
+    val riderId: String? = null,
     val title: String,
     val productDescription: String,
     val amount: Double,

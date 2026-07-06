@@ -33,14 +33,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mobile.project.escrowx.EscrowResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
-import mobile.project.escrowx.auth.InAppNotificationResponse
 import mobile.project.escrowx.auth.LoginActivity
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.ui.components.RiderNavBar
@@ -52,8 +49,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 private data class RiderAssignmentItem(
-    val notification: InAppNotificationResponse,
-    val transaction: EscrowResponse?
+    val transaction: EscrowResponse
 )
 
 class RiderDashboardActvity : ComponentActivity() {
@@ -107,49 +103,23 @@ private fun RiderDashboardScreen() {
                     profile = userResponse.body()
                 }
 
-                val notificationResponse = api.getNotifications(
-                    actorUserId = userId,
-                    page = 0,
-                    size = 100,
-                    status = "ACTIVE"
-                )
-
-                val notificationContent = notificationResponse.body()?.content.orEmpty()
-                val assignmentNotifications = notificationContent.filter {
-                    val type = it.type.uppercase()
-                    val title = it.title.uppercase()
-                    type.contains("ASSIGN") || title.contains("ASSIGN") ||
-                            (it.referenceType?.equals("TRANSACTION", ignoreCase = true) == true)
+                val assignmentsResponse = api.getTransactionsByRider(userId)
+                val riderTransactions = if (assignmentsResponse.isSuccessful) {
+                    assignmentsResponse.body().orEmpty()
+                } else {
+                    emptyList()
                 }
 
-                newAssignmentsCount = assignmentNotifications.count { it.status.equals("UNREAD", ignoreCase = true) }
+                assignments = riderTransactions
+                    .sortedByDescending { it.updatedAt }
+                    .map { txn -> RiderAssignmentItem(transaction = txn) }
 
-                val transactionIds = assignmentNotifications
-                    .mapNotNull { it.referenceId }
-                    .distinct()
-
-                val transactionMap = transactionIds.map { txnId ->
-                    async {
-                        val txn = try {
-                            val txnResponse = api.getTransactionById(txnId)
-                            if (txnResponse.isSuccessful) txnResponse.body() else null
-                        } catch (_: Exception) {
-                            null
-                        }
-                        txnId to txn
-                    }
-                }.awaitAll().toMap()
-
-                assignments = assignmentNotifications
-                    .sortedByDescending { it.createdAt }
-                    .map { note ->
-                        RiderAssignmentItem(
-                            notification = note,
-                            transaction = note.referenceId?.let { transactionMap[it] }
-                        )
-                    }
+                newAssignmentsCount = assignments.count {
+                    it.transaction.status.equals("ASSIGNED", ignoreCase = true)
+                }
             } catch (_: Exception) {
                 assignments = emptyList()
+                newAssignmentsCount = 0
             } finally {
                 withContext(Dispatchers.Main) {
                     isLoading = false
@@ -337,12 +307,12 @@ private fun RiderHomeTab(
     colorScheme: ColorScheme
 ) {
     val activeCount = assignments.count {
-        val status = it.transaction?.status?.uppercase() ?: ""
-        status == "SELLER_ACCEPTED" || status == "IN_DELIVERY"
+        val status = it.transaction.status.uppercase()
+        status == "ASSIGNED" || status == "ACCEPTED" || status == "PICKED_UP" || status == "IN_TRANSIT" || status == "ARRIVED_AT_BUYER" || status == "IN_DELIVERY" || status == "SELLER_ACCEPTED"
     }
     val completedCount = assignments.count {
-        val status = it.transaction?.status?.uppercase() ?: ""
-        status == "COMPLETED" || status == "DELIVERED"
+        val status = it.transaction.status.uppercase()
+        status == "DELIVERED_TO_BUYER" || status == "COMPLETED" || status == "DELIVERED"
     }
 
     LazyColumn(
@@ -924,11 +894,11 @@ private fun AssignmentCardEnhanced(
     showFullDetails: Boolean = false,
     colorScheme: ColorScheme
 ) {
-    val status = item.transaction?.status ?: "ASSIGNED"
+    val status = item.transaction.status
     val statusConfig = getRiderStatusConfig(status)
-    val formattedDate = formatRiderDate(item.notification.createdAt)
-    val title = item.transaction?.title ?: item.notification.title
-    val address = item.transaction?.deliveryAddress ?: item.notification.body
+    val formattedDate = formatRiderDate(item.transaction.updatedAt)
+    val title = item.transaction.title
+    val address = item.transaction.deliveryAddress
 
     Card(
         modifier = Modifier
@@ -944,7 +914,7 @@ private fun AssignmentCardEnhanced(
         ),
         border = BorderStroke(
             1.dp,
-            if (item.notification.status.equals("UNREAD", ignoreCase = true))
+            if (item.transaction.status.equals("ASSIGNED", ignoreCase = true))
                 colorScheme.primary.copy(alpha = 0.15f)
             else
                 colorScheme.outlineVariant.copy(alpha = 0.2f)
