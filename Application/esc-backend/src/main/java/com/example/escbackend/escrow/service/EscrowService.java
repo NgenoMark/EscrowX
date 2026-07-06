@@ -134,9 +134,21 @@ public class EscrowService {
         transaction.setRider(rider);
         EscrowTransaction saved = escrowRepository.save(transaction);
 
-        DeliveryAssignmentEntity assignment = deliveryAssignmentRepository
-            .findTopByTransactionIdOrderByCreatedAtDesc(transactionId)
-            .orElseGet(DeliveryAssignmentEntity::new);
+        List<String> activeStatuses = List.of(
+            "ASSIGNED",
+            "ACCEPTED",
+            "PICKED_UP",
+            "IN_TRANSIT",
+            "ARRIVED_AT_BUYER"
+        );
+        List<DeliveryAssignmentEntity> activeAssignments = deliveryAssignmentRepository
+            .findByTransactionIdAndStatusIn(transactionId, activeStatuses);
+        for (DeliveryAssignmentEntity activeAssignment : activeAssignments) {
+            activeAssignment.setStatus("CANCELLED");
+            deliveryAssignmentRepository.save(activeAssignment);
+        }
+
+        DeliveryAssignmentEntity assignment = new DeliveryAssignmentEntity();
         assignment.setTransactionId(transactionId);
         assignment.setRiderUserId(riderId);
         assignment.setAssignedByUserId(actorUserId);
