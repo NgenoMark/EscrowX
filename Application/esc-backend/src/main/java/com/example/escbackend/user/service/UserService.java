@@ -15,9 +15,11 @@ import com.example.escbackend.notification.service.PushNotificationService;
 import com.example.escbackend.notification.service.PushSendResult;
 import com.example.escbackend.user.dto.*;
 import com.example.escbackend.user.entity.ProfileEntity;
+import com.example.escbackend.user.entity.RiderProfileEntity;
 import com.example.escbackend.user.entity.UserBlacklistEntity;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.ProfileRepository;
+import com.example.escbackend.user.repository.RiderProfileRepository;
 import com.example.escbackend.user.repository.UserRepository;
 import com.example.escbackend.user.repository.UserBlacklistRepository;
 import org.springframework.data.domain.Page;
@@ -43,6 +45,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
+    private final RiderProfileRepository riderProfileRepository;
     private final UserMapperService mapper;
     private final UserBlacklistRepository blacklistRepo; // <-- Added
     private final AdminAuthorizationService authz;
@@ -56,6 +59,7 @@ public class UserService {
     public UserService(
         UserRepository userRepository,
         ProfileRepository profileRepository,
+        RiderProfileRepository riderProfileRepository,
         UserMapperService mapper,
         UserBlacklistRepository blacklistRepo,
         AdminAuthorizationService authz,
@@ -68,6 +72,7 @@ public class UserService {
     ) {
         this.userRepository = userRepository;
         this.profileRepository = profileRepository;
+        this.riderProfileRepository = riderProfileRepository;
         this.mapper = mapper;
         this.blacklistRepo = blacklistRepo;
         this.authz = authz;
@@ -151,7 +156,12 @@ public class UserService {
 
     @Transactional
     public UserDetailsResponse createEmployee(UUID actorUserId, CreateEmployeeRequest request, UserRole targetRole) {
-        authz.requireSuperAdmin(actorUserId);
+        if (targetRole == UserRole.RIDER) {
+            authz.requireAdminOrSuperAdmin(actorUserId);
+            validateRiderEnrollment(request);
+        } else {
+            authz.requireSuperAdmin(actorUserId);
+        }
 
         if (targetRole != UserRole.ADMIN && targetRole != UserRole.SUPER_ADMIN && targetRole != UserRole.RIDER) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Only ADMIN, SUPER_ADMIN, or RIDER can be created via this API");
@@ -181,9 +191,42 @@ public class UserService {
         profile.setAvatarUrl(request.getAvatarUrl());
         profileRepository.save(profile);
 
+        if (targetRole == UserRole.RIDER) {
+            RiderProfileEntity riderProfile = new RiderProfileEntity();
+            riderProfile.setUserId(user.getId());
+            riderProfile.setDisplayName(request.getDisplayName());
+            riderProfile.setPhone(request.getPhone());
+            riderProfile.setOperationArea(request.getOperationArea().trim());
+            riderProfile.setLicenseNumber(request.getLicenseNumber().trim());
+            riderProfile.setVehicleType(request.getVehicleType().trim());
+            riderProfile.setVehiclePlate(request.getVehiclePlate().trim());
+            riderProfileRepository.save(riderProfile);
+        }
+
         saveAudit(actorUserId, "CREATE_" + targetRole.name(), user.getId(), "Employee account created by SUPER_ADMIN");
 
         return mapper.toDetails(user, profile);
+    }
+
+    private void validateRiderEnrollment(CreateEmployeeRequest request) {
+        if (!isNotBlank(request.getDisplayName())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "displayName is required for rider enrollment");
+        }
+        if (!isNotBlank(request.getPhone())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "phone is required for rider enrollment");
+        }
+        if (!isNotBlank(request.getOperationArea())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "operationArea is required for rider enrollment");
+        }
+        if (!isNotBlank(request.getLicenseNumber())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "licenseNumber is required for rider enrollment");
+        }
+        if (!isNotBlank(request.getVehicleType())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "vehicleType is required for rider enrollment");
+        }
+        if (!isNotBlank(request.getVehiclePlate())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "vehiclePlate is required for rider enrollment");
+        }
     }
 
     @Transactional

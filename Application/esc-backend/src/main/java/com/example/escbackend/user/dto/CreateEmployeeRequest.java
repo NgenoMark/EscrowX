@@ -25,4 +25,10 @@ public class CreateEmployeeRequest {
     private String businessName;
     private String address;
     private String avatarUrl;
+
+    // Required when target role is RIDER
+    private String operationArea;
+    private String licenseNumber;
+    private String vehicleType;
+    private String vehiclePlate;
 }
