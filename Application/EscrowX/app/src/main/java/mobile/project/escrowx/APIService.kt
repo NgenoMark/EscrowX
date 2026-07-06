@@ -83,6 +83,9 @@ interface AuthApiService {
     @GET("api/v1/users/{id}")
     suspend fun getUserById(@Path("id") id: String): Response<UserDetailsResponse>
 
+    @GET("api/v1/users/{id}/rider-profile")
+    suspend fun getRiderProfileByUserId(@Path("id") id: String): Response<RiderProfileResponse>
+
     // UPDATE USER PROFILE (PATCH)
     @PATCH("api/v1/users/{id}/update_profile")
     suspend fun updateProfile(
@@ -363,6 +366,19 @@ data class EscrowResponse(
     val autoReleaseAt: String?,
     val createdAt: String,
     val updatedAt: String
+)
+
+data class RiderProfileResponse(
+    val userId: String,
+    val displayName: String? = null,
+    val phone: String? = null,
+    val operationArea: String? = null,
+    val licenseNumber: String? = null,
+    val vehicleType: String? = null,
+    val vehiclePlate: String? = null,
+    val riderStatus: String? = null,
+    val createdAt: String? = null,
+    val updatedAt: String? = null
 )
 
 data class PageResponse<T>(
