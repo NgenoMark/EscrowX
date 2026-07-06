@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import mobile.project.escrowx.RiderProfileResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.SessionManager
@@ -61,29 +62,48 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
     val session = remember { SessionManager(context) }
 
     var profile by remember { mutableStateOf<UserDetailsResponse?>(null) }
+    var riderProfile by remember { mutableStateOf<RiderProfileResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var refreshKey by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(Unit) {
+    suspend fun loadProfileData() {
         val token = session.getAccessToken()
-        val email = session.getEmail()
-        if (!token.isNullOrBlank() && !email.isNullOrBlank()) {
-            try {
-                val response = withContext(Dispatchers.IO) {
-                    RetrofitClient.authenticated(token).getUserByEmail(email)
-                }
-                if (response.isSuccessful) {
-                    profile = response.body()
-                } else {
-                    errorMessage = "Failed to load profile"
-                }
-            } catch (_: Exception) {
-                errorMessage = "Network error"
-            }
-        } else {
+        val userId = session.getUserId()
+        if (token.isNullOrBlank() || userId.isNullOrBlank()) {
             errorMessage = "Not logged in"
+            isLoading = false
+            return
         }
-        isLoading = false
+
+        try {
+            val api = RetrofitClient.authenticated(token)
+            val userResponse = withContext(Dispatchers.IO) {
+                api.getUserById(userId)
+            }
+
+            if (userResponse.isSuccessful) {
+                profile = userResponse.body()
+            } else {
+                errorMessage = "Failed to load profile"
+            }
+
+            val riderResponse = withContext(Dispatchers.IO) {
+                api.getRiderProfileByUserId(userId)
+            }
+
+            if (riderResponse.isSuccessful) {
+                riderProfile = riderResponse.body()
+            }
+        } catch (_: Exception) {
+            errorMessage = "Network error"
+        } finally {
+            isLoading = false
+        }
+    }
+
+    LaunchedEffect(refreshKey) {
+        loadProfileData()
     }
 
     val riderName = profile?.displayName?.ifBlank { null }
@@ -122,7 +142,11 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                 },
                 actions = {
                     IconButton(onClick = {
-                        // Refresh profile
+                        isLoading = true
+                        errorMessage = null
+                        riderProfile = null
+                        profile = null
+                        refreshKey += 1
                     }) {
                         Icon(
                             Icons.Default.Refresh,
@@ -327,7 +351,7 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                     ProfileDetailRow(
                         icon = Icons.Default.Person,
                         label = "Display Name",
-                        value = profile?.displayName ?: "-",
+                        value = profile?.displayName ?: riderProfile?.displayName ?: "-",
                         colorScheme = colorScheme
                     )
                     ProfileDetailRow(
@@ -339,7 +363,7 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                     ProfileDetailRow(
                         icon = Icons.Default.Phone,
                         label = "Phone",
-                        value = profile?.phone ?: "Not set",
+                        value = profile?.phone ?: riderProfile?.phone ?: "Not set",
                         colorScheme = colorScheme
                     )
                     ProfileDetailRow(
@@ -358,6 +382,68 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                         icon = Icons.Default.Schedule,
                         label = "Member Since",
                         value = formattedDate,
+                        colorScheme = colorScheme
+                    )
+                }
+            }
+
+            // ===== RIDER PROFILE INFORMATION =====
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(
+                    defaultElevation = 2.dp
+                ),
+                border = BorderStroke(
+                    1.dp,
+                    colorScheme.outlineVariant.copy(alpha = 0.3f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        "Rider Profile Details",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+
+                    ProfileDetailRow(
+                        icon = Icons.Default.Route,
+                        label = "Operation Area",
+                        value = riderProfile?.operationArea ?: "Not set",
+                        colorScheme = colorScheme
+                    )
+                    ProfileDetailRow(
+                        icon = Icons.Default.CreditCard,
+                        label = "License Number",
+                        value = riderProfile?.licenseNumber ?: "Not set",
+                        colorScheme = colorScheme
+                    )
+                    ProfileDetailRow(
+                        icon = Icons.Default.DirectionsBike,
+                        label = "Vehicle Type",
+                        value = riderProfile?.vehicleType ?: "Not set",
+                        colorScheme = colorScheme
+                    )
+                    ProfileDetailRow(
+                        icon = Icons.Default.ConfirmationNumber,
+                        label = "Vehicle Plate",
+                        value = riderProfile?.vehiclePlate ?: "Not set",
+                        colorScheme = colorScheme
+                    )
+                    ProfileDetailRow(
+                        icon = Icons.Default.LocalShipping,
+                        label = "Rider Status",
+                        value = riderProfile?.riderStatus ?: "AVAILABLE",
                         colorScheme = colorScheme
                     )
                 }

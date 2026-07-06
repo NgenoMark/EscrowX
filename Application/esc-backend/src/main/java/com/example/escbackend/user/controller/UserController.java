@@ -24,6 +24,11 @@ public class UserController {
         return userService.getById(id);
     }
 
+    @GetMapping("/{id}/rider-profile")
+    public RiderProfileResponse getRiderProfile(@PathVariable UUID id) {
+        return userService.getRiderProfileByUserId(id);
+    }
+
     @GetMapping("/by-phone/{phone}")
     public UserDetailsResponse getByPhone(@PathVariable String phone) {
         return userService.getByPhone(phone);

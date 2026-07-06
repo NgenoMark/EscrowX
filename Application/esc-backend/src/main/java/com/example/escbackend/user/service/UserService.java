@@ -102,6 +102,31 @@ public class UserService {
         return mapper.toDetails(user, profileRepository.findById(user.getId()).orElse(null));
     }
 
+    public RiderProfileResponse getRiderProfileByUserId(UUID userId) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (user.getRole() != UserRole.RIDER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "User is not a rider");
+        }
+
+        RiderProfileEntity riderProfile = riderProfileRepository.findById(userId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Rider profile not found"));
+
+        return RiderProfileResponse.builder()
+            .userId(riderProfile.getUserId())
+            .displayName(riderProfile.getDisplayName())
+            .phone(riderProfile.getPhone())
+            .operationArea(riderProfile.getOperationArea())
+            .licenseNumber(riderProfile.getLicenseNumber())
+            .vehicleType(riderProfile.getVehicleType())
+            .vehiclePlate(riderProfile.getVehiclePlate())
+            .riderStatus(riderProfile.getRiderStatus())
+            .createdAt(riderProfile.getCreatedAt())
+            .updatedAt(riderProfile.getUpdatedAt())
+            .build();
+    }
+
     public Page<UserDetailsResponse> list(String phone, String role, String status, int page, int size) {
         String phoneFilter = phone == null ? "" : phone;
         Pageable pageable = PageRequest.of(page, size);
