@@ -3,14 +3,13 @@
   class="sidebar" 
   [class.sidebar-collapsed]="collapsed" 
   [class.sidebar-open]="mobileOpen"
+  [class.sidebar-dropdown-open]="collapsed && isDropdownOpen('users-dropdown')"
 >
   <nav class="nav-list" #navList aria-label="Primary navigation">
-    <!-- Active indicator – slides between items -->
     <div class="active-indicator" #activeIndicator></div>
 
     @for (item of navItems; track item.label) {
       @if (item.type === 'link') {
-        <!-- Regular link item -->
         <a
           [routerLink]="item.route"
           routerLinkActive="nav-active"
@@ -27,7 +26,6 @@
       }
 
       @if (item.type === 'dropdown') {
-        <!-- Dropdown item -->
         <div 
           class="nav-dropdown-wrapper"
           (mouseenter)="openDropdownOnHover(item.dropdownId!)"
@@ -42,13 +40,15 @@
           >
             <i class="fas {{ item.icon }}"></i>
             <span>{{ item.label }}</span>
+            @if (collapsed && isChildActive(item.children)) {
+              <span class="active-child-label">{{ getActiveChildLabel() }}</span>
+            }
             <i class="fas fa-chevron-down dropdown-arrow" [class.rotated]="isDropdownOpen(item.dropdownId!)"></i>
           </a>
           
-          <!-- Dropdown children -->
           <div 
             class="nav-dropdown-children" 
-            [class.open]="isDropdownOpen(item.dropdownId!)"
+            [class.open]="isDropdownOpen(item.dropdownId!) && !collapsed"
             [class.collapsed-open]="collapsed && isDropdownOpen(item.dropdownId!)"
           >
             @for (child of item.children; track child.route) {
