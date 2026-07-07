@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -23,6 +25,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Place
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material3.Card
@@ -45,7 +49,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Dispatchers
@@ -130,17 +137,26 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
                     Text(
                         text = "Rider Assignments",
                         fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
+                        color = colorScheme.onSurface,
+                        fontSize = 18.sp
                     )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = colorScheme.onSurface
+                        )
                     }
                 },
                 actions = {
                     IconButton(onClick = { loadAssignments() }) {
-                        Icon(Icons.Default.Refresh, contentDescription = "Refresh")
+                        Icon(
+                            Icons.Default.Refresh,
+                            contentDescription = "Refresh",
+                            tint = colorScheme.onSurface
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -169,7 +185,22 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
                         .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("No assigned deliveries found.", color = colorScheme.onSurfaceVariant)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Assignment,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
+                        )
+                        Text(
+                            "No assigned deliveries found.",
+                            color = colorScheme.onSurfaceVariant,
+                            fontSize = 14.sp
+                        )
+                    }
                 }
             }
             else -> {
@@ -178,11 +209,11 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
                         .fillMaxSize()
                         .padding(padding)
                         .background(colorScheme.background),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(assignments) { item ->
-                        AssignmentRow(
+                        AssignmentRowCompact(
                             item = item,
                             onOpenDetails = { transaction ->
                                 context.startActivity(
@@ -199,6 +230,154 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
     }
 }
 
+// ===================== COMPACT ASSIGNMENT ROW =====================
+
+@Composable
+private fun AssignmentRowCompact(
+    item: RiderAssignmentRecord,
+    onOpenDetails: (EscrowResponse) -> Unit
+) {
+    val colorScheme = MaterialTheme.colorScheme
+    val status = item.transaction.status
+    val compactDate = formatCompactDate(item.transaction.updatedAt)
+    val isNew = status.equals("ASSIGNED", ignoreCase = true)
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onOpenDetails(item.transaction) },
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isNew) 2.dp else 0.5.dp
+        ),
+        border = BorderStroke(
+            width = if (isNew) 1.5.dp else 0.dp,
+            color = if (isNew) colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Left: Assignment Icon
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(colorScheme.primary.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.Assignment,
+                    contentDescription = null,
+                    tint = colorScheme.primary,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            // Center: Content
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // Row 1: Title + Status
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = item.transaction.title,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = colorScheme.primary.copy(alpha = 0.08f)
+                    ) {
+                        Text(
+                            status.take(8),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                // Row 2: Address + Date
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Icon(
+                            Icons.Default.Place,
+                            contentDescription = null,
+                            tint = colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Text(
+                            text = item.transaction.deliveryAddress,
+                            fontSize = 10.sp,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Text(
+                            text = compactDate,
+                            fontSize = 9.sp,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Right: Chevron
+            Icon(
+                Icons.Default.ChevronRight,
+                contentDescription = null,
+                tint = colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+    }
+}
+
+// ===================== ORIGINAL VERSION (Keeping for reference) =====================
+
 @Composable
 private fun AssignmentRow(
     item: RiderAssignmentRecord,
@@ -206,71 +385,167 @@ private fun AssignmentRow(
 ) {
     val colorScheme = MaterialTheme.colorScheme
     val status = item.transaction.status
+    val compactDate = formatCompactDate(item.transaction.updatedAt)
+    val isNew = status.equals("ASSIGNED", ignoreCase = true)
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onOpenDetails(item.transaction) },
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        shape = RoundedCornerShape(10.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = if (isNew) 2.dp else 0.5.dp
+        ),
+        border = BorderStroke(
+            width = if (isNew) 1.5.dp else 0.dp,
+            color = if (isNew) colorScheme.primary.copy(alpha = 0.25f) else Color.Transparent
+        )
     ) {
-        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(
-                text = item.transaction.title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colorScheme.onSurface
-            )
-            Text(
-                text = item.transaction.deliveryAddress,
-                fontSize = 13.sp,
-                color = colorScheme.onSurfaceVariant
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            // Row 1: Title + Status Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(shape = CircleShape, color = colorScheme.primary.copy(alpha = 0.1f)) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            Icons.Default.Assignment,
-                            contentDescription = null,
-                            tint = colorScheme.primary,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.size(4.dp))
-                        Text(status, fontSize = 11.sp, color = colorScheme.primary)
-                    }
+                Text(
+                    text = item.transaction.title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Spacer(modifier = Modifier.width(6.dp))
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = colorScheme.primary.copy(alpha = 0.08f)
+                ) {
+                    Text(
+                        status.take(8),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
+            }
+
+            // Row 2: Address with icon
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    Icons.Default.Place,
+                    contentDescription = null,
+                    tint = colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = item.transaction.deliveryAddress,
+                    fontSize = 11.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            // Row 3: Date + View
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Icon(
                         Icons.Default.Schedule,
                         contentDescription = null,
                         tint = colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(10.dp)
                     )
-                    Spacer(modifier = Modifier.size(4.dp))
                     Text(
-                        text = item.transaction.updatedAt,
-                        fontSize = 11.sp,
+                        text = compactDate,
+                        fontSize = 9.sp,
                         color = colorScheme.onSurfaceVariant
                     )
                 }
+
+                Text(
+                    text = "View →",
+                    fontSize = 10.sp,
+                    color = colorScheme.primary,
+                    fontWeight = FontWeight.Medium
+                )
             }
-            Text(
-                text = "Tap to view details",
-                fontSize = 12.sp,
-                color = colorScheme.primary,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier
-                    .align(Alignment.End)
-                    .padding(top = 4.dp)
-            )
+
+            // NEW Badge
+            if (isNew) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .padding(top = 2.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(4.dp),
+                        color = Color(0xFFDC2626)
+                    ) {
+                        Text(
+                            "NEW",
+                            fontSize = 7.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                        )
+                    }
+                }
+            }
         }
+    }
+}
+
+// ===================== HELPER FUNCTION =====================
+
+private fun formatCompactDate(value: String): String {
+    return try {
+        val patterns = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'"
+        )
+        val parsed = patterns.firstNotNullOfOrNull { pattern ->
+            try {
+                java.text.SimpleDateFormat(pattern, java.util.Locale.getDefault())
+                    .apply { timeZone = java.util.TimeZone.getTimeZone("UTC") }
+                    .parse(value)
+            } catch (_: Exception) {
+                null
+            }
+        }
+
+        if (parsed != null) {
+            java.text.SimpleDateFormat("dd MMM, hh:mm a", java.util.Locale.getDefault()).format(parsed)
+        } else {
+            value
+        }
+    } catch (_: Exception) {
+        value
     }
 }
