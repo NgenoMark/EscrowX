@@ -158,6 +158,36 @@ interface AuthApiService {
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
 
+    @POST("api/v1/transactions/{id}/rider-accept-delivery")
+    suspend fun riderAcceptDelivery(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-pickup")
+    suspend fun riderPickup(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-start-transit")
+    suspend fun riderStartTransit(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-arrived")
+    suspend fun riderArrived(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-mark-delivered")
+    suspend fun riderMarkDelivered(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
     @POST("api/v1/transactions/{id}/confirm-receipt")
     suspend fun confirmReceipt(
         @Path("id") id: String,
