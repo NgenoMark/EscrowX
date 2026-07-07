@@ -107,6 +107,38 @@ public class EscrowController {
         return escrowService.riderAcceptDelivery(id, actorUserId);
     }
 
+    @PostMapping("/transactions/{id}/rider-pickup")
+    public EscrowResponse riderMarkPickedUp(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return escrowService.riderMarkPickedUp(id, actorUserId);
+    }
+
+    @PostMapping("/transactions/{id}/rider-start-transit")
+    public EscrowResponse riderStartTransit(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return escrowService.riderStartTransit(id, actorUserId);
+    }
+
+    @PostMapping("/transactions/{id}/rider-arrived")
+    public EscrowResponse riderArrivedAtBuyer(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return escrowService.riderArrivedAtBuyer(id, actorUserId);
+    }
+
+    @PostMapping("/transactions/{id}/rider-mark-delivered")
+    public EscrowResponse riderMarkDelivered(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return escrowService.riderMarkDelivered(id, actorUserId);
+    }
+
     @PostMapping("/transactions/{id}/assign-rider")
     public EscrowResponse assignRider(
         @PathVariable UUID id,
