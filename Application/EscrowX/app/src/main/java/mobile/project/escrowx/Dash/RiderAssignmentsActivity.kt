@@ -65,7 +65,8 @@ import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
 data class RiderAssignmentRecord(
-    val transaction: EscrowResponse
+    val transaction: EscrowResponse,
+    val buyerName: String? = null
 )
 
 class RiderAssignmentsActivity : ComponentActivity() {
@@ -112,9 +113,27 @@ private fun RiderAssignmentsScreen(onBack: () -> Unit) {
                     emptyList()
                 }
 
+                val buyerNameMap = riderTransactions
+                    .map { it.buyerId }
+                    .distinct()
+                    .associateWith { buyerId ->
+                        try {
+                            val buyerResponse = api.getUserById(buyerId)
+                            if (buyerResponse.isSuccessful) {
+                                val buyer = buyerResponse.body()
+                                buyer?.displayName?.takeIf { it.isNotBlank() }
+                                    ?: buyer?.email?.substringBefore("@")
+                            } else {
+                                null
+                            }
+                        } catch (_: Exception) {
+                            null
+                        }
+                    }
+
                 assignments = riderTransactions
                     .sortedByDescending { it.updatedAt }
-                    .map { RiderAssignmentRecord(it) }
+                    .map { txn -> RiderAssignmentRecord(transaction = txn, buyerName = buyerNameMap[txn.buyerId]) }
             } catch (_: Exception) {
                 assignments = emptyList()
             } finally {
@@ -241,6 +260,8 @@ private fun AssignmentRowCompact(
     val status = item.transaction.status
     val compactDate = formatCompactDate(item.transaction.updatedAt)
     val isNew = status.equals("ASSIGNED", ignoreCase = true)
+    val buyerName = item.buyerName ?: "Unknown Buyer"
+    val priceText = "KES ${formatAmountCompact(item.transaction.amount)}"
 
     Card(
         modifier = Modifier
@@ -287,24 +308,12 @@ private fun AssignmentRowCompact(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                // Row 1: Title + Status
+                // Row 1: Status + Date
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = item.transaction.title,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f)
-                    )
-
-                    Spacer(modifier = Modifier.width(6.dp))
-
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = colorScheme.primary.copy(alpha = 0.08f)
@@ -315,34 +324,6 @@ private fun AssignmentRowCompact(
                             fontWeight = FontWeight.Medium,
                             color = colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
-                    }
-                }
-
-                // Row 2: Address + Date
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            Icons.Default.Place,
-                            contentDescription = null,
-                            tint = colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(10.dp)
-                        )
-                        Text(
-                            text = item.transaction.deliveryAddress,
-                            fontSize = 10.sp,
-                            color = colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
                         )
                     }
 
@@ -360,6 +341,70 @@ private fun AssignmentRowCompact(
                             text = compactDate,
                             fontSize = 9.sp,
                             color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                // Row 2: Product + Buyer
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Product: ${item.transaction.title}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Text(
+                        text = "Buyer: $buyerName",
+                        fontSize = 10.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                // Row 3: Price + Address
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = priceText,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Place,
+                            contentDescription = null,
+                            tint = colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(10.dp)
+                        )
+                        Text(
+                            text = item.transaction.deliveryAddress,
+                            fontSize = 10.sp,
+                            color = colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -548,4 +593,8 @@ private fun formatCompactDate(value: String): String {
     } catch (_: Exception) {
         value
     }
+}
+
+private fun formatAmountCompact(amount: Double): String {
+    return java.text.NumberFormat.getIntegerInstance(java.util.Locale.getDefault()).format(amount)
 }

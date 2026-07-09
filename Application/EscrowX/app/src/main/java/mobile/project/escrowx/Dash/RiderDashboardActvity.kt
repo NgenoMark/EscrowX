@@ -977,99 +977,66 @@ private fun AssignmentCardEnhanced(
                 }
             }
 
-            // Title
-            Text(
-                title,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colorScheme.onSurface,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-
+            // Product + Buyer
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Icon(
-                    Icons.Default.Person,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = colorScheme.onSurfaceVariant
+                Text(
+                    text = "Product: $title",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
+
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Text(
                     text = "Buyer: $buyerName",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = colorScheme.onSurfaceVariant,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
                 )
             }
 
-            // Address
-            if (address.isNotBlank()) {
-                Row(
-                    verticalAlignment = Alignment.Top,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Place,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        address,
-                        fontSize = 13.sp,
-                        color = colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-
-            // Divider
-            HorizontalDivider(
-                color = colorScheme.outlineVariant.copy(alpha = 0.15f),
-                thickness = 0.5.dp
-            )
-
-            // Bottom Row: Amount & View Details
+            // Price + Address
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        "Amount",
-                        fontSize = 10.sp,
-                        color = colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        "KES ${formatAmount(item.transaction.amount)}",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.primary
-                    )
-                }
+                Text(
+                    text = "KES ${formatAmount(item.transaction.amount)}",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.primary
+                )
 
-                TextButton(
-                    onClick = { onOpenDetails(item.transaction) },
-                    colors = ButtonDefaults.textButtonColors(
-                        contentColor = colorScheme.primary
-                    ),
-                    modifier = Modifier
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    Text(
-                        text = "View Details",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium
-                    )
                     Icon(
-                        Icons.AutoMirrored.Filled.ArrowForward,
+                        Icons.Default.Place,
                         contentDescription = null,
-                        modifier = Modifier.size(14.dp)
+                        modifier = Modifier.size(14.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = if (address.isBlank()) "-" else address,
+                        fontSize = 11.sp,
+                        color = colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }
