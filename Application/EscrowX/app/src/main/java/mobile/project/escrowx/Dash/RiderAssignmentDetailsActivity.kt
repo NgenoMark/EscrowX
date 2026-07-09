@@ -85,26 +85,30 @@ private fun RiderAssignmentDetailsScreen(
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var successDialogMessage by remember { mutableStateOf("") }
-    var buyerName by remember { mutableStateOf("-") }
-    var sellerName by remember { mutableStateOf("-") }
-    var riderName by remember { mutableStateOf("-") }
+    var buyerDetails by remember { mutableStateOf(PartySectionData()) }
+    var sellerDetails by remember { mutableStateOf(PartySectionData()) }
 
-    suspend fun resolveUserName(api: AuthApiService, userId: String?): String {
-        if (userId.isNullOrBlank()) return "Not assigned"
+    suspend fun resolvePartySectionData(api: AuthApiService, userId: String?): PartySectionData {
+        if (userId.isNullOrBlank()) return PartySectionData(name = "Not assigned")
         return try {
             val response = api.getUserById(userId)
             if (!response.isSuccessful) {
-                userId.take(12)
+                PartySectionData(name = userId.take(12))
             } else {
                 val body = response.body()
-                when {
+                val resolvedName = when {
                     !body?.displayName.isNullOrBlank() -> body?.displayName ?: userId.take(12)
                     !body?.email.isNullOrBlank() -> body?.email?.substringBefore("@") ?: userId.take(12)
                     else -> userId.take(12)
                 }
+                PartySectionData(
+                    name = resolvedName,
+                    phone = body?.phone ?: "-",
+                    address = body?.address ?: "-"
+                )
             }
         } catch (_: Exception) {
-            userId.take(12)
+            PartySectionData(name = userId.take(12))
         }
     }
 
@@ -133,9 +137,8 @@ private fun RiderAssignmentDetailsScreen(
                     transaction = txn
 
                     if (txn != null) {
-                        buyerName = resolveUserName(api, txn.buyerId)
-                        sellerName = resolveUserName(api, txn.sellerId)
-                        riderName = resolveUserName(api, txn.riderId)
+                        buyerDetails = resolvePartySectionData(api, txn.buyerId)
+                        sellerDetails = resolvePartySectionData(api, txn.sellerId)
                     }
                 } else {
                     error = "Failed to load assignment details"
@@ -325,13 +328,26 @@ private fun RiderAssignmentDetailsScreen(
                         )
                     }
 
-                    // ===== ASSIGNMENT DETAILS =====
+                    // ===== BUYER SECTION =====
                     item {
-                        AssignmentDetailsCard(
-                            transaction = txn,
-                            buyerName = buyerName,
-                            sellerName = sellerName,
-                            riderName = riderName,
+                        ParticipantSectionCard(
+                            sectionTitle = "Buyer",
+                            sectionIcon = Icons.Default.Person,
+                            participantName = buyerDetails.name,
+                            participantPhone = buyerDetails.phone,
+                            participantAddress = buyerDetails.address,
+                            colorScheme = colorScheme
+                        )
+                    }
+
+                    // ===== SELLER SECTION =====
+                    item {
+                        ParticipantSectionCard(
+                            sectionTitle = "Seller",
+                            sectionIcon = Icons.Default.Store,
+                            participantName = sellerDetails.name,
+                            participantPhone = sellerDetails.phone,
+                            participantAddress = sellerDetails.address,
                             colorScheme = colorScheme
                         )
                     }
@@ -596,14 +612,15 @@ fun StatusHeaderCard(
     }
 }
 
-// ===================== ASSIGNMENT DETAILS CARD =====================
+// ===================== PARTICIPANT SECTION CARD =====================
 
 @Composable
-fun AssignmentDetailsCard(
-    transaction: EscrowResponse,
-    buyerName: String,
-    sellerName: String,
-    riderName: String,
+fun ParticipantSectionCard(
+    sectionTitle: String,
+    sectionIcon: ImageVector,
+    participantName: String,
+    participantPhone: String,
+    participantAddress: String,
     colorScheme: ColorScheme
 ) {
     Card(
@@ -622,7 +639,7 @@ fun AssignmentDetailsCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                "Assignment Details",
+                sectionTitle,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = colorScheme.onSurface
@@ -634,29 +651,22 @@ fun AssignmentDetailsCard(
             )
 
             DetailRowEnhanced(
-                icon = Icons.Default.Person,
-                label = "Buyer",
-                value = buyerName,
+                icon = sectionIcon,
+                label = "Name",
+                value = participantName,
                 colorScheme = colorScheme
             )
             DetailRowEnhanced(
-                icon = Icons.Default.Store,
-                label = "Seller",
-                value = sellerName,
+                icon = Icons.Default.Phone,
+                label = "Phone",
+                value = participantPhone,
                 colorScheme = colorScheme
             )
             DetailRowEnhanced(
-                icon = Icons.Default.DirectionsBike,
-                label = "Rider",
-                value = riderName,
+                icon = Icons.Default.Place,
+                label = "Address",
+                value = participantAddress,
                 colorScheme = colorScheme
-            )
-            DetailRowEnhanced(
-                icon = Icons.Default.Money,
-                label = "Amount",
-                value = "${transaction.amount} ${transaction.currency ?: "KES"}",
-                colorScheme = colorScheme,
-                isHighlighted = true
             )
         }
     }
@@ -707,65 +717,29 @@ fun DeliveryInfoCard(
                 thickness = 0.5.dp
             )
 
-            // Address with icon
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .clip(CircleShape)
-                        .background(colorScheme.primary.copy(alpha = 0.08f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Default.Place,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = colorScheme.primary
-                    )
-                }
-                Column(
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(
-                        "Delivery Address",
-                        fontSize = 11.sp,
-                        color = colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        transaction.deliveryAddress,
-                        fontSize = 14.sp,
-                        color = colorScheme.onSurface,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
-            }
-
-            // Delivery Due
+            DetailRowEnhanced(
+                icon = Icons.Default.Inventory2,
+                label = "Product",
+                value = transaction.title,
+                colorScheme = colorScheme
+            )
+            DetailRowEnhanced(
+                icon = Icons.Default.Money,
+                label = "Cost",
+                value = "${transaction.amount} ${transaction.currency ?: "KES"}",
+                colorScheme = colorScheme,
+                isHighlighted = true
+            )
+            DetailRowEnhanced(
+                icon = Icons.Default.Place,
+                label = "Location",
+                value = transaction.deliveryAddress,
+                colorScheme = colorScheme
+            )
             DetailRowEnhanced(
                 icon = Icons.Default.Schedule,
-                label = "Delivery Due",
+                label = "Delivery Date",
                 value = formatAssignmentDate(transaction.deliveryDueAt),
-                colorScheme = colorScheme
-            )
-
-            // Created
-            DetailRowEnhanced(
-                icon = Icons.Default.CalendarToday,
-                label = "Created",
-                value = formatAssignmentDate(transaction.createdAt),
-                colorScheme = colorScheme
-            )
-
-            // Updated
-            DetailRowEnhanced(
-                icon = Icons.Default.Update,
-                label = "Last Updated",
-                value = formatAssignmentDate(transaction.updatedAt),
                 colorScheme = colorScheme
             )
         }
@@ -1061,6 +1035,12 @@ data class AssignmentStatusConfig(
     val dotColor: Color,
     val textColor: Color,
     val backgroundColor: Color
+)
+
+private data class PartySectionData(
+    val name: String = "-",
+    val phone: String = "-",
+    val address: String = "-"
 )
 
 fun getAssignmentStatusConfig(status: String): AssignmentStatusConfig {
