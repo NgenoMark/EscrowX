@@ -87,6 +87,7 @@ private fun RiderAssignmentDetailsScreen(
     var successDialogMessage by remember { mutableStateOf("") }
     var hasAcceptedDelivery by remember { mutableStateOf(false) }
     var nextRiderAction by remember { mutableStateOf(RiderNextAction.NONE) }
+    var riderAssignmentStatus by remember { mutableStateOf<String?>(null) }
     var buyerDetails by remember { mutableStateOf(PartySectionData()) }
     var sellerDetails by remember { mutableStateOf(PartySectionData()) }
 
@@ -139,9 +140,13 @@ private fun RiderAssignmentDetailsScreen(
                     transaction = txn
 
                     if (txn != null) {
+                        riderAssignmentStatus = txn.riderAssignmentStatus
+                        val acceptedOrBeyond = isAcceptedOrBeyondAssignment(txn.riderAssignmentStatus)
+                        hasAcceptedDelivery = acceptedOrBeyond
                         nextRiderAction = deriveNextRiderAction(
                             status = txn.status,
-                            hasAcceptedDelivery = hasAcceptedDelivery
+                            hasAcceptedDelivery = acceptedOrBeyond,
+                            riderAssignmentStatus = txn.riderAssignmentStatus
                         )
                     }
 
@@ -184,11 +189,15 @@ private fun RiderAssignmentDetailsScreen(
                 withContext(Dispatchers.Main) {
                     if (response.isSuccessful) {
                         transaction = response.body() ?: transaction
+                        riderAssignmentStatus = transaction?.riderAssignmentStatus
                         onSuccess?.invoke()
                         transaction?.let { updatedTxn ->
+                            val acceptedOrBeyond = isAcceptedOrBeyondAssignment(updatedTxn.riderAssignmentStatus)
+                            hasAcceptedDelivery = acceptedOrBeyond
                             nextRiderAction = deriveNextRiderAction(
                                 status = updatedTxn.status,
-                                hasAcceptedDelivery = hasAcceptedDelivery
+                                hasAcceptedDelivery = acceptedOrBeyond,
+                                riderAssignmentStatus = updatedTxn.riderAssignmentStatus
                             )
                         }
                         successDialogMessage = successMessage
@@ -589,7 +598,7 @@ fun StatusHeaderCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Icon(
-                        Icons.Default.ReceiptLong,
+                        Icons.Default.Receipt,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
                         tint = colorScheme.onSurfaceVariant
@@ -929,7 +938,6 @@ fun RiderActionCardEnhanced(
                         nextAction != RiderNextAction.NONE -> nextAction
                         normalizedStatus == "SELLER_ACCEPTED" && !hasAcceptedDelivery -> RiderNextAction.ACCEPT
                         normalizedStatus == "SELLER_ACCEPTED" && hasAcceptedDelivery -> RiderNextAction.PICKUP
-                        normalizedStatus == "IN_DELIVERY" -> RiderNextAction.PICKUP
                         else -> RiderNextAction.NONE
                     }
 
@@ -956,7 +964,7 @@ fun RiderActionCardEnhanced(
 
                         RiderNextAction.START_TRANSIT -> ActionButton(
                             text = "Start Transit",
-                            icon = Icons.Default.DirectionsBike,
+                            icon = Icons.Default.LocalShipping,
                             color = Color(0xFFF59E0B),
                             onClick = onStartTransit,
                             isActionLoading = isActionLoading,
@@ -1100,11 +1108,30 @@ enum class RiderNextAction {
     NONE
 }
 
-private fun deriveNextRiderAction(status: String, hasAcceptedDelivery: Boolean): RiderNextAction {
-    return when (status.trim().uppercase(Locale.ROOT)) {
-        "SELLER_ACCEPTED" -> if (hasAcceptedDelivery) RiderNextAction.PICKUP else RiderNextAction.ACCEPT
-        "IN_DELIVERY" -> RiderNextAction.PICKUP
-        else -> RiderNextAction.NONE
+internal fun deriveNextRiderAction(
+    status: String,
+    hasAcceptedDelivery: Boolean,
+    riderAssignmentStatus: String?
+): RiderNextAction {
+    return when (riderAssignmentStatus?.trim()?.uppercase(Locale.ROOT)) {
+        "ASSIGNED" -> if (hasAcceptedDelivery) RiderNextAction.PICKUP else RiderNextAction.ACCEPT
+        "ACCEPTED" -> RiderNextAction.PICKUP
+        "PICKED_UP" -> RiderNextAction.START_TRANSIT
+        "IN_TRANSIT" -> RiderNextAction.ARRIVED
+        "ARRIVED_AT_BUYER" -> RiderNextAction.DELIVERED
+        "DELIVERED_TO_BUYER", "FAILED", "CANCELLED" -> RiderNextAction.NONE
+        else -> when (status.trim().uppercase(Locale.ROOT)) {
+            "SELLER_ACCEPTED" -> if (hasAcceptedDelivery) RiderNextAction.PICKUP else RiderNextAction.ACCEPT
+            "IN_DELIVERY" -> RiderNextAction.PICKUP
+            else -> RiderNextAction.NONE
+        }
+    }
+}
+
+private fun isAcceptedOrBeyondAssignment(riderAssignmentStatus: String?): Boolean {
+    return when (riderAssignmentStatus?.trim()?.uppercase(Locale.ROOT)) {
+        "ACCEPTED", "PICKED_UP", "IN_TRANSIT", "ARRIVED_AT_BUYER", "DELIVERED_TO_BUYER" -> true
+        else -> false
     }
 }
 
