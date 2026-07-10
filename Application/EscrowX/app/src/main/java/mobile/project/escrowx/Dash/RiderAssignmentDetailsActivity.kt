@@ -85,6 +85,8 @@ private fun RiderAssignmentDetailsScreen(
     var actionMessage by remember { mutableStateOf<String?>(null) }
     var showSuccessDialog by remember { mutableStateOf(false) }
     var successDialogMessage by remember { mutableStateOf("") }
+    var hasAcceptedDelivery by remember { mutableStateOf(false) }
+    var nextRiderAction by remember { mutableStateOf(RiderNextAction.NONE) }
     var buyerDetails by remember { mutableStateOf(PartySectionData()) }
     var sellerDetails by remember { mutableStateOf(PartySectionData()) }
 
@@ -137,6 +139,13 @@ private fun RiderAssignmentDetailsScreen(
                     transaction = txn
 
                     if (txn != null) {
+                        nextRiderAction = deriveNextRiderAction(
+                            status = txn.status,
+                            hasAcceptedDelivery = hasAcceptedDelivery
+                        )
+                    }
+
+                    if (txn != null) {
                         buyerDetails = resolvePartySectionData(api, txn.buyerId)
                         sellerDetails = resolvePartySectionData(api, txn.sellerId)
                     }
@@ -155,6 +164,7 @@ private fun RiderAssignmentDetailsScreen(
 
     fun runRiderAction(
         successMessage: String,
+        onSuccess: (() -> Unit)? = null,
         action: suspend (AuthApiService, String, String) -> retrofit2.Response<EscrowResponse>
     ) {
         val token = session.getAccessToken()
@@ -174,6 +184,13 @@ private fun RiderAssignmentDetailsScreen(
                 withContext(Dispatchers.Main) {
                     if (response.isSuccessful) {
                         transaction = response.body() ?: transaction
+                        onSuccess?.invoke()
+                        transaction?.let { updatedTxn ->
+                            nextRiderAction = deriveNextRiderAction(
+                                status = updatedTxn.status,
+                                hasAcceptedDelivery = hasAcceptedDelivery
+                            )
+                        }
                         successDialogMessage = successMessage
                         showSuccessDialog = true
                         actionMessage = successMessage
@@ -224,25 +241,34 @@ private fun RiderAssignmentDetailsScreen(
                     "Success! 🎉",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface
+                    color = colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             text = {
                 Text(
                     successDialogMessage,
                     fontSize = 14.sp,
-                    color = colorScheme.onSurfaceVariant
+                    color = colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
                 )
             },
             confirmButton = {
-                Button(
-                    onClick = { showSuccessDialog = false },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF10B981)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Center
                 ) {
-                    Text("OK", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    Button(
+                        onClick = { showSuccessDialog = false },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF10B981)
+                        )
+                    ) {
+                        Text("OK", color = Color.White, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         )
@@ -364,30 +390,50 @@ private fun RiderAssignmentDetailsScreen(
                     item {
                         RiderActionCardEnhanced(
                             status = txn.status,
+                            hasAcceptedDelivery = hasAcceptedDelivery,
+                            nextAction = nextRiderAction,
                             isActionLoading = isActionLoading,
                             actionMessage = actionMessage,
                             onAcceptDelivery = {
-                                runRiderAction("✅ Delivery accepted") { api, id, actorId ->
+                                runRiderAction(
+                                    successMessage = "✅ Delivery accepted",
+                                    onSuccess = {
+                                        hasAcceptedDelivery = true
+                                        nextRiderAction = RiderNextAction.PICKUP
+                                    }
+                                ) { api, id, actorId ->
                                     api.riderAcceptDelivery(id, actorId)
                                 }
                             },
                             onPickup = {
-                                runRiderAction("📦 Package marked as picked up") { api, id, actorId ->
+                                runRiderAction(
+                                    successMessage = "📦 Package marked as picked up",
+                                    onSuccess = { nextRiderAction = RiderNextAction.START_TRANSIT }
+                                ) { api, id, actorId ->
                                     api.riderPickup(id, actorId)
                                 }
                             },
                             onStartTransit = {
-                                runRiderAction("🚚 Transit started") { api, id, actorId ->
+                                runRiderAction(
+                                    successMessage = "🚚 Transit started",
+                                    onSuccess = { nextRiderAction = RiderNextAction.ARRIVED }
+                                ) { api, id, actorId ->
                                     api.riderStartTransit(id, actorId)
                                 }
                             },
                             onArrived = {
-                                runRiderAction("📍 Arrived at buyer location") { api, id, actorId ->
+                                runRiderAction(
+                                    successMessage = "📍 Arrived at buyer location",
+                                    onSuccess = { nextRiderAction = RiderNextAction.DELIVERED }
+                                ) { api, id, actorId ->
                                     api.riderArrived(id, actorId)
                                 }
                             },
                             onDelivered = {
-                                runRiderAction("✅ Successfully delivered") { api, id, actorId ->
+                                runRiderAction(
+                                    successMessage = "✅ Successfully delivered",
+                                    onSuccess = { nextRiderAction = RiderNextAction.NONE }
+                                ) { api, id, actorId ->
                                     api.riderMarkDelivered(id, actorId)
                                 }
                             },
@@ -795,6 +841,8 @@ fun DetailRowEnhanced(
 @Composable
 fun RiderActionCardEnhanced(
     status: String,
+    hasAcceptedDelivery: Boolean,
+    nextAction: RiderNextAction,
     isActionLoading: Boolean,
     actionMessage: String?,
     onAcceptDelivery: () -> Unit,
@@ -877,9 +925,16 @@ fun RiderActionCardEnhanced(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (normalizedStatus == "SELLER_ACCEPTED") {
-                        // Primary Action: Accept Delivery
-                        ActionButton(
+                    val effectiveNextAction = when {
+                        nextAction != RiderNextAction.NONE -> nextAction
+                        normalizedStatus == "SELLER_ACCEPTED" && !hasAcceptedDelivery -> RiderNextAction.ACCEPT
+                        normalizedStatus == "SELLER_ACCEPTED" && hasAcceptedDelivery -> RiderNextAction.PICKUP
+                        normalizedStatus == "IN_DELIVERY" -> RiderNextAction.PICKUP
+                        else -> RiderNextAction.NONE
+                    }
+
+                    when (effectiveNextAction) {
+                        RiderNextAction.ACCEPT -> ActionButton(
                             text = "Accept Delivery",
                             icon = Icons.Default.CheckCircle,
                             color = colorScheme.primary,
@@ -889,52 +944,37 @@ fun RiderActionCardEnhanced(
                             colorScheme = colorScheme
                         )
 
-                        // Secondary Action: Pick Up
-                        ActionButton(
+                        RiderNextAction.PICKUP -> ActionButton(
                             text = "Mark as Picked Up",
                             icon = Icons.Default.Inventory,
                             color = Color(0xFF3B82F6),
                             onClick = onPickup,
                             isActionLoading = isActionLoading,
-                            isPrimary = false,
-                            colorScheme = colorScheme
-                        )
-                    }
-
-                    if (normalizedStatus == "IN_DELIVERY") {
-                        // Sequence of actions for delivery
-                        ActionButton(
-                            text = "Mark as Picked Up",
-                            icon = Icons.Default.Inventory,
-                            color = Color(0xFF3B82F6),
-                            onClick = onPickup,
-                            isActionLoading = isActionLoading,
-                            isPrimary = false,
+                            isPrimary = true,
                             colorScheme = colorScheme
                         )
 
-                        ActionButton(
+                        RiderNextAction.START_TRANSIT -> ActionButton(
                             text = "Start Transit",
                             icon = Icons.Default.DirectionsBike,
                             color = Color(0xFFF59E0B),
                             onClick = onStartTransit,
                             isActionLoading = isActionLoading,
-                            isPrimary = false,
+                            isPrimary = true,
                             colorScheme = colorScheme
                         )
 
-                        ActionButton(
+                        RiderNextAction.ARRIVED -> ActionButton(
                             text = "Arrived at Buyer",
                             icon = Icons.Default.Place,
                             color = Color(0xFF8B5CF6),
                             onClick = onArrived,
                             isActionLoading = isActionLoading,
-                            isPrimary = false,
+                            isPrimary = true,
                             colorScheme = colorScheme
                         )
 
-                        // Primary Action: Delivered
-                        ActionButton(
+                        RiderNextAction.DELIVERED -> ActionButton(
                             text = "Mark as Delivered",
                             icon = Icons.Default.DoneAll,
                             color = Color(0xFF10B981),
@@ -943,6 +983,14 @@ fun RiderActionCardEnhanced(
                             isPrimary = true,
                             colorScheme = colorScheme
                         )
+
+                        RiderNextAction.NONE -> {
+                            Text(
+                                "No next rider action available",
+                                fontSize = 12.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             } else {
@@ -1042,6 +1090,23 @@ private data class PartySectionData(
     val phone: String = "-",
     val address: String = "-"
 )
+
+enum class RiderNextAction {
+    ACCEPT,
+    PICKUP,
+    START_TRANSIT,
+    ARRIVED,
+    DELIVERED,
+    NONE
+}
+
+private fun deriveNextRiderAction(status: String, hasAcceptedDelivery: Boolean): RiderNextAction {
+    return when (status.trim().uppercase(Locale.ROOT)) {
+        "SELLER_ACCEPTED" -> if (hasAcceptedDelivery) RiderNextAction.PICKUP else RiderNextAction.ACCEPT
+        "IN_DELIVERY" -> RiderNextAction.PICKUP
+        else -> RiderNextAction.NONE
+    }
+}
 
 fun getAssignmentStatusConfig(status: String): AssignmentStatusConfig {
     val normalized = status.uppercase()
