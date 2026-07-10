@@ -1,5 +1,6 @@
 package com.example.escbackend.escrow.entity;
 
+import com.example.escbackend.common.constants.DeliveryAssignmentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -74,7 +75,7 @@ public class DeliveryAssignmentEntity {
             id = UUID.randomUUID();
         }
         if (status == null || status.isBlank()) {
-            status = "ASSIGNED";
+            status = DeliveryAssignmentStatus.ASSIGNED.value();
         }
         createdAt = now;
         updatedAt = now;
