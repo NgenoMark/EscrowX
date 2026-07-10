@@ -26,6 +26,13 @@ public class EscrowResponse {
     private BigDecimal initialDepositAmount;
     private String currency;
     private String status;
+    private String riderAssignmentStatus;
+    private OffsetDateTime riderPickedUpAt;
+    private OffsetDateTime riderArrivedAtBuyerAt;
+    private OffsetDateTime riderDeliveredAt;
+    private OffsetDateTime riderMarkedDeliveredAt;
+    private OffsetDateTime riderSellerConfirmedDeliveredAt;
+    private OffsetDateTime riderBuyerConfirmedDeliveredAt;
     private OffsetDateTime deliveryDueAt;
     private OffsetDateTime autoReleaseAt;
     private OffsetDateTime createdAt;

@@ -26,6 +26,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -444,7 +445,10 @@ public class EscrowService {
     }
 
     private EscrowResponse toResponse(EscrowTransaction transaction) {
-        return EscrowResponse.builder()
+        Optional<DeliveryAssignmentEntity> latestAssignment = deliveryAssignmentRepository
+            .findTopByTransactionIdOrderByCreatedAtDesc(transaction.getId());
+
+        EscrowResponse.EscrowResponseBuilder builder = EscrowResponse.builder()
             .id(transaction.getId())
             .reference(transaction.getReference())
             .buyerId(transaction.getBuyer().getId())
@@ -460,8 +464,19 @@ public class EscrowService {
             .deliveryDueAt(transaction.getDeliveryDueAt())
             .autoReleaseAt(transaction.getAutoReleaseAt())
             .createdAt(transaction.getCreatedAt())
-            .updatedAt(transaction.getUpdatedAt())
-            .build();
+            .updatedAt(transaction.getUpdatedAt());
+
+        latestAssignment.ifPresent(assignment -> builder
+            .riderAssignmentStatus(assignment.getStatus())
+            .riderPickedUpAt(assignment.getPickedUpAt())
+            .riderArrivedAtBuyerAt(assignment.getArrivedAtBuyerAt())
+            .riderDeliveredAt(assignment.getDeliveredAt())
+            .riderMarkedDeliveredAt(assignment.getRiderMarkedDeliveredAt())
+            .riderSellerConfirmedDeliveredAt(assignment.getSellerConfirmedDeliveredAt())
+            .riderBuyerConfirmedDeliveredAt(assignment.getBuyerConfirmedDeliveredAt())
+        );
+
+        return builder.build();
     }
 
     private EscrowTransaction getTransactionOrThrow(UUID id) {
