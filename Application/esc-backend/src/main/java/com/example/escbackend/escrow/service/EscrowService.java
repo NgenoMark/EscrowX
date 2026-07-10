@@ -1,5 +1,6 @@
 package com.example.escbackend.escrow.service;
 
+import com.example.escbackend.common.constants.DeliveryAssignmentStatus;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
@@ -134,17 +135,17 @@ public class EscrowService {
         transaction.setRider(rider);
         EscrowTransaction saved = escrowRepository.save(transaction);
 
-        List<String> activeStatuses = List.of(
-            "ASSIGNED",
-            "ACCEPTED",
-            "PICKED_UP",
-            "IN_TRANSIT",
-            "ARRIVED_AT_BUYER"
+        List<String> activeStatuses = DeliveryAssignmentStatus.valuesOf(
+            DeliveryAssignmentStatus.ASSIGNED,
+            DeliveryAssignmentStatus.ACCEPTED,
+            DeliveryAssignmentStatus.PICKED_UP,
+            DeliveryAssignmentStatus.IN_TRANSIT,
+            DeliveryAssignmentStatus.ARRIVED_AT_BUYER
         );
         List<DeliveryAssignmentEntity> activeAssignments = deliveryAssignmentRepository
             .findByTransactionIdAndStatusIn(transactionId, activeStatuses);
         for (DeliveryAssignmentEntity activeAssignment : activeAssignments) {
-            activeAssignment.setStatus("CANCELLED");
+            activeAssignment.setStatus(DeliveryAssignmentStatus.CANCELLED.value());
             deliveryAssignmentRepository.save(activeAssignment);
         }
 
@@ -152,7 +153,7 @@ public class EscrowService {
         assignment.setTransactionId(transactionId);
         assignment.setRiderUserId(riderId);
         assignment.setAssignedByUserId(actorUserId);
-        assignment.setStatus("ASSIGNED");
+        assignment.setStatus(DeliveryAssignmentStatus.ASSIGNED.value());
         assignment.setDropoffAddress(saved.getDeliveryAddress());
         deliveryAssignmentRepository.save(assignment);
 
@@ -192,11 +193,12 @@ public class EscrowService {
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
 
-        if (!"ASSIGNED".equalsIgnoreCase(assignment.getStatus()) && !"ACCEPTED".equalsIgnoreCase(assignment.getStatus())) {
+        if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.ASSIGNED)
+            && !isAssignmentStatus(assignment, DeliveryAssignmentStatus.ACCEPTED)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Assignment cannot be accepted from status: " + assignment.getStatus());
         }
 
-        assignment.setStatus("ACCEPTED");
+        assignment.setStatus(DeliveryAssignmentStatus.ACCEPTED.value());
         deliveryAssignmentRepository.save(assignment);
 
         return toResponse(transaction);
@@ -213,11 +215,12 @@ public class EscrowService {
         }
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
-        if (!"ACCEPTED".equalsIgnoreCase(assignment.getStatus()) && !"PICKED_UP".equalsIgnoreCase(assignment.getStatus())) {
+        if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.ACCEPTED)
+            && !isAssignmentStatus(assignment, DeliveryAssignmentStatus.PICKED_UP)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Assignment cannot be picked up from status: " + assignment.getStatus());
         }
 
-        assignment.setStatus("PICKED_UP");
+        assignment.setStatus(DeliveryAssignmentStatus.PICKED_UP.value());
         assignment.setPickedUpAt(OffsetDateTime.now());
         deliveryAssignmentRepository.save(assignment);
 
@@ -234,11 +237,12 @@ public class EscrowService {
         assertState(transaction, "IN_DELIVERY");
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
-        if (!"PICKED_UP".equalsIgnoreCase(assignment.getStatus()) && !"IN_TRANSIT".equalsIgnoreCase(assignment.getStatus())) {
+        if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.PICKED_UP)
+            && !isAssignmentStatus(assignment, DeliveryAssignmentStatus.IN_TRANSIT)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Assignment cannot move to transit from status: " + assignment.getStatus());
         }
 
-        assignment.setStatus("IN_TRANSIT");
+        assignment.setStatus(DeliveryAssignmentStatus.IN_TRANSIT.value());
         deliveryAssignmentRepository.save(assignment);
 
         return toResponse(transaction);
@@ -250,11 +254,12 @@ public class EscrowService {
         assertState(transaction, "IN_DELIVERY");
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
-        if (!"IN_TRANSIT".equalsIgnoreCase(assignment.getStatus()) && !"ARRIVED_AT_BUYER".equalsIgnoreCase(assignment.getStatus())) {
+        if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.IN_TRANSIT)
+            && !isAssignmentStatus(assignment, DeliveryAssignmentStatus.ARRIVED_AT_BUYER)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Assignment cannot be marked arrived from status: " + assignment.getStatus());
         }
 
-        assignment.setStatus("ARRIVED_AT_BUYER");
+        assignment.setStatus(DeliveryAssignmentStatus.ARRIVED_AT_BUYER.value());
         assignment.setArrivedAtBuyerAt(OffsetDateTime.now());
         deliveryAssignmentRepository.save(assignment);
 
@@ -267,12 +272,13 @@ public class EscrowService {
         assertState(transaction, "IN_DELIVERY");
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
-        if (!"ARRIVED_AT_BUYER".equalsIgnoreCase(assignment.getStatus()) && !"DELIVERED".equalsIgnoreCase(assignment.getStatus())) {
+        if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.ARRIVED_AT_BUYER)
+            && !isAssignmentStatus(assignment, DeliveryAssignmentStatus.DELIVERED_TO_BUYER)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Assignment cannot be marked delivered from status: " + assignment.getStatus());
         }
 
         OffsetDateTime now = OffsetDateTime.now();
-        assignment.setStatus("DELIVERED");
+        assignment.setStatus(DeliveryAssignmentStatus.DELIVERED_TO_BUYER.value());
         assignment.setRiderMarkedDeliveredAt(now);
         assignment.setDeliveredAt(now);
         deliveryAssignmentRepository.save(assignment);
@@ -294,7 +300,7 @@ public class EscrowService {
             .findTopByTransactionIdAndRiderUserIdOrderByCreatedAtDesc(transactionId, transaction.getRider().getId())
             .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "No delivery assignment found for assigned rider"));
 
-        if (!"ACCEPTED".equalsIgnoreCase(assignment.getStatus())) {
+        if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.ACCEPTED)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Rider must ACCEPT delivery before transaction can move to IN_DELIVERY");
         }
 
@@ -312,12 +318,10 @@ public class EscrowService {
                 .findTopByTransactionIdAndRiderUserIdOrderByCreatedAtDesc(transactionId, transaction.getRider().getId())
                 .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "No delivery assignment found for assigned rider"));
 
-            if (!"DELIVERED".equalsIgnoreCase(assignment.getStatus())
-                && !"SELLER_CONFIRMED_DELIVERED".equalsIgnoreCase(assignment.getStatus())) {
+            if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.DELIVERED_TO_BUYER)) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Rider must mark package DELIVERED before seller confirmation");
             }
 
-            assignment.setStatus("SELLER_CONFIRMED_DELIVERED");
             assignment.setSellerConfirmedDeliveredAt(OffsetDateTime.now());
             deliveryAssignmentRepository.save(assignment);
         }
@@ -335,7 +339,12 @@ public class EscrowService {
             deliveryAssignmentRepository
                 .findTopByTransactionIdAndRiderUserIdOrderByCreatedAtDesc(transactionId, transaction.getRider().getId())
                 .ifPresent(assignment -> {
-                    assignment.setStatus("BUYER_CONFIRMED_DELIVERED");
+                    if (!isAssignmentStatus(assignment, DeliveryAssignmentStatus.DELIVERED_TO_BUYER)) {
+                        throw new ApiException(
+                            HttpStatus.BAD_REQUEST,
+                            "Assignment must be DELIVERED_TO_BUYER before buyer confirmation"
+                        );
+                    }
                     assignment.setBuyerConfirmedDeliveredAt(OffsetDateTime.now());
                     deliveryAssignmentRepository.save(assignment);
                 });
@@ -520,10 +529,15 @@ public class EscrowService {
             .findTopByTransactionIdAndRiderUserIdOrderByCreatedAtDesc(transaction.getId(), actorUserId)
             .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "No active delivery assignment found for this rider"));
 
-        if ("CANCELLED".equalsIgnoreCase(assignment.getStatus()) || "FAILED".equalsIgnoreCase(assignment.getStatus())) {
+        if (isAssignmentStatus(assignment, DeliveryAssignmentStatus.CANCELLED)
+            || isAssignmentStatus(assignment, DeliveryAssignmentStatus.FAILED)) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "This delivery assignment is no longer active");
         }
 
         return assignment;
+    }
+
+    private boolean isAssignmentStatus(DeliveryAssignmentEntity assignment, DeliveryAssignmentStatus status) {
+        return status.value().equalsIgnoreCase(assignment.getStatus());
     }
 }
