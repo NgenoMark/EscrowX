@@ -116,6 +116,8 @@ fun BuyerTransactionDetailScreen(
     var displayShippingAddress by remember { mutableStateOf(shippingAddress) }
     var isUpdating by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var riderDisplayName by remember { mutableStateOf("Not assigned") }
+    var riderPhone by remember { mutableStateOf("-") }
     var showPayDialog by remember { mutableStateOf(false) }
     var phoneLocalPart by remember { mutableStateOf("") }
     var isPollingPayment by remember { mutableStateOf(false) }
@@ -312,6 +314,27 @@ fun BuyerTransactionDetailScreen(
                 displayShippingAddress = txn.deliveryAddress
                 displayDeliveryDate = txn.deliveryDueAt.takeIf { it.isNotBlank() }?.take(10) ?: displayDeliveryDate
                 displayOrderId = txn.reference ?: displayOrderId
+
+                if (!txn.riderId.isNullOrBlank()) {
+                    try {
+                        val riderResp = api.getUserById(txn.riderId)
+                        if (riderResp.isSuccessful && riderResp.body() != null) {
+                            val rider = riderResp.body()!!
+                            riderDisplayName = rider.displayName?.takeIf { it.isNotBlank() }
+                                ?: rider.email.substringBefore("@")
+                            riderPhone = rider.phone.ifBlank { "-" }
+                        } else {
+                            riderDisplayName = txn.riderId.take(8)
+                            riderPhone = "-"
+                        }
+                    } catch (_: Exception) {
+                        riderDisplayName = txn.riderId.take(8)
+                        riderPhone = "-"
+                    }
+                } else {
+                    riderDisplayName = "Not assigned"
+                    riderPhone = "-"
+                }
 
                 if (!buyerId.isNullOrBlank()) {
                     val disputeResp = api.getDisputeByTransactionId(buyerId, transactionId)
@@ -575,6 +598,16 @@ fun BuyerTransactionDetailScreen(
             item {
                 TransactionProgressCard(
                     statusUpper = statusUpper,
+                    colorScheme = colorScheme
+                )
+            }
+
+            // ===== RIDER STATUS CARD =====
+            item {
+                RiderStatusCard(
+                    statusUpper = statusUpper,
+                    riderName = riderDisplayName,
+                    riderPhone = riderPhone,
                     colorScheme = colorScheme
                 )
             }
@@ -1251,6 +1284,234 @@ fun TransactionProgressCard(
                                     "✓",
                                     fontSize = 14.sp,
                                     color = Color(0xFF10B981)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RiderStatusCard(
+    statusUpper: String,
+    riderName: String,
+    riderPhone: String,
+    colorScheme: ColorScheme
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+
+    val riderFlow = listOf(
+        "Awaiting Assignment",
+        "Assigned",
+        "In Transit",
+        "Delivered to Buyer",
+        "Delivery Confirmed"
+    )
+
+    val currentRiderIndex = when (statusUpper) {
+        "SELLER_ACCEPTED" -> 1
+        "IN_DELIVERY" -> 2
+        "SELLER_DELIVERED" -> 3
+        "BUYER_CONFIRMED_DELIVERED", "RELEASE_PENDING", "RELEASE_PROCESSING", "RELEASE_FAILED", "COMPLETED" -> 4
+        else -> 0
+    }
+
+    val isRiderFlowComplete = statusUpper in setOf(
+        "BUYER_CONFIRMED_DELIVERED",
+        "RELEASE_PENDING",
+        "RELEASE_PROCESSING",
+        "RELEASE_FAILED",
+        "COMPLETED"
+    )
+
+    val riderStatusSummary = when (statusUpper) {
+        "DISPUTED", "REFUND_PENDING", "REFUND_PROCESSING", "REFUNDED" -> "Delivery in Dispute/Refund"
+        "CANCELLED", "DECLINED", "EXPIRED" -> "Transaction Closed"
+        else -> riderFlow[currentRiderIndex]
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        Icons.Default.LocalShipping,
+                        contentDescription = null,
+                        tint = colorScheme.primary
+                    )
+                    Column {
+                        Text(
+                            "Rider Assignment",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colorScheme.onSurface
+                        )
+                        Text(
+                            riderStatusSummary,
+                            fontSize = 11.sp,
+                            color = colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    if (isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    tint = colorScheme.onSurfaceVariant
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = riderName,
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Phone,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = riderPhone,
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = isExpanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    riderFlow.forEachIndexed { index, step ->
+                        val isMet = if (isRiderFlowComplete) index <= currentRiderIndex else index < currentRiderIndex
+                        val isCurrent = !isRiderFlowComplete && index == currentRiderIndex
+                        val isPending = !isMet && !isCurrent
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        when {
+                                            isMet -> Color(0xFF10B981)
+                                            else -> colorScheme.primary.copy(alpha = 0.12f)
+                                        }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isMet) {
+                                    Icon(
+                                        Icons.Default.Check,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = Color.White
+                                    )
+                                } else {
+                                    Icon(
+                                        if (isCurrent) Icons.Default.Sync else Icons.Default.RadioButtonUnchecked,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(14.dp),
+                                        tint = colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = step,
+                                    fontSize = if (isCurrent) 13.sp else 12.sp,
+                                    fontWeight = if (isCurrent) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = when {
+                                        isMet -> Color(0xFF10B981)
+                                        isCurrent -> colorScheme.onSurface
+                                        else -> colorScheme.onSurfaceVariant
+                                    }
+                                )
+                                Text(
+                                    text = when {
+                                        isMet -> "Done"
+                                        isCurrent -> "In progress"
+                                        else -> "Awaiting"
+                                    },
+                                    fontSize = 10.sp,
+                                    color = when {
+                                        isMet -> Color(0xFF10B981)
+                                        else -> colorScheme.primary
+                                    },
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+
+                            if (isPending) {
+                                Icon(
+                                    Icons.Default.RadioButtonUnchecked,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = colorScheme.primary
                                 )
                             }
                         }
