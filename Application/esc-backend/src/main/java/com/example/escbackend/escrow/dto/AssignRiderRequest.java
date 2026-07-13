@@ -12,4 +12,6 @@ public class AssignRiderRequest {
 
     @NotNull(message = "riderId is required")
     private UUID riderId;
+
+    private String reassignmentReason;
 }

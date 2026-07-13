@@ -32,6 +32,12 @@ public class DeliveryAssignmentEntity {
     @Column(name = "assigned_by_user_id")
     private UUID assignedByUserId;
 
+    @Column(name = "previous_rider_user_id")
+    private UUID previousRiderUserId;
+
+    @Column(name = "reassignment_reason", length = 255)
+    private String reassignmentReason;
+
     @Column(name = "status", nullable = false, length = 30)
     private String status;
 
