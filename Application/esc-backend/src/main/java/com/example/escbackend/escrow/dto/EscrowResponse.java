@@ -19,6 +19,7 @@ public class EscrowResponse {
     private UUID buyerId;
     private UUID sellerId;
     private UUID riderId;
+    private UUID currentDeliveryAssignmentId;
     private String title;
     private String productDescription;
     private BigDecimal amount;
@@ -27,6 +28,8 @@ public class EscrowResponse {
     private String currency;
     private String status;
     private String riderAssignmentStatus;
+    private UUID riderPreviousRiderUserId;
+    private String riderReassignmentReason;
     private OffsetDateTime riderPickedUpAt;
     private OffsetDateTime riderArrivedAtBuyerAt;
     private OffsetDateTime riderDeliveredAt;

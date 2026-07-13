@@ -1,5 +1,6 @@
 package com.example.escbackend.escrow.service;
 
+import com.example.escbackend.audit.repository.AuditLogRepository;
 import com.example.escbackend.escrow.dto.EscrowResponse;
 import com.example.escbackend.escrow.entity.DeliveryAssignmentEntity;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
@@ -33,6 +34,9 @@ class EscrowServiceResponseMappingTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private AuditLogRepository auditLogRepository;
 
     @Mock
     private TransactionStatusHistoryService transactionStatusHistoryService;

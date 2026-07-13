@@ -3,6 +3,7 @@ package com.example.escbackend.escrow.controller;
 
 import com.example.escbackend.escrow.dto.AssignRiderRequest;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
+import com.example.escbackend.escrow.dto.DeliveryAssignmentHistoryResponse;
 import com.example.escbackend.escrow.dto.EscrowResponse;
 import com.example.escbackend.escrow.service.EscrowService;
 import jakarta.validation.Valid;
@@ -35,6 +36,14 @@ public class EscrowController {
     @GetMapping("/transactions/{id}")
     public EscrowResponse getById(@PathVariable UUID id){
         return escrowService.getById(id);
+    }
+
+    @GetMapping("/transactions/{id}/delivery-assignments")
+    public DeliveryAssignmentHistoryResponse getDeliveryAssignmentHistory(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId
+    ) {
+        return escrowService.getDeliveryAssignmentHistory(id, actorUserId);
     }
 
     @GetMapping("/transactions/seller/{sellerId}")
@@ -145,7 +154,7 @@ public class EscrowController {
         @RequestHeader("X-Actor-User-Id") UUID actorUserId,
         @Valid @RequestBody AssignRiderRequest request
     ) {
-        return escrowService.assignRider(id, request.getRiderId(), actorUserId);
+        return escrowService.assignRider(id, request.getRiderId(), request.getReassignmentReason(), actorUserId);
     }
 
     @PostMapping("/transactions/{id}/seller-confirm-delivery")
