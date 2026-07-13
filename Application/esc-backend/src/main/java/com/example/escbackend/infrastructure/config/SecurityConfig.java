@@ -47,8 +47,15 @@ public class SecurityConfig {
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
 
-        // Match your Angular local development origin
-        config.setAllowedOrigins(List.of("http://localhost:4200"));
+        // Allow local dev and ngrok tunnel origins used by Swagger UI / frontend.
+        config.setAllowedOriginPatterns(List.of(
+            "http://localhost:4200",
+            "http://localhost:8080",
+            "http://localhost:8081",
+            "https://localhost:4200",
+            "https://*.ngrok-free.dev",
+            "http://*.ngrok-free.dev"
+        ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 
         // Added "ngrok-skip-browser-warning" to allow the bypass header through
