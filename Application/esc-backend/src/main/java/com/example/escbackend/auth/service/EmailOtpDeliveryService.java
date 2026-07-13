@@ -96,4 +96,15 @@ public class EmailOtpDeliveryService implements OtpDeliveryService {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Failed to send admin approval email");
         }
     }
+
+    @Override
+    public void sendMarketplaceVerificationSuccessEmail(String email, String role) {
+        String normalizedRole = role == null ? "USER" : role.trim().toUpperCase();
+        sendMail(
+            email,
+            "EscrowX account verified",
+            "Your " + normalizedRole + " account has been successfully verified and activated."
+                + "\n\nYou can now log in and use EscrowX services."
+        );
+    }
 }
