@@ -1,9 +1,13 @@
 package com.example.escbackend.escrow.service;
 
+import com.example.escbackend.audit.entity.AuditLogEntity;
+import com.example.escbackend.audit.repository.AuditLogRepository;
 import com.example.escbackend.common.constants.DeliveryAssignmentStatus;
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
+import com.example.escbackend.escrow.dto.DeliveryAssignmentHistoryItemResponse;
+import com.example.escbackend.escrow.dto.DeliveryAssignmentHistoryResponse;
 import com.example.escbackend.escrow.dto.EscrowResponse;
 import com.example.escbackend.escrow.entity.DeliveryAssignmentEntity;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
@@ -26,6 +30,7 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -35,6 +40,7 @@ public class EscrowService {
     private final EscrowRepository escrowRepository;
     private final DeliveryAssignmentRepository deliveryAssignmentRepository;
     private final UserRepository userRepository;
+    private final AuditLogRepository auditLogRepository;
     private final TransactionStatusHistoryService transactionStatusHistoryService;
     private final AdminAuthorizationService adminAuthorizationService;
 
@@ -42,11 +48,13 @@ public class EscrowService {
             EscrowRepository escrowRepository,
             DeliveryAssignmentRepository deliveryAssignmentRepository,
             UserRepository userRepository,
+            AuditLogRepository auditLogRepository,
             TransactionStatusHistoryService transactionStatusHistoryService,
             AdminAuthorizationService adminAuthorizationService) {
         this.escrowRepository = escrowRepository;
         this.deliveryAssignmentRepository = deliveryAssignmentRepository;
         this.userRepository = userRepository;
+        this.auditLogRepository = auditLogRepository;
         this.transactionStatusHistoryService = transactionStatusHistoryService;
         this.adminAuthorizationService = adminAuthorizationService;
     }
@@ -122,7 +130,34 @@ public class EscrowService {
     }
 
     @Transactional
-    public EscrowResponse assignRider(UUID transactionId, UUID riderId, UUID actorUserId) {
+    public DeliveryAssignmentHistoryResponse getDeliveryAssignmentHistory(UUID transactionId, UUID actorUserId) {
+        EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertActorCanViewDeliveryAssignments(transaction, actorUserId);
+
+        List<DeliveryAssignmentEntity> assignments = deliveryAssignmentRepository
+            .findByTransactionIdOrderByCreatedAtDesc(transactionId);
+
+        UUID currentActiveAssignmentId = deliveryAssignmentRepository
+            .findTopByTransactionIdAndStatusInOrderByCreatedAtDesc(
+                transactionId,
+                getActiveAssignmentStatuses()
+            )
+            .map(DeliveryAssignmentEntity::getId)
+            .orElse(null);
+
+        List<DeliveryAssignmentHistoryItemResponse> history = assignments.stream()
+            .map(this::toDeliveryAssignmentHistoryItem)
+            .toList();
+
+        return DeliveryAssignmentHistoryResponse.builder()
+            .transactionId(transactionId)
+            .currentActiveAssignmentId(currentActiveAssignmentId)
+            .assignments(history)
+            .build();
+    }
+
+    @Transactional
+    public EscrowResponse assignRider(UUID transactionId, UUID riderId, String reassignmentReason, UUID actorUserId) {
         adminAuthorizationService.requireAdminOrSuperAdmin(actorUserId);
 
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
@@ -136,27 +171,48 @@ public class EscrowService {
         transaction.setRider(rider);
         EscrowTransaction saved = escrowRepository.save(transaction);
 
-        List<String> activeStatuses = DeliveryAssignmentStatus.valuesOf(
-            DeliveryAssignmentStatus.ASSIGNED,
-            DeliveryAssignmentStatus.ACCEPTED,
-            DeliveryAssignmentStatus.PICKED_UP,
-            DeliveryAssignmentStatus.IN_TRANSIT,
-            DeliveryAssignmentStatus.ARRIVED_AT_BUYER
-        );
+        List<String> activeStatuses = getActiveAssignmentStatuses();
         List<DeliveryAssignmentEntity> activeAssignments = deliveryAssignmentRepository
             .findByTransactionIdAndStatusIn(transactionId, activeStatuses);
+        UUID previousRiderUserId = transaction.getRider() != null ? transaction.getRider().getId() : null;
         for (DeliveryAssignmentEntity activeAssignment : activeAssignments) {
             activeAssignment.setStatus(DeliveryAssignmentStatus.CANCELLED.value());
             deliveryAssignmentRepository.save(activeAssignment);
+            saveDeliveryAssignmentAudit(
+                actorUserId,
+                "DELIVERY_ASSIGNMENT_CANCELLED",
+                activeAssignment.getId(),
+                Map.of(
+                    "transactionId", transactionId,
+                    "reason", "Reassigned to a different rider",
+                    "previousRiderUserId", String.valueOf(activeAssignment.getRiderUserId())
+                )
+            );
         }
 
         DeliveryAssignmentEntity assignment = new DeliveryAssignmentEntity();
         assignment.setTransactionId(transactionId);
         assignment.setRiderUserId(riderId);
         assignment.setAssignedByUserId(actorUserId);
+        assignment.setPreviousRiderUserId(previousRiderUserId);
+        assignment.setReassignmentReason(StringUtils.hasText(reassignmentReason)
+            ? reassignmentReason.trim()
+            : (previousRiderUserId == null ? "Initial rider assignment" : "Rider reassigned by admin"));
         assignment.setStatus(DeliveryAssignmentStatus.ASSIGNED.value());
         assignment.setDropoffAddress(saved.getDeliveryAddress());
-        deliveryAssignmentRepository.save(assignment);
+        DeliveryAssignmentEntity savedAssignment = deliveryAssignmentRepository.save(assignment);
+
+        saveDeliveryAssignmentAudit(
+            actorUserId,
+            "DELIVERY_ASSIGNMENT_CREATED",
+            savedAssignment.getId(),
+            Map.of(
+                "transactionId", transactionId,
+                "newRiderUserId", String.valueOf(riderId),
+                "previousRiderUserId", String.valueOf(previousRiderUserId),
+                "reason", savedAssignment.getReassignmentReason()
+            )
+        );
 
         return toResponse(saved);
     }
@@ -202,6 +258,13 @@ public class EscrowService {
         assignment.setStatus(DeliveryAssignmentStatus.ACCEPTED.value());
         deliveryAssignmentRepository.save(assignment);
 
+        saveDeliveryAssignmentAudit(
+            actorUserId,
+            "DELIVERY_ASSIGNMENT_ACCEPTED",
+            assignment.getId(),
+            Map.of("transactionId", transactionId)
+        );
+
         return toResponse(transaction);
     }
 
@@ -225,6 +288,13 @@ public class EscrowService {
         assignment.setPickedUpAt(OffsetDateTime.now());
         deliveryAssignmentRepository.save(assignment);
 
+        saveDeliveryAssignmentAudit(
+            actorUserId,
+            "DELIVERY_ASSIGNMENT_PICKED_UP",
+            assignment.getId(),
+            Map.of("transactionId", transactionId)
+        );
+
         if ("SELLER_ACCEPTED".equals(transaction.getStatus())) {
             return updateTransactionStatus(transaction, "IN_DELIVERY", actorUserId, "Rider picked up package");
         }
@@ -246,6 +316,13 @@ public class EscrowService {
         assignment.setStatus(DeliveryAssignmentStatus.IN_TRANSIT.value());
         deliveryAssignmentRepository.save(assignment);
 
+        saveDeliveryAssignmentAudit(
+            actorUserId,
+            "DELIVERY_ASSIGNMENT_IN_TRANSIT",
+            assignment.getId(),
+            Map.of("transactionId", transactionId)
+        );
+
         return toResponse(transaction);
     }
 
@@ -263,6 +340,13 @@ public class EscrowService {
         assignment.setStatus(DeliveryAssignmentStatus.ARRIVED_AT_BUYER.value());
         assignment.setArrivedAtBuyerAt(OffsetDateTime.now());
         deliveryAssignmentRepository.save(assignment);
+
+        saveDeliveryAssignmentAudit(
+            actorUserId,
+            "DELIVERY_ASSIGNMENT_ARRIVED_AT_BUYER",
+            assignment.getId(),
+            Map.of("transactionId", transactionId)
+        );
 
         return toResponse(transaction);
     }
@@ -283,6 +367,13 @@ public class EscrowService {
         assignment.setRiderMarkedDeliveredAt(now);
         assignment.setDeliveredAt(now);
         deliveryAssignmentRepository.save(assignment);
+
+        saveDeliveryAssignmentAudit(
+            actorUserId,
+            "DELIVERY_ASSIGNMENT_DELIVERED",
+            assignment.getId(),
+            Map.of("transactionId", transactionId)
+        );
 
         return toResponse(transaction);
     }
@@ -305,6 +396,13 @@ public class EscrowService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Rider must ACCEPT delivery before transaction can move to IN_DELIVERY");
         }
 
+        saveDeliveryAssignmentAudit(
+            actorUserId,
+            "DELIVERY_FLOW_MARKED_IN_DELIVERY",
+            assignment.getId(),
+            Map.of("transactionId", transactionId)
+        );
+
         return updateTransactionStatus(transaction, "IN_DELIVERY", actorUserId, "Seller marked in delivery");
     }
 
@@ -325,6 +423,13 @@ public class EscrowService {
 
             assignment.setSellerConfirmedDeliveredAt(OffsetDateTime.now());
             deliveryAssignmentRepository.save(assignment);
+
+            saveDeliveryAssignmentAudit(
+                actorUserId,
+                "DELIVERY_ASSIGNMENT_SELLER_CONFIRMED",
+                assignment.getId(),
+                Map.of("transactionId", transactionId)
+            );
         }
 
         return updateTransactionStatus(transaction, "SELLER_DELIVERED", actorUserId, "Seller confirmed delivery");
@@ -348,6 +453,13 @@ public class EscrowService {
                     }
                     assignment.setBuyerConfirmedDeliveredAt(OffsetDateTime.now());
                     deliveryAssignmentRepository.save(assignment);
+
+                    saveDeliveryAssignmentAudit(
+                        actorUserId,
+                        "DELIVERY_ASSIGNMENT_BUYER_CONFIRMED",
+                        assignment.getId(),
+                        Map.of("transactionId", transactionId)
+                    );
                 });
         }
 
@@ -447,6 +559,11 @@ public class EscrowService {
     private EscrowResponse toResponse(EscrowTransaction transaction) {
         Optional<DeliveryAssignmentEntity> latestAssignment = deliveryAssignmentRepository
             .findTopByTransactionIdOrderByCreatedAtDesc(transaction.getId());
+        Optional<DeliveryAssignmentEntity> activeAssignment = deliveryAssignmentRepository
+            .findTopByTransactionIdAndStatusInOrderByCreatedAtDesc(
+                transaction.getId(),
+                getActiveAssignmentStatuses()
+            );
 
         EscrowResponse.EscrowResponseBuilder builder = EscrowResponse.builder()
             .id(transaction.getId())
@@ -454,6 +571,7 @@ public class EscrowService {
             .buyerId(transaction.getBuyer().getId())
             .sellerId(transaction.getSeller().getId())
             .riderId(transaction.getRider() != null ? transaction.getRider().getId() : null)
+            .currentDeliveryAssignmentId(activeAssignment.map(DeliveryAssignmentEntity::getId).orElse(null))
             .title(transaction.getTitle())
             .productDescription(transaction.getProductDescription())
             .amount(transaction.getAmount())
@@ -468,6 +586,8 @@ public class EscrowService {
 
         latestAssignment.ifPresent(assignment -> builder
             .riderAssignmentStatus(assignment.getStatus())
+            .riderPreviousRiderUserId(assignment.getPreviousRiderUserId())
+            .riderReassignmentReason(assignment.getReassignmentReason())
             .riderPickedUpAt(assignment.getPickedUpAt())
             .riderArrivedAtBuyerAt(assignment.getArrivedAtBuyerAt())
             .riderDeliveredAt(assignment.getDeliveredAt())
@@ -536,6 +656,13 @@ public class EscrowService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "No rider has been assigned to this transaction");
         }
 
+        UserEntity actor = userRepository.findById(actorUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Actor user not found"));
+
+        if (actor.getRole() != UserRole.RIDER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only a RIDER can perform rider delivery actions");
+        }
+
         if (!transaction.getRider().getId().equals(actorUserId)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only the assigned rider can perform this action");
         }
@@ -550,6 +677,62 @@ public class EscrowService {
         }
 
         return assignment;
+    }
+
+    private DeliveryAssignmentHistoryItemResponse toDeliveryAssignmentHistoryItem(DeliveryAssignmentEntity assignment) {
+        return DeliveryAssignmentHistoryItemResponse.builder()
+            .id(assignment.getId())
+            .riderUserId(assignment.getRiderUserId())
+            .previousRiderUserId(assignment.getPreviousRiderUserId())
+            .assignedByUserId(assignment.getAssignedByUserId())
+            .status(assignment.getStatus())
+            .reassignmentReason(assignment.getReassignmentReason())
+            .pickedUpAt(assignment.getPickedUpAt())
+            .arrivedAtBuyerAt(assignment.getArrivedAtBuyerAt())
+            .deliveredAt(assignment.getDeliveredAt())
+            .riderMarkedDeliveredAt(assignment.getRiderMarkedDeliveredAt())
+            .sellerConfirmedDeliveredAt(assignment.getSellerConfirmedDeliveredAt())
+            .buyerConfirmedDeliveredAt(assignment.getBuyerConfirmedDeliveredAt())
+            .createdAt(assignment.getCreatedAt())
+            .updatedAt(assignment.getUpdatedAt())
+            .build();
+    }
+
+    private void assertActorCanViewDeliveryAssignments(EscrowTransaction transaction, UUID actorUserId) {
+        if (transaction.getBuyer().getId().equals(actorUserId) || transaction.getSeller().getId().equals(actorUserId)) {
+            return;
+        }
+
+        if (transaction.getRider() != null && transaction.getRider().getId().equals(actorUserId)) {
+            return;
+        }
+
+        UserEntity actor = userRepository.findById(actorUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Actor user not found"));
+
+        if (actor.getRole() != UserRole.ADMIN && actor.getRole() != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Not allowed to view delivery assignment history for this transaction");
+        }
+    }
+
+    private void saveDeliveryAssignmentAudit(UUID actorUserId, String action, UUID assignmentId, Map<String, Object> metadata) {
+        AuditLogEntity log = new AuditLogEntity();
+        log.setActorUserId(actorUserId);
+        log.setAction(action);
+        log.setEntityType("delivery_assignments");
+        log.setEntityId(assignmentId);
+        log.setMetadata(metadata);
+        auditLogRepository.save(log);
+    }
+
+    private List<String> getActiveAssignmentStatuses() {
+        return DeliveryAssignmentStatus.valuesOf(
+            DeliveryAssignmentStatus.ASSIGNED,
+            DeliveryAssignmentStatus.ACCEPTED,
+            DeliveryAssignmentStatus.PICKED_UP,
+            DeliveryAssignmentStatus.IN_TRANSIT,
+            DeliveryAssignmentStatus.ARRIVED_AT_BUYER
+        );
     }
 
     private boolean isAssignmentStatus(DeliveryAssignmentEntity assignment, DeliveryAssignmentStatus status) {
