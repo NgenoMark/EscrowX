@@ -403,6 +403,7 @@ private fun RiderAssignmentDetailsScreen(
                             nextAction = nextRiderAction,
                             isActionLoading = isActionLoading,
                             actionMessage = actionMessage,
+                            riderAssignmentStatus = riderAssignmentStatus,
                             onAcceptDelivery = {
                                 runRiderAction(
                                     successMessage = "✅ Delivery accepted",
@@ -854,6 +855,7 @@ fun RiderActionCardEnhanced(
     nextAction: RiderNextAction,
     isActionLoading: Boolean,
     actionMessage: String?,
+    riderAssignmentStatus: String?,
     onAcceptDelivery: () -> Unit,
     onPickup: () -> Unit,
     onStartTransit: () -> Unit,
@@ -936,6 +938,7 @@ fun RiderActionCardEnhanced(
                 ) {
                     val effectiveNextAction = when {
                         nextAction != RiderNextAction.NONE -> nextAction
+                        riderAssignmentStatus != null -> RiderNextAction.NONE
                         normalizedStatus == "SELLER_ACCEPTED" && !hasAcceptedDelivery -> RiderNextAction.ACCEPT
                         normalizedStatus == "SELLER_ACCEPTED" && hasAcceptedDelivery -> RiderNextAction.PICKUP
                         else -> RiderNextAction.NONE
@@ -993,8 +996,13 @@ fun RiderActionCardEnhanced(
                         )
 
                         RiderNextAction.NONE -> {
+                            val staleStatusMessage = if (riderAssignmentStatus.isNullOrBlank()) {
+                                "No rider assignment status found. Pull to refresh and retry."
+                            } else {
+                                "No next rider action available"
+                            }
                             Text(
-                                "No next rider action available",
+                                staleStatusMessage,
                                 fontSize = 12.sp,
                                 color = colorScheme.onSurfaceVariant
                             )
@@ -1113,6 +1121,10 @@ internal fun deriveNextRiderAction(
     hasAcceptedDelivery: Boolean,
     riderAssignmentStatus: String?
 ): RiderNextAction {
+    if (riderAssignmentStatus.isNullOrBlank()) {
+        return RiderNextAction.NONE
+    }
+
     return when (riderAssignmentStatus?.trim()?.uppercase(Locale.ROOT)) {
         "ASSIGNED" -> if (hasAcceptedDelivery) RiderNextAction.PICKUP else RiderNextAction.ACCEPT
         "ACCEPTED" -> RiderNextAction.PICKUP
@@ -1120,11 +1132,7 @@ internal fun deriveNextRiderAction(
         "IN_TRANSIT" -> RiderNextAction.ARRIVED
         "ARRIVED_AT_BUYER" -> RiderNextAction.DELIVERED
         "DELIVERED_TO_BUYER", "FAILED", "CANCELLED" -> RiderNextAction.NONE
-        else -> when (status.trim().uppercase(Locale.ROOT)) {
-            "SELLER_ACCEPTED" -> if (hasAcceptedDelivery) RiderNextAction.PICKUP else RiderNextAction.ACCEPT
-            "IN_DELIVERY" -> RiderNextAction.PICKUP
-            else -> RiderNextAction.NONE
-        }
+        else -> RiderNextAction.NONE
     }
 }
 

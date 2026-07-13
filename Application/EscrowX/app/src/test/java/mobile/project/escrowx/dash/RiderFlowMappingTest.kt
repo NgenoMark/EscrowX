@@ -8,6 +8,18 @@ import org.junit.Test
 class RiderFlowMappingTest {
 
     @Test
+    fun deriveNextRiderAction_returnsNone_whenAssignmentStatusMissing() {
+        assertEquals(
+            RiderNextAction.NONE,
+            deriveNextRiderAction(
+                status = "IN_DELIVERY",
+                hasAcceptedDelivery = true,
+                riderAssignmentStatus = null
+            )
+        )
+    }
+
+    @Test
     fun deriveNextRiderAction_usesAssignmentStatus_progressesSequentially() {
         assertEquals(
             RiderNextAction.START_TRANSIT,

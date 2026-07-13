@@ -127,6 +127,12 @@ interface AuthApiService {
     @GET("api/v1/transactions/{id}")
     suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
 
+    @GET("api/v1/transactions/{id}/delivery-assignments")
+    suspend fun getDeliveryAssignmentHistory(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<DeliveryAssignmentHistoryResponse>
+
     @POST("api/v1/transactions/{id}/decline-transaction")
     suspend fun declineTransaction(
         @Path("id") id: String,
@@ -385,6 +391,7 @@ data class EscrowResponse(
     val buyerId: String,
     val sellerId: String,
     val riderId: String? = null,
+    val currentDeliveryAssignmentId: String? = null,
     val title: String,
     val productDescription: String,
     val amount: Double,
@@ -393,6 +400,8 @@ data class EscrowResponse(
     val currency: String?,
     val status: String,
     val riderAssignmentStatus: String? = null,
+    val riderPreviousRiderUserId: String? = null,
+    val riderReassignmentReason: String? = null,
     val riderPickedUpAt: String? = null,
     val riderArrivedAtBuyerAt: String? = null,
     val riderDeliveredAt: String? = null,
@@ -401,6 +410,29 @@ data class EscrowResponse(
     val riderBuyerConfirmedDeliveredAt: String? = null,
     val deliveryDueAt: String,
     val autoReleaseAt: String?,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+data class DeliveryAssignmentHistoryResponse(
+    val transactionId: String,
+    val currentActiveAssignmentId: String? = null,
+    val assignments: List<DeliveryAssignmentHistoryItemResponse> = emptyList()
+)
+
+data class DeliveryAssignmentHistoryItemResponse(
+    val id: String,
+    val riderUserId: String,
+    val previousRiderUserId: String? = null,
+    val assignedByUserId: String? = null,
+    val status: String,
+    val reassignmentReason: String? = null,
+    val pickedUpAt: String? = null,
+    val arrivedAtBuyerAt: String? = null,
+    val deliveredAt: String? = null,
+    val riderMarkedDeliveredAt: String? = null,
+    val sellerConfirmedDeliveredAt: String? = null,
+    val buyerConfirmedDeliveredAt: String? = null,
     val createdAt: String,
     val updatedAt: String
 )
