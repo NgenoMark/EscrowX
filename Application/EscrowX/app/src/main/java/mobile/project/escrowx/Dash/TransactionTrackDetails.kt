@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.DeliveryAssignmentHistoryItemResponse
 import mobile.project.escrowx.DisputeDetailsResponse
 import mobile.project.escrowx.InitiateStkPushRequest
 import mobile.project.escrowx.RetrofitClient
@@ -115,11 +116,17 @@ fun BuyerTransactionDetailScreen(
     var displayOrderId by remember { mutableStateOf(orderId) }
     var displayDeliveryDate by remember { mutableStateOf(deliveryDate) }
     var displayShippingAddress by remember { mutableStateOf(shippingAddress) }
+    var displaySellerName by remember { mutableStateOf(sellerName) }
+    var displaySellerPhone by remember { mutableStateOf("-") }
     var isUpdating by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var riderDisplayName by remember { mutableStateOf("Not assigned") }
     var riderPhone by remember { mutableStateOf("-") }
     var riderAssignmentStatus by remember { mutableStateOf<String?>(null) }
+    var assignmentHistory by remember { mutableStateOf<List<DeliveryAssignmentHistoryItemResponse>>(emptyList()) }
+    var currentActiveAssignmentId by remember { mutableStateOf<String?>(null) }
+    var riderNameMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var riderPhoneMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var showPayDialog by remember { mutableStateOf(false) }
     var phoneLocalPart by remember { mutableStateOf("") }
     var isPollingPayment by remember { mutableStateOf(false) }
@@ -317,6 +324,18 @@ fun BuyerTransactionDetailScreen(
                 displayDeliveryDate = txn.deliveryDueAt.takeIf { it.isNotBlank() }?.take(10) ?: displayDeliveryDate
                 displayOrderId = txn.reference ?: displayOrderId
 
+                if (!txn.sellerId.isNullOrBlank()) {
+                    runCatching { api.getUserById(txn.sellerId) }
+                        .onSuccess { sellerResp ->
+                            if (sellerResp.isSuccessful && sellerResp.body() != null) {
+                                val seller = sellerResp.body()!!
+                                displaySellerName = seller.displayName?.takeIf { it.isNotBlank() }
+                                    ?: seller.email.substringBefore("@")
+                                displaySellerPhone = seller.phone.ifBlank { "-" }
+                            }
+                        }
+                }
+
                 if (!txn.riderId.isNullOrBlank()) {
                     try {
                         val riderResp = api.getUserById(txn.riderId)
@@ -339,6 +358,41 @@ fun BuyerTransactionDetailScreen(
                 }
 
                 riderAssignmentStatus = txn.riderAssignmentStatus
+
+                if (!buyerId.isNullOrBlank()) {
+                    runCatching { api.getDeliveryAssignmentHistory(transactionId, buyerId) }
+                        .onSuccess { historyResp ->
+                            if (historyResp.isSuccessful && historyResp.body() != null) {
+                                val history = historyResp.body()!!
+                                assignmentHistory = history.assignments
+                                currentActiveAssignmentId = history.currentActiveAssignmentId
+
+                                val riderIds = history.assignments
+                                    .flatMap { listOfNotNull(it.riderUserId, it.previousRiderUserId) }
+                                    .toSet()
+                                if (riderIds.isNotEmpty()) {
+                                    val names = mutableMapOf<String, String>()
+                                    val phones = mutableMapOf<String, String>()
+                                    riderIds.forEach { riderId ->
+                                        runCatching { api.getUserById(riderId) }
+                                            .onSuccess { riderResp ->
+                                                if (riderResp.isSuccessful && riderResp.body() != null) {
+                                                    val rider = riderResp.body()!!
+                                                    names[riderId] = rider.displayName?.takeIf { it.isNotBlank() }
+                                                        ?: rider.email.substringBefore("@")
+                                                    phones[riderId] = rider.phone.ifBlank { "-" }
+                                                }
+                                            }
+                                    }
+                                    riderNameMap = names
+                                    riderPhoneMap = phones
+                                } else {
+                                    riderNameMap = emptyMap()
+                                    riderPhoneMap = emptyMap()
+                                }
+                            }
+                        }
+                }
 
                 if (!buyerId.isNullOrBlank()) {
                     val disputeResp = api.getDisputeByTransactionId(buyerId, transactionId)
@@ -581,10 +635,19 @@ fun BuyerTransactionDetailScreen(
                 ItemDetailsCard(
                     productName = displayProductName,
                     productDescription = displayProductDescription,
-                    sellerName = sellerName,
+                    sellerName = displaySellerName,
                     amount = formattedAmount,
                     shippingAddress = displayShippingAddress,
                     deliveryDate = displayDeliveryDate,
+                    colorScheme = colorScheme
+                )
+            }
+
+            // ===== SELLER INFORMATION CARD =====
+            item {
+                SellerInfoCard(
+                    sellerName = displaySellerName,
+                    sellerPhone = displaySellerPhone,
                     colorScheme = colorScheme
                 )
             }
@@ -613,6 +676,10 @@ fun BuyerTransactionDetailScreen(
                     riderName = riderDisplayName,
                     riderPhone = riderPhone,
                     riderAssignmentStatus = riderAssignmentStatus,
+                    assignmentHistory = assignmentHistory,
+                    currentActiveAssignmentId = currentActiveAssignmentId,
+                    riderNameMap = riderNameMap,
+                    riderPhoneMap = riderPhoneMap,
                     colorScheme = colorScheme
                 )
             }
@@ -893,6 +960,49 @@ fun ItemDetailsCard(
                 icon = Icons.Default.CalendarToday,
                 label = "Delivery Date",
                 value = deliveryDate,
+                colorScheme = colorScheme
+            )
+        }
+    }
+}
+
+@Composable
+fun SellerInfoCard(
+    sellerName: String,
+    sellerPhone: String,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                "Seller Information",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colorScheme.onSurface
+            )
+
+            DetailRow(
+                icon = Icons.Default.Store,
+                label = "Seller Name",
+                value = sellerName,
+                colorScheme = colorScheme
+            )
+
+            DetailRow(
+                icon = Icons.Default.Phone,
+                label = "Seller Phone",
+                value = sellerPhone,
                 colorScheme = colorScheme
             )
         }
@@ -1305,6 +1415,10 @@ fun RiderStatusCard(
     riderName: String,
     riderPhone: String,
     riderAssignmentStatus: String?,
+    assignmentHistory: List<DeliveryAssignmentHistoryItemResponse>,
+    currentActiveAssignmentId: String?,
+    riderNameMap: Map<String, String>,
+    riderPhoneMap: Map<String, String>,
     colorScheme: ColorScheme
 ) {
     SharedRiderAssignmentStatusCard(
@@ -1312,6 +1426,10 @@ fun RiderStatusCard(
         riderName = riderName,
         riderPhone = riderPhone,
         riderAssignmentStatus = riderAssignmentStatus,
+        assignmentHistory = assignmentHistory,
+        currentActiveAssignmentId = currentActiveAssignmentId,
+        riderNameMap = riderNameMap,
+        riderPhoneMap = riderPhoneMap,
         colorScheme = colorScheme
     )
 }
