@@ -1,5 +1,6 @@
 package mobile.project.escrowx.ui.components
 
+import mobile.project.escrowx.DeliveryAssignmentHistoryItemResponse
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -14,9 +15,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -29,6 +33,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -42,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.time.OffsetDateTime
 import java.util.Locale
 
 internal data class RiderProgressState(
@@ -103,6 +109,10 @@ fun RiderAssignmentStatusCard(
     riderName: String,
     riderPhone: String,
     riderAssignmentStatus: String?,
+    assignmentHistory: List<DeliveryAssignmentHistoryItemResponse> = emptyList(),
+    currentActiveAssignmentId: String? = null,
+    riderNameMap: Map<String, String> = emptyMap(),
+    riderPhoneMap: Map<String, String> = emptyMap(),
     colorScheme: ColorScheme,
     accentColor: Color = colorScheme.primary
 ) {
@@ -117,6 +127,15 @@ fun RiderAssignmentStatusCard(
     )
 
     val progressState = deriveRiderProgressState(statusUpper, riderAssignmentStatus)
+    val activeAssignment = remember(assignmentHistory, currentActiveAssignmentId) {
+        resolveCurrentAssignment(assignmentHistory, currentActiveAssignmentId)
+    }
+    val previousAssignments = remember(assignmentHistory, activeAssignment) {
+        assignmentHistory.filter { it.id != activeAssignment?.id }
+    }
+    val statusFailure = remember(activeAssignment?.status) {
+        activeAssignment?.status?.trim()?.uppercase(Locale.ROOT) in setOf("FAILED", "CANCELLED")
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -216,6 +235,29 @@ fun RiderAssignmentStatusCard(
                 }
             }
 
+            RiderAssignmentPeopleSection(
+                currentAssignment = activeAssignment,
+                previousAssignments = previousAssignments,
+                riderNameMap = riderNameMap,
+                riderPhoneMap = riderPhoneMap,
+                colorScheme = colorScheme
+            )
+
+            if (activeAssignment != null && !isExpanded) {
+                AssignmentEventChips(
+                    events = deriveAssignmentEvents(activeAssignment),
+                    colorScheme = colorScheme,
+                    accentColor = accentColor
+                )
+            }
+
+            if (statusFailure) {
+                RetryPathHint(
+                    statusLabel = activeAssignment?.status.orEmpty(),
+                    colorScheme = colorScheme
+                )
+            }
+
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically() + fadeIn(),
@@ -224,6 +266,12 @@ fun RiderAssignmentStatusCard(
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Text(
+                        text = "Detailed Progress",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colorScheme.onSurfaceVariant
+                    )
                     riderFlow.forEachIndexed { index, step ->
                         val isMet = if (progressState.isRiderFlowComplete) {
                             index <= progressState.currentRiderIndex
@@ -295,5 +343,236 @@ fun RiderAssignmentStatusCard(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun RiderAssignmentPeopleSection(
+    currentAssignment: DeliveryAssignmentHistoryItemResponse?,
+    previousAssignments: List<DeliveryAssignmentHistoryItemResponse>,
+    riderNameMap: Map<String, String>,
+    riderPhoneMap: Map<String, String>,
+    colorScheme: ColorScheme
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "Current Rider",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorScheme.onSurfaceVariant
+        )
+        val currentRiderId = currentAssignment?.riderUserId
+        Text(
+            text = if (currentRiderId.isNullOrBlank()) "Not assigned" else riderNameMap[currentRiderId] ?: currentRiderId.take(8),
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorScheme.onSurface
+        )
+        Text(
+            text = if (currentRiderId.isNullOrBlank()) "-" else riderPhoneMap[currentRiderId] ?: "-",
+            fontSize = 12.sp,
+            color = colorScheme.onSurfaceVariant
+        )
+
+        Text(
+            text = "Previous Riders",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
+
+        if (previousAssignments.isEmpty()) {
+            Text(
+                text = "No previous riders",
+                fontSize = 12.sp,
+                color = colorScheme.onSurfaceVariant
+            )
+        } else {
+            previousAssignments.take(3).forEach { item ->
+                val previousId = item.riderUserId
+                val name = riderNameMap[previousId] ?: previousId.take(8)
+                val status = prettifyAssignmentStatus(item.status)
+                Text(
+                    text = "- $name ($status)",
+                    fontSize = 12.sp,
+                    color = colorScheme.onSurface
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AssignmentEventChips(
+    events: List<String>,
+    colorScheme: ColorScheme,
+    accentColor: Color
+) {
+    if (events.isEmpty()) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = "Assignment Events",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colorScheme.onSurfaceVariant
+        )
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(events) { event ->
+                val style = eventChipStyle(event, accentColor)
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = style.background,
+                    border = BorderStroke(1.dp, style.border)
+                ) {
+                    Text(
+                        text = event,
+                        fontSize = 11.sp,
+                        color = style.text,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RetryPathHint(
+    statusLabel: String,
+    colorScheme: ColorScheme
+) {
+    Surface(
+        shape = RoundedCornerShape(10.dp),
+        color = Color(0xFFDC2626).copy(alpha = 0.10f),
+        border = BorderStroke(1.dp, Color(0xFFDC2626).copy(alpha = 0.25f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.ErrorOutline,
+                contentDescription = null,
+                tint = Color(0xFFDC2626),
+                modifier = Modifier.size(16.dp)
+            )
+            Column {
+                Text(
+                    text = "Assignment ${prettifyAssignmentStatus(statusLabel)}",
+                    fontSize = 12.sp,
+                    color = Color(0xFFDC2626),
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Awaiting retry/reassignment by admin.",
+                    fontSize = 11.sp,
+                    color = colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+private fun resolveCurrentAssignment(
+    assignments: List<DeliveryAssignmentHistoryItemResponse>,
+    currentActiveAssignmentId: String?
+): DeliveryAssignmentHistoryItemResponse? {
+    if (assignments.isEmpty()) return null
+    currentActiveAssignmentId?.let { activeId ->
+        assignments.firstOrNull { it.id == activeId }?.let { return it }
+    }
+    return assignments.maxByOrNull { item ->
+        runCatching { OffsetDateTime.parse(item.updatedAt).toInstant().toEpochMilli() }
+            .getOrDefault(0L)
+    }
+}
+
+private fun deriveAssignmentEvents(item: DeliveryAssignmentHistoryItemResponse): List<String> {
+    val status = item.status.trim().uppercase(Locale.ROOT)
+    val events = linkedSetOf<String>()
+    events.add("Assigned")
+    if (!item.previousRiderUserId.isNullOrBlank() || !item.reassignmentReason.isNullOrBlank()) {
+        events.add("Reassigned")
+    }
+    when (status) {
+        "ACCEPTED" -> events.add("Accepted")
+        "PICKED_UP" -> {
+            events.add("Accepted")
+            events.add("Picked Up")
+        }
+        "IN_TRANSIT" -> {
+            events.add("Accepted")
+            events.add("Picked Up")
+            events.add("In Transit")
+        }
+        "ARRIVED_AT_BUYER" -> {
+            events.add("Accepted")
+            events.add("Picked Up")
+            events.add("In Transit")
+            events.add("Arrived")
+        }
+        "DELIVERED_TO_BUYER" -> {
+            events.add("Accepted")
+            events.add("Picked Up")
+            events.add("In Transit")
+            events.add("Delivered")
+        }
+        "SELLER_CONFIRMED_DELIVERED" -> {
+            events.add("Accepted")
+            events.add("Delivered")
+            events.add("Seller Confirmed")
+        }
+        "BUYER_CONFIRMED_DELIVERED" -> {
+            events.add("Accepted")
+            events.add("Delivered")
+            events.add("Buyer Confirmed")
+        }
+        "FAILED" -> events.add("Failed")
+        "CANCELLED" -> events.add("Cancelled")
+    }
+    return events.toList()
+}
+
+private fun prettifyAssignmentStatus(raw: String?): String {
+    if (raw.isNullOrBlank()) return "Unknown"
+    return raw.trim()
+        .lowercase(Locale.ROOT)
+        .split('_')
+        .joinToString(" ") { token -> token.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() } }
+}
+
+private data class EventChipStyle(
+    val background: Color,
+    val border: Color,
+    val text: Color
+)
+
+private fun eventChipStyle(event: String, accentColor: Color): EventChipStyle {
+    return when (event.trim().uppercase(Locale.ROOT)) {
+        "FAILED", "CANCELLED" -> EventChipStyle(
+            background = Color(0xFFDC2626).copy(alpha = 0.12f),
+            border = Color(0xFFDC2626).copy(alpha = 0.30f),
+            text = Color(0xFFB91C1C)
+        )
+        "REASSIGNED" -> EventChipStyle(
+            background = Color(0xFFF59E0B).copy(alpha = 0.14f),
+            border = Color(0xFFF59E0B).copy(alpha = 0.32f),
+            text = Color(0xFFB45309)
+        )
+        "ASSIGNED", "ACCEPTED", "PICKED UP", "IN TRANSIT", "ARRIVED", "DELIVERED", "SELLER CONFIRMED", "BUYER CONFIRMED" -> EventChipStyle(
+            background = Color(0xFF10B981).copy(alpha = 0.12f),
+            border = Color(0xFF10B981).copy(alpha = 0.28f),
+            text = Color(0xFF047857)
+        )
+        else -> EventChipStyle(
+            background = accentColor.copy(alpha = 0.12f),
+            border = accentColor.copy(alpha = 0.25f),
+            text = accentColor
+        )
     }
 }
