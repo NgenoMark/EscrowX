@@ -13,6 +13,7 @@ import com.example.escbackend.escrow.entity.DeliveryAssignmentEntity;
 import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.repository.DeliveryAssignmentRepository;
 import com.example.escbackend.escrow.repository.EscrowRepository;
+import com.example.escbackend.notification.service.TransactionNotificationService;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.UserRepository;
 import com.example.escbackend.user.service.AdminAuthorizationService;
@@ -28,6 +29,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -43,6 +45,7 @@ public class EscrowService {
     private final AuditLogRepository auditLogRepository;
     private final TransactionStatusHistoryService transactionStatusHistoryService;
     private final AdminAuthorizationService adminAuthorizationService;
+    private final TransactionNotificationService transactionNotificationService;
 
     public EscrowService(
             EscrowRepository escrowRepository,
@@ -50,13 +53,15 @@ public class EscrowService {
             UserRepository userRepository,
             AuditLogRepository auditLogRepository,
             TransactionStatusHistoryService transactionStatusHistoryService,
-            AdminAuthorizationService adminAuthorizationService) {
+            AdminAuthorizationService adminAuthorizationService,
+            TransactionNotificationService transactionNotificationService) {
         this.escrowRepository = escrowRepository;
         this.deliveryAssignmentRepository = deliveryAssignmentRepository;
         this.userRepository = userRepository;
         this.auditLogRepository = auditLogRepository;
         this.transactionStatusHistoryService = transactionStatusHistoryService;
         this.adminAuthorizationService = adminAuthorizationService;
+        this.transactionNotificationService = transactionNotificationService;
     }
 
     @Transactional
@@ -161,6 +166,7 @@ public class EscrowService {
         adminAuthorizationService.requireAdminOrSuperAdmin(actorUserId);
 
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        UUID previousRiderUserId = transaction.getRider() != null ? transaction.getRider().getId() : null;
         UserEntity rider = userRepository.findById(riderId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Rider not found"));
 
@@ -174,7 +180,6 @@ public class EscrowService {
         List<String> activeStatuses = getActiveAssignmentStatuses();
         List<DeliveryAssignmentEntity> activeAssignments = deliveryAssignmentRepository
             .findByTransactionIdAndStatusIn(transactionId, activeStatuses);
-        UUID previousRiderUserId = transaction.getRider() != null ? transaction.getRider().getId() : null;
         for (DeliveryAssignmentEntity activeAssignment : activeAssignments) {
             activeAssignment.setStatus(DeliveryAssignmentStatus.CANCELLED.value());
             deliveryAssignmentRepository.save(activeAssignment);
@@ -187,6 +192,16 @@ public class EscrowService {
                     "reason", "Reassigned to a different rider",
                     "previousRiderUserId", String.valueOf(activeAssignment.getRiderUserId())
                 )
+            );
+
+            notifyDeliveryMilestone(
+                saved,
+                "RIDER_ASSIGNMENT_CANCELLED",
+                "Delivery assignment cancelled",
+                "Your assignment for " + saved.getReference() + " was cancelled due to reassignment.",
+                activeAssignment.getRiderUserId(),
+                actorUserId,
+                DeliveryAssignmentStatus.CANCELLED.value()
             );
         }
 
@@ -213,6 +228,56 @@ public class EscrowService {
                 "reason", savedAssignment.getReassignmentReason()
             )
         );
+
+        String assignmentBody = previousRiderUserId == null
+            ? "You have been assigned delivery for transaction " + saved.getReference() + "."
+            : "You have been reassigned delivery for transaction " + saved.getReference() + ".";
+        notifyDeliveryMilestone(
+            saved,
+            previousRiderUserId == null ? "RIDER_ASSIGNED" : "RIDER_REASSIGNED",
+            previousRiderUserId == null ? "New delivery assignment" : "Delivery reassigned to you",
+            assignmentBody,
+            riderId,
+            actorUserId,
+            DeliveryAssignmentStatus.ASSIGNED.value()
+        );
+
+        String buyerSellerTitle = previousRiderUserId == null ? "Rider assigned" : "Rider reassigned";
+        String buyerSellerBody = previousRiderUserId == null
+            ? "A rider has been assigned for transaction " + saved.getReference() + "."
+            : "Your transaction " + saved.getReference() + " has been reassigned to a different rider.";
+        notifyDeliveryMilestone(
+            saved,
+            previousRiderUserId == null ? "RIDER_ASSIGNED" : "RIDER_REASSIGNED",
+            buyerSellerTitle,
+            buyerSellerBody,
+            saved.getBuyer().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.ASSIGNED.value()
+        );
+        notifyDeliveryMilestone(
+            saved,
+            previousRiderUserId == null ? "RIDER_ASSIGNED" : "RIDER_REASSIGNED",
+            buyerSellerTitle,
+            buyerSellerBody,
+            saved.getSeller().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.ASSIGNED.value()
+        );
+
+        if (!actorUserId.equals(saved.getBuyer().getId())
+            && !actorUserId.equals(saved.getSeller().getId())
+            && !actorUserId.equals(riderId)) {
+            notifyDeliveryMilestone(
+                saved,
+                previousRiderUserId == null ? "RIDER_ASSIGNED" : "RIDER_REASSIGNED",
+                previousRiderUserId == null ? "Rider assignment recorded" : "Rider reassignment recorded",
+                "You updated rider assignment for transaction " + saved.getReference() + ".",
+                actorUserId,
+                actorUserId,
+                DeliveryAssignmentStatus.ASSIGNED.value()
+            );
+        }
 
         return toResponse(saved);
     }
@@ -265,6 +330,34 @@ public class EscrowService {
             Map.of("transactionId", transactionId)
         );
 
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_ACCEPTED",
+            "Rider accepted delivery",
+            "Rider accepted delivery for transaction " + transaction.getReference() + ".",
+            transaction.getBuyer().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.ACCEPTED.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_ACCEPTED",
+            "Rider accepted delivery",
+            "Rider accepted delivery for transaction " + transaction.getReference() + ".",
+            transaction.getSeller().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.ACCEPTED.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_ACCEPTED",
+            "Delivery accepted",
+            "You accepted delivery for transaction " + transaction.getReference() + ".",
+            actorUserId,
+            actorUserId,
+            DeliveryAssignmentStatus.ACCEPTED.value()
+        );
+
         return toResponse(transaction);
     }
 
@@ -295,6 +388,34 @@ public class EscrowService {
             Map.of("transactionId", transactionId)
         );
 
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_PICKED_UP",
+            "Package picked up",
+            "Rider picked up package for transaction " + transaction.getReference() + ".",
+            transaction.getBuyer().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.PICKED_UP.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_PICKED_UP",
+            "Package picked up",
+            "Rider picked up package for transaction " + transaction.getReference() + ".",
+            transaction.getSeller().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.PICKED_UP.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_PICKED_UP",
+            "Pickup confirmed",
+            "You picked up package for transaction " + transaction.getReference() + ".",
+            actorUserId,
+            actorUserId,
+            DeliveryAssignmentStatus.PICKED_UP.value()
+        );
+
         if ("SELLER_ACCEPTED".equals(transaction.getStatus())) {
             return updateTransactionStatus(transaction, "IN_DELIVERY", actorUserId, "Rider picked up package");
         }
@@ -323,6 +444,34 @@ public class EscrowService {
             Map.of("transactionId", transactionId)
         );
 
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_IN_TRANSIT",
+            "Package in transit",
+            "Rider is in transit for transaction " + transaction.getReference() + ".",
+            transaction.getBuyer().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.IN_TRANSIT.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_IN_TRANSIT",
+            "Package in transit",
+            "Rider is in transit for transaction " + transaction.getReference() + ".",
+            transaction.getSeller().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.IN_TRANSIT.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_IN_TRANSIT",
+            "Transit started",
+            "You started transit for transaction " + transaction.getReference() + ".",
+            actorUserId,
+            actorUserId,
+            DeliveryAssignmentStatus.IN_TRANSIT.value()
+        );
+
         return toResponse(transaction);
     }
 
@@ -346,6 +495,34 @@ public class EscrowService {
             "DELIVERY_ASSIGNMENT_ARRIVED_AT_BUYER",
             assignment.getId(),
             Map.of("transactionId", transactionId)
+        );
+
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_ARRIVED_AT_BUYER",
+            "Rider arrived",
+            "Rider arrived at buyer location for transaction " + transaction.getReference() + ".",
+            transaction.getBuyer().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.ARRIVED_AT_BUYER.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_ARRIVED_AT_BUYER",
+            "Rider arrived",
+            "Rider arrived at buyer location for transaction " + transaction.getReference() + ".",
+            transaction.getSeller().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.ARRIVED_AT_BUYER.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_ARRIVED_AT_BUYER",
+            "Arrival confirmed",
+            "You arrived at buyer location for transaction " + transaction.getReference() + ".",
+            actorUserId,
+            actorUserId,
+            DeliveryAssignmentStatus.ARRIVED_AT_BUYER.value()
         );
 
         return toResponse(transaction);
@@ -373,6 +550,34 @@ public class EscrowService {
             "DELIVERY_ASSIGNMENT_DELIVERED",
             assignment.getId(),
             Map.of("transactionId", transactionId)
+        );
+
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_DELIVERED",
+            "Package delivered",
+            "Rider marked package delivered for transaction " + transaction.getReference() + ".",
+            transaction.getBuyer().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.DELIVERED_TO_BUYER.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_DELIVERED",
+            "Package delivered",
+            "Rider marked package delivered for transaction " + transaction.getReference() + ".",
+            transaction.getSeller().getId(),
+            actorUserId,
+            DeliveryAssignmentStatus.DELIVERED_TO_BUYER.value()
+        );
+        notifyDeliveryMilestone(
+            transaction,
+            "RIDER_DELIVERED",
+            "Delivery completed",
+            "You marked package delivered for transaction " + transaction.getReference() + ".",
+            actorUserId,
+            actorUserId,
+            DeliveryAssignmentStatus.DELIVERED_TO_BUYER.value()
         );
 
         return toResponse(transaction);
@@ -649,6 +854,113 @@ public class EscrowService {
         EscrowTransaction saved = escrowRepository.save(transaction);
         transactionStatusHistoryService.recordStatusChange(saved, fromStatus, newStatus, changedBy, reason);
         return toResponse(saved);
+    }
+
+    private void notifyTransactionStateChange(
+        EscrowTransaction transaction,
+        String fromStatus,
+        String newStatus,
+        UUID actorUserId,
+        String reason
+    ) {
+        Map<UUID, String> recipients = new HashMap<>();
+        recipients.put(transaction.getBuyer().getId(), "BUYER");
+        recipients.put(transaction.getSeller().getId(), "SELLER");
+        if (transaction.getRider() != null) {
+            recipients.put(transaction.getRider().getId(), "RIDER");
+        }
+        if (!recipients.containsKey(actorUserId)) {
+            UserEntity actor = userRepository.findById(actorUserId).orElse(null);
+            recipients.put(actorUserId, actor != null ? actor.getRole().name() : "ADMIN");
+        }
+
+        for (Map.Entry<UUID, String> recipient : recipients.entrySet()) {
+            UUID recipientId = recipient.getKey();
+            String role = recipient.getValue();
+            boolean isActor = recipientId.equals(actorUserId);
+
+            String title = isActor
+                ? "You updated transaction " + transaction.getReference()
+                : "Transaction " + transaction.getReference() + " updated";
+            String body = "Status changed from " + humanizeStatus(fromStatus) + " to " + humanizeStatus(newStatus) + ".";
+            if (reason != null && !reason.isBlank()) {
+                body = body + " " + reason;
+            }
+
+            if ("CANCELLED".equalsIgnoreCase(newStatus)) {
+                title = isActor ? "You cancelled transaction " + transaction.getReference() : "Transaction cancelled";
+            }
+
+            notifyTransactionRecipient(
+                recipientId,
+                transaction,
+                "TRANSACTION_STATUS_" + newStatus,
+                title,
+                body,
+                newStatus,
+                role
+            );
+        }
+    }
+
+    private void notifyDeliveryMilestone(
+        EscrowTransaction transaction,
+        String type,
+        String title,
+        String body,
+        UUID recipientUserId,
+        UUID actorUserId,
+        String assignmentStatus
+    ) {
+        UserEntity recipient = userRepository.findById(recipientUserId).orElse(null);
+        if (recipient == null) {
+            return;
+        }
+        String role = recipient.getRole().name();
+        String effectiveBody = recipientUserId.equals(actorUserId)
+            ? body
+            : body;
+
+        notifyTransactionRecipient(
+            recipientUserId,
+            transaction,
+            type,
+            title,
+            effectiveBody,
+            assignmentStatus,
+            role
+        );
+    }
+
+    private void notifyTransactionRecipient(
+        UUID recipientId,
+        EscrowTransaction transaction,
+        String type,
+        String title,
+        String body,
+        String status,
+        String targetRole
+    ) {
+        try {
+            transactionNotificationService.sendTransactionNotification(
+                recipientId,
+                transaction.getId(),
+                type,
+                title,
+                body,
+                status,
+                targetRole
+            );
+        } catch (Exception ignored) {
+            // Notification failures should never block escrow state transitions.
+        }
+    }
+
+    private String humanizeStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "unknown";
+        }
+        return status.toLowerCase(Locale.ROOT).replace('_', ' ');
     }
 
     private DeliveryAssignmentEntity getAssignmentForAssignedRider(EscrowTransaction transaction, UUID actorUserId) {
