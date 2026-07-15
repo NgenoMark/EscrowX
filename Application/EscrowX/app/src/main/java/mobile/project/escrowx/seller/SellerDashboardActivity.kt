@@ -186,7 +186,6 @@ fun SellerDashboardScreen() {
                 sellerName = sellerName,
                 sellerInitials = sellerInitials,
                 sellerEmail = sellerEmail,
-                transactionCount = sellerOrders.size,
                 onCloseDrawer = { scope.launch { drawerState.close() } },
                 onNavigateToTransactions = {
                     scope.launch { drawerState.close() }
@@ -224,12 +223,8 @@ fun SellerDashboardScreen() {
             containerColor = colorScheme.background,
             topBar = {
                 ImprovedTopAppBar(
-                    sellerInitials = sellerInitials,
                     unreadCount = unreadCount,
                     onMenuClick = { scope.launch { drawerState.open() } },
-                    onProfileClick = {
-                        context.startActivity(Intent(context, ProfileActivity::class.java))
-                    },
                     onNotificationClick = {
                         context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
                     },
@@ -378,7 +373,6 @@ fun ImprovedSellerDrawerContent(
     sellerName: String,
     sellerInitials: String,
     sellerEmail: String,
-    transactionCount: Int,
     onCloseDrawer: () -> Unit,
     onNavigateToTransactions: () -> Unit,
     onNavigateToProfile: () -> Unit,
@@ -494,8 +488,7 @@ fun ImprovedSellerDrawerContent(
                 selectedItem = DrawerNavItem.TRANSACTIONS
                 onCloseDrawer()
                 onNavigateToTransactions()
-            },
-            badge = if (transactionCount > 0) transactionCount.toString() else null
+            }
         )
 
         DrawerMenuItem(
@@ -635,10 +628,8 @@ enum class DrawerNavItem { HOME, TRANSACTIONS, PROFILE, SETTINGS, FINANCES }
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImprovedTopAppBar(
-    sellerInitials: String,
     unreadCount: Int,
     onMenuClick: () -> Unit,
-    onProfileClick: () -> Unit,
     onNotificationClick: () -> Unit,
     colorScheme: ColorScheme
 ) {
@@ -686,24 +677,6 @@ fun ImprovedTopAppBar(
                     )
                 }
             }
-
-            // Profile Avatar
-            IconButton(onClick = onProfileClick) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(Color(0xFFDCE2F3)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = sellerInitials,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00236F)
-                    )
-                }
-            }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = colorScheme.surface,
@@ -736,7 +709,7 @@ fun WelcomeCard(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Text(
-                text = "Hello, $sellerName 👋",
+                text = "Hello, $sellerName ",
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
                 color = colorScheme.onSurface
@@ -779,7 +752,7 @@ private fun StatsRow(
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         StatCard(
-            title = "Active Orders",
+            title = "Active\nOrders",
             value = stats.activeOrders.toString(),
             icon = Icons.Default.ShoppingCart,
             accentColor = Color(0xFF3B82F6),
@@ -787,7 +760,7 @@ private fun StatsRow(
             colorScheme = colorScheme
         )
         StatCard(
-            title = "Pending Payout",
+            title = "Pending\nPayouts",
             value = formatKes(stats.pendingPayout),
             icon = Icons.Default.AccountBalanceWallet,
             accentColor = Color(0xFF7C3AED),
@@ -795,7 +768,7 @@ private fun StatsRow(
             colorScheme = colorScheme
         )
         StatCard(
-            title = "Total Earnings",
+            title = "Total\nEarnings",
             value = formatKes(stats.totalEarnings),
             icon = Icons.Default.TrendingUp,
             accentColor = Color(0xFF10B981),
@@ -837,8 +810,9 @@ fun StatCard(
                 Text(
                     text = title,
                     fontSize = 11.sp,
+                    lineHeight = 13.sp,
                     color = colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f)
                 )
