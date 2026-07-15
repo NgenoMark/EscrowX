@@ -6,6 +6,7 @@ import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import androidx.core.app.NotificationManagerCompat
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
@@ -36,10 +37,12 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import com.google.firebase.messaging.FirebaseMessaging
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.LoginActivity
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.notifications.FcmTokenRegistrar
 import mobile.project.escrowx.seller.SellerDashboardActivity
 import mobile.project.escrowx.ui.components.BuyerNavBar
 import mobile.project.escrowx.ui.components.BuyerNavItem
@@ -89,9 +92,6 @@ fun SettingsScreen() {
     var emailNotificationsEnabled by remember {
         mutableStateOf(prefs.getBoolean(SettingsKeys.EMAIL_NOTIFICATIONS, true))
     }
-    var smsAlertsEnabled by remember {
-        mutableStateOf(prefs.getBoolean(SettingsKeys.SMS_ALERTS, false))
-    }
     var selectedLanguage by remember {
         mutableStateOf(prefs.getString(SettingsKeys.APP_LANGUAGE, "English") ?: "English")
     }
@@ -103,8 +103,17 @@ fun SettingsScreen() {
     LaunchedEffect(emailNotificationsEnabled) {
         prefs.edit().putBoolean(SettingsKeys.EMAIL_NOTIFICATIONS, emailNotificationsEnabled).apply()
     }
-    LaunchedEffect(smsAlertsEnabled) {
-        prefs.edit().putBoolean(SettingsKeys.SMS_ALERTS, smsAlertsEnabled).apply()
+
+    LaunchedEffect(pushNotificationsEnabled) {
+        val actorUserId = session.getUserId()
+        if (pushNotificationsEnabled) {
+            if (!actorUserId.isNullOrBlank()) {
+                FcmTokenRegistrar.register(context, actorUserId)
+            }
+        } else {
+            runCatching { FirebaseMessaging.getInstance().deleteToken() }
+            NotificationManagerCompat.from(context).cancelAll()
+        }
     }
 
     // Fetch user profile
@@ -257,8 +266,9 @@ fun SettingsScreen() {
                 SettingsSwitchItem(
                     icon = Icons.Default.Sms,
                     title = "SMS Alerts",
-                    checked = smsAlertsEnabled,
-                    onCheckedChange = { enabled -> smsAlertsEnabled = enabled },
+                    checked = false,
+                    enabled = false,
+                    onCheckedChange = { },
                     colorScheme = colorScheme
                 )
             }
@@ -270,15 +280,6 @@ fun SettingsScreen() {
             Spacer(modifier = Modifier.height(8.dp))
 
             SettingsCard {
-                SettingsMenuItem(
-                    icon = Icons.Default.Person,
-                    title = "Profile Settings",
-                    onClick = {
-                        context.startActivity(Intent(context, ProfileActivity::class.java))
-                    },
-                    colorScheme = colorScheme
-                )
-                SettingsDivider(colorScheme)
                 SettingsMenuItem(
                     icon = Icons.Default.VerifiedUser,
                     title = "KYC Status",
@@ -1001,6 +1002,7 @@ fun SettingsSwitchItem(
     icon: ImageVector,
     title: String,
     checked: Boolean,
+    enabled: Boolean = true,
     onCheckedChange: (Boolean) -> Unit,
     colorScheme: ColorScheme
 ) {
@@ -1019,17 +1021,18 @@ fun SettingsSwitchItem(
                 icon,
                 contentDescription = null,
                 modifier = Modifier.size(20.dp),
-                tint = colorScheme.onSurfaceVariant
+                tint = if (enabled) colorScheme.onSurfaceVariant else colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
             )
             Text(
                 title,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
-                color = colorScheme.onSurface
+                color = if (enabled) colorScheme.onSurface else colorScheme.onSurfaceVariant
             )
         }
         Switch(
             checked = checked,
+            enabled = enabled,
             onCheckedChange = onCheckedChange,
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
