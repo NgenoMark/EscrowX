@@ -392,7 +392,14 @@ fun ImprovedSellerDrawerContent(
     ModalDrawerSheet(
         modifier = Modifier
             .fillMaxHeight()
-            .width(300.dp)
+            .width(300.dp),
+        drawerContainerColor = colorScheme.surface,
+        drawerShape = RoundedCornerShape(
+            topStart = 0.dp,
+            bottomStart = 0.dp,
+            topEnd = 16.dp,
+            bottomEnd = 16.dp
+        )
     ) {
         // Header with gradient
         Box(

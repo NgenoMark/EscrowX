@@ -98,6 +98,8 @@ fun TransactionsScreen(role: String) {
         )
     }
     var selectedBottomTab by remember { mutableIntStateOf(1) }
+    var currentPage by remember { mutableIntStateOf(0) }
+    val pageSize = 6
 
     fun isUuid(value: String): Boolean = runCatching { UUID.fromString(value) }.isSuccess
 
@@ -178,6 +180,33 @@ fun TransactionsScreen(role: String) {
             TransactionFilter.COMPLETE -> partyScoped.filter { isTerminalEscrowState(it.status) }
             TransactionFilter.INCOMPLETE -> partyScoped.filter { !isTerminalEscrowState(it.status) }
         }.sortedByDescending { toEpochMillis(it.createdAt) }
+
+        currentPage = 0
+    }
+
+    val totalPages = remember(filteredTransactions, pageSize) {
+        if (filteredTransactions.isEmpty()) 0 else ((filteredTransactions.size - 1) / pageSize) + 1
+    }
+
+    val safePage = remember(currentPage, totalPages) {
+        when {
+            totalPages <= 0 -> 0
+            currentPage >= totalPages -> totalPages - 1
+            currentPage < 0 -> 0
+            else -> currentPage
+        }
+    }
+
+    val pageStart = remember(safePage, pageSize) { safePage * pageSize }
+    val pageEndExclusive = remember(filteredTransactions, pageStart, pageSize) {
+        minOf(pageStart + pageSize, filteredTransactions.size)
+    }
+    val pagedTransactions = remember(filteredTransactions, pageStart, pageEndExclusive) {
+        if (filteredTransactions.isEmpty() || pageStart >= filteredTransactions.size) {
+            emptyList()
+        } else {
+            filteredTransactions.subList(pageStart, pageEndExclusive)
+        }
     }
 
     LaunchedEffect(allTransactions) {
@@ -315,7 +344,7 @@ fun TransactionsScreen(role: String) {
                 )
                 if (filteredTransactions.isNotEmpty()) {
                     Text(
-                        "Showing ${filteredTransactions.size} of ${allTransactions.size}",
+                        "Showing ${pageStart + 1}-${pageEndExclusive} of ${filteredTransactions.size}",
                         fontSize = 11.sp,
                         color = colorScheme.onSurfaceVariant
                     )
@@ -411,68 +440,120 @@ fun TransactionsScreen(role: String) {
                     }
                 }
                 else -> {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(
-                            start = 16.dp,
-                            end = 16.dp,
-                            top = 8.dp,
-                            bottom = 80.dp
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(filteredTransactions) { transaction ->
-                            val transactionRole = when {
-                                transaction.sellerId == currentUserId -> "SELLER"
-                                transaction.buyerId == currentUserId -> "BUYER"
-                                else -> role
-                            }
-                            val sellerName = sellerNamesById[transaction.sellerId] ?: "Seller ${transaction.sellerId.take(6)}"
-                            ModernTransactionCard(
-                                transaction = transaction,
-                                sellerName = sellerName,
-                                role = transactionRole,
-                                onViewDetails = {
-                                    if (transactionRole == "BUYER") {
-                                        val intent = Intent(context, BuyerTransactionDetailActivity::class.java).apply {
-                                            putExtra("TRANSACTION_ID", transaction.id)
-                                            putExtra("PRODUCT_NAME", transaction.title)
-                                            putExtra("PRODUCT_DESCRIPTION", transaction.productDescription)
-                                            putExtra("SELLER_NAME", sellerName)
-                                            putExtra("AMOUNT", transaction.amount.toString())
-                                            putExtra("ORDER_ID", transaction.reference)
-                                            putExtra("DATE", transaction.createdAt.take(10))
-                                            putExtra(
-                                                "DELIVERY_DATE",
-                                                transaction.deliveryDueAt.takeIf { it.isNotBlank() }?.take(10)
-                                                    ?: transaction.createdAt.take(10)
-                                            )
-                                            putExtra("SHIPPING_ADDRESS", transaction.deliveryAddress)
-                                            putExtra("STATUS", transaction.status)
-                                        }
-                                        context.startActivity(intent)
-                                    } else {
-                                        val currentStep = sellerStepForStatus(transaction.status)
-                                        val intent = Intent(context, SellerTransactionDetailActivity::class.java).apply {
-                                            putExtra("TRANSACTION_ID", transaction.id)
-                                            putExtra("PRODUCT_NAME", transaction.title)
-                                            putExtra("BUYER_NAME", "Buyer")
-                                            putExtra("BUYER_INITIALS", "BY")
-                                            putExtra("AMOUNT", transaction.amount.toString())
-                                            putExtra("ORDER_ID", transaction.reference)
-                                            putExtra("DATE", transaction.createdAt.take(10))
-                                            putExtra("SHIPPING_ADDRESS", transaction.deliveryAddress)
-                                            putExtra("STATUS", transaction.status)
-                                            putExtra("CURRENT_STEP", currentStep)
-                                        }
-                                        context.startActivity(intent)
-                                    }
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            contentPadding = PaddingValues(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 8.dp,
+                                bottom = 16.dp
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(pagedTransactions) { transaction ->
+                                val transactionRole = when {
+                                    transaction.sellerId == currentUserId -> "SELLER"
+                                    transaction.buyerId == currentUserId -> "BUYER"
+                                    else -> role
                                 }
-                            )
+                                val sellerName = sellerNamesById[transaction.sellerId] ?: "Seller ${transaction.sellerId.take(6)}"
+                                ModernTransactionCard(
+                                    transaction = transaction,
+                                    sellerName = sellerName,
+                                    role = transactionRole,
+                                    onViewDetails = {
+                                        if (transactionRole == "BUYER") {
+                                            val intent = Intent(context, BuyerTransactionDetailActivity::class.java).apply {
+                                                putExtra("TRANSACTION_ID", transaction.id)
+                                                putExtra("PRODUCT_NAME", transaction.title)
+                                                putExtra("PRODUCT_DESCRIPTION", transaction.productDescription)
+                                                putExtra("SELLER_NAME", sellerName)
+                                                putExtra("AMOUNT", transaction.amount.toString())
+                                                putExtra("ORDER_ID", transaction.reference)
+                                                putExtra("DATE", transaction.createdAt.take(10))
+                                                putExtra(
+                                                    "DELIVERY_DATE",
+                                                    transaction.deliveryDueAt.takeIf { it.isNotBlank() }?.take(10)
+                                                        ?: transaction.createdAt.take(10)
+                                                )
+                                                putExtra("SHIPPING_ADDRESS", transaction.deliveryAddress)
+                                                putExtra("STATUS", transaction.status)
+                                            }
+                                            context.startActivity(intent)
+                                        } else {
+                                            val currentStep = sellerStepForStatus(transaction.status)
+                                            val intent = Intent(context, SellerTransactionDetailActivity::class.java).apply {
+                                                putExtra("TRANSACTION_ID", transaction.id)
+                                                putExtra("PRODUCT_NAME", transaction.title)
+                                                putExtra("BUYER_NAME", "Buyer")
+                                                putExtra("BUYER_INITIALS", "BY")
+                                                putExtra("AMOUNT", transaction.amount.toString())
+                                                putExtra("ORDER_ID", transaction.reference)
+                                                putExtra("DATE", transaction.createdAt.take(10))
+                                                putExtra("SHIPPING_ADDRESS", transaction.deliveryAddress)
+                                                putExtra("STATUS", transaction.status)
+                                                putExtra("CURRENT_STEP", currentStep)
+                                            }
+                                            context.startActivity(intent)
+                                        }
+                                    }
+                                )
+                            }
                         }
+
+                        PaginationControls(
+                            currentPage = safePage,
+                            totalPages = totalPages,
+                            onPrevious = { currentPage = (safePage - 1).coerceAtLeast(0) },
+                            onNext = { currentPage = (safePage + 1).coerceAtMost(totalPages - 1) },
+                            colorScheme = colorScheme
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PaginationControls(
+    currentPage: Int,
+    totalPages: Int,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    colorScheme: ColorScheme
+) {
+    if (totalPages <= 1) return
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        OutlinedButton(
+            onClick = onPrevious,
+            enabled = currentPage > 0,
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Text("Previous")
+        }
+
+        Text(
+            text = "Page ${currentPage + 1} of $totalPages",
+            fontSize = 12.sp,
+            color = colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium
+        )
+
+        OutlinedButton(
+            onClick = onNext,
+            enabled = currentPage < totalPages - 1,
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Text("Next")
         }
     }
 }

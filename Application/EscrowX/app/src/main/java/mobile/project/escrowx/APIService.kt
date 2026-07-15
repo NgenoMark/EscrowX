@@ -127,6 +127,12 @@ interface AuthApiService {
     @GET("api/v1/transactions/{id}")
     suspend fun getTransactionById(@Path("id") id: String): Response<EscrowResponse>
 
+    @GET("api/v1/transactions/{id}/delivery-assignments")
+    suspend fun getDeliveryAssignmentHistory(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<DeliveryAssignmentHistoryResponse>
+
     @POST("api/v1/transactions/{id}/decline-transaction")
     suspend fun declineTransaction(
         @Path("id") id: String,
@@ -154,6 +160,36 @@ interface AuthApiService {
 
     @POST("api/v1/transactions/{id}/mark-in-delivery")
     suspend fun markInDelivery(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-accept-delivery")
+    suspend fun riderAcceptDelivery(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-pickup")
+    suspend fun riderPickup(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-start-transit")
+    suspend fun riderStartTransit(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-arrived")
+    suspend fun riderArrived(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String
+    ): Response<EscrowResponse>
+
+    @POST("api/v1/transactions/{id}/rider-mark-delivered")
+    suspend fun riderMarkDelivered(
         @Path("id") id: String,
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
@@ -355,6 +391,7 @@ data class EscrowResponse(
     val buyerId: String,
     val sellerId: String,
     val riderId: String? = null,
+    val currentDeliveryAssignmentId: String? = null,
     val title: String,
     val productDescription: String,
     val amount: Double,
@@ -362,8 +399,40 @@ data class EscrowResponse(
     val initialDepositAmount: Double?,
     val currency: String?,
     val status: String,
+    val riderAssignmentStatus: String? = null,
+    val riderPreviousRiderUserId: String? = null,
+    val riderReassignmentReason: String? = null,
+    val riderPickedUpAt: String? = null,
+    val riderArrivedAtBuyerAt: String? = null,
+    val riderDeliveredAt: String? = null,
+    val riderMarkedDeliveredAt: String? = null,
+    val riderSellerConfirmedDeliveredAt: String? = null,
+    val riderBuyerConfirmedDeliveredAt: String? = null,
     val deliveryDueAt: String,
     val autoReleaseAt: String?,
+    val createdAt: String,
+    val updatedAt: String
+)
+
+data class DeliveryAssignmentHistoryResponse(
+    val transactionId: String,
+    val currentActiveAssignmentId: String? = null,
+    val assignments: List<DeliveryAssignmentHistoryItemResponse> = emptyList()
+)
+
+data class DeliveryAssignmentHistoryItemResponse(
+    val id: String,
+    val riderUserId: String,
+    val previousRiderUserId: String? = null,
+    val assignedByUserId: String? = null,
+    val status: String,
+    val reassignmentReason: String? = null,
+    val pickedUpAt: String? = null,
+    val arrivedAtBuyerAt: String? = null,
+    val deliveredAt: String? = null,
+    val riderMarkedDeliveredAt: String? = null,
+    val sellerConfirmedDeliveredAt: String? = null,
+    val buyerConfirmedDeliveredAt: String? = null,
     val createdAt: String,
     val updatedAt: String
 )

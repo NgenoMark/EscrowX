@@ -10,4 +10,6 @@ public interface OtpDeliveryService {
     void sendSellerAcknowledgmentEmail(String email);
 
     void sendAdminApprovalEmail(String email);
+
+    void sendMarketplaceVerificationSuccessEmail(String email, String role);
 }

@@ -12,6 +12,10 @@ public interface DeliveryAssignmentRepository extends JpaRepository<DeliveryAssi
 
     Optional<DeliveryAssignmentEntity> findTopByTransactionIdOrderByCreatedAtDesc(UUID transactionId);
 
+    Optional<DeliveryAssignmentEntity> findTopByTransactionIdAndStatusInOrderByCreatedAtDesc(UUID transactionId, Collection<String> statuses);
+
+    List<DeliveryAssignmentEntity> findByTransactionIdOrderByCreatedAtDesc(UUID transactionId);
+
     Optional<DeliveryAssignmentEntity> findTopByTransactionIdAndRiderUserIdOrderByCreatedAtDesc(UUID transactionId, UUID riderUserId);
 
     List<DeliveryAssignmentEntity> findByTransactionIdAndStatusIn(UUID transactionId, Collection<String> statuses);

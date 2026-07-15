@@ -75,7 +75,7 @@ public class UserController {
 
     @GetMapping("/riders")
     public Page<UserDetailsResponse> listRiders(
-            @RequestParam("X-Actor-User-Id") UUID actorUserId,
+            @RequestHeader("X-Actor-User-Id") UUID actorUserId,
             @RequestParam(required = false) String phone,
             @RequestParam(required = false) String status,
             @RequestParam(defaultValue = "0") int page,

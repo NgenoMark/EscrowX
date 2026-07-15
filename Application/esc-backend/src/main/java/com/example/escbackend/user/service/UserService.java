@@ -4,6 +4,7 @@ import com.example.escbackend.common.constants.BlackListStatus;
 import com.example.escbackend.common.constants.UserRole;
 import com.example.escbackend.common.constants.UserStatus;
 import com.example.escbackend.common.exception.ApiException;
+import com.example.escbackend.auth.service.OtpService;
 import com.example.escbackend.auth.service.OtpDeliveryService;
 import com.example.escbackend.audit.entity.AuditLogEntity;
 import com.example.escbackend.audit.repository.AuditLogRepository;
@@ -51,6 +52,7 @@ public class UserService {
     private final AdminAuthorizationService authz;
     private final AuditLogRepository auditRepo;
     private final PasswordEncoder passwordEncoder;
+    private final OtpService otpService;
     private final OtpDeliveryService otpDeliveryService;
     private final PushNotificationService pushNotificationService;
     private final InAppNotificationRepository inAppNotificationRepository;
@@ -65,6 +67,7 @@ public class UserService {
         AdminAuthorizationService authz,
         AuditLogRepository auditRepo,
         PasswordEncoder passwordEncoder,
+        OtpService otpService,
         OtpDeliveryService otpDeliveryService,
         PushNotificationService pushNotificationService,
         InAppNotificationRepository inAppNotificationRepository,
@@ -78,6 +81,7 @@ public class UserService {
         this.authz = authz;
         this.auditRepo = auditRepo;
         this.passwordEncoder = passwordEncoder;
+        this.otpService = otpService;
         this.otpDeliveryService = otpDeliveryService;
         this.pushNotificationService = pushNotificationService;
         this.inAppNotificationRepository = inAppNotificationRepository;
@@ -181,56 +185,170 @@ public class UserService {
 
     @Transactional
     public UserDetailsResponse createEmployee(UUID actorUserId, CreateEmployeeRequest request, UserRole targetRole) {
-        if (targetRole == UserRole.RIDER) {
-            authz.requireAdminOrSuperAdmin(actorUserId);
-            validateRiderEnrollment(request);
-        } else {
-            authz.requireSuperAdmin(actorUserId);
+        if (targetRole != UserRole.RIDER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "This endpoint supports RIDER creation only");
+        }
+        return createRiderEmployee(actorUserId, request);
+    }
+
+    @Transactional
+    public UserDetailsResponse createPrivilegedEmployee(UUID actorUserId, CreatePrivilegedEmployeeRequest request, UserRole targetRole) {
+        authz.requireSuperAdmin(actorUserId);
+        if (targetRole != UserRole.ADMIN && targetRole != UserRole.SUPER_ADMIN) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only ADMIN or SUPER_ADMIN can be created via this endpoint");
         }
 
-        if (targetRole != UserRole.ADMIN && targetRole != UserRole.SUPER_ADMIN && targetRole != UserRole.RIDER) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Only ADMIN, SUPER_ADMIN, or RIDER can be created via this API");
-        }
+        UserEntity user = createUserRecord(
+            request.getEmail(),
+            request.getPhone(),
+            request.getPassword(),
+            targetRole,
+            UserStatus.ACTIVE
+        );
 
-        if (userRepository.existsByEmail(request.getEmail())) {
-            throw new ApiException(HttpStatus.CONFLICT, "Email already registered");
-        }
+        ProfileEntity profile = createProfileRecord(
+            user.getId(),
+            request.getDisplayName(),
+            request.getBusinessName(),
+            request.getAddress(),
+            request.getAvatarUrl()
+        );
 
-        if (userRepository.existsByPhone(request.getPhone())) {
-            throw new ApiException(HttpStatus.CONFLICT, "Phone number already registered");
-        }
-
-        UserEntity user = new UserEntity();
-        user.setEmail(request.getEmail());
-        user.setPhone(request.getPhone());
-        user.setPasswordHash(passwordEncoder.encode(request.getPassword()));
-        user.setRole(targetRole);
-        user.setStatus(UserStatus.ACTIVE);
-        user = userRepository.save(user);
-
-        ProfileEntity profile = new ProfileEntity();
-        profile.setUserId(user.getId());
-        profile.setDisplayName(request.getDisplayName());
-        profile.setBusinessName(request.getBusinessName());
-        profile.setAddress(request.getAddress());
-        profile.setAvatarUrl(request.getAvatarUrl());
-        profileRepository.save(profile);
-
-        if (targetRole == UserRole.RIDER) {
-            RiderProfileEntity riderProfile = new RiderProfileEntity();
-            riderProfile.setUserId(user.getId());
-            riderProfile.setDisplayName(request.getDisplayName());
-            riderProfile.setPhone(request.getPhone());
-            riderProfile.setOperationArea(request.getOperationArea().trim());
-            riderProfile.setLicenseNumber(request.getLicenseNumber().trim());
-            riderProfile.setVehicleType(request.getVehicleType().trim());
-            riderProfile.setVehiclePlate(request.getVehiclePlate().trim());
-            riderProfileRepository.save(riderProfile);
-        }
-
-        saveAudit(actorUserId, "CREATE_" + targetRole.name(), user.getId(), "Employee account created by SUPER_ADMIN");
-
+        saveAudit(actorUserId, "CREATE_" + targetRole.name(), user.getId(), "Privileged employee account created by SUPER_ADMIN");
         return mapper.toDetails(user, profile);
+    }
+
+    @Transactional
+    public UserDetailsResponse createRiderEmployee(UUID actorUserId, CreateEmployeeRequest request) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        validateRiderEnrollment(request);
+
+        UserEntity user = createUserRecord(
+            request.getEmail(),
+            request.getPhone(),
+            request.getPassword(),
+            UserRole.RIDER,
+            UserStatus.ACTIVE
+        );
+
+        ProfileEntity profile = createProfileRecord(
+            user.getId(),
+            request.getDisplayName(),
+            request.getBusinessName(),
+            request.getAddress(),
+            request.getAvatarUrl()
+        );
+
+        RiderProfileEntity riderProfile = new RiderProfileEntity();
+        riderProfile.setUserId(user.getId());
+        riderProfile.setDisplayName(request.getDisplayName());
+        riderProfile.setPhone(request.getPhone());
+        riderProfile.setOperationArea(request.getOperationArea().trim());
+        riderProfile.setLicenseNumber(request.getLicenseNumber().trim());
+        riderProfile.setVehicleType(request.getVehicleType().trim());
+        riderProfile.setVehiclePlate(request.getVehiclePlate().trim());
+        riderProfileRepository.save(riderProfile);
+
+        saveAudit(actorUserId, "CREATE_RIDER", user.getId(), "Rider account created by admin");
+        return mapper.toDetails(user, profile);
+    }
+
+    @Transactional
+    public UserDetailsResponse createMarketplaceUserByAdmin(UUID actorUserId, CreateMarketplaceUserRequest request, UserRole targetRole) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        if (targetRole != UserRole.BUYER && targetRole != UserRole.SELLER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only BUYER or SELLER can be created via this endpoint");
+        }
+
+        UserEntity user = createUserRecord(
+            request.getEmail(),
+            request.getPhone(),
+            request.getPassword(),
+            targetRole,
+            UserStatus.PENDING_VERIFICATION
+        );
+
+        ProfileEntity profile = createProfileRecord(
+            user.getId(),
+            request.getDisplayName(),
+            request.getBusinessName(),
+            request.getAddress(),
+            request.getAvatarUrl()
+        );
+
+        saveAudit(actorUserId, "CREATE_" + targetRole.name() + "_BY_ADMIN", user.getId(), "Marketplace user created pending verification");
+        return mapper.toDetails(user, profile);
+    }
+
+    @Transactional
+    public UserRoleStatusUpdateResponse sendVerificationOtpForMarketplaceUser(UUID actorUserId, UUID targetUserId) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        UserEntity target = userRepository.findById(targetUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Target user not found"));
+
+        if (target.getRole() != UserRole.BUYER && target.getRole() != UserRole.SELLER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only BUYER or SELLER can be verified via this endpoint");
+        }
+
+        if (target.getStatus() != UserStatus.PENDING_VERIFICATION) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "User is not in PENDING_VERIFICATION state");
+        }
+
+        String otp = otpService.generate(target.getEmail(), "ADMIN_USER_VERIFY");
+        otpDeliveryService.sendRegistrationOtp(target.getEmail(), otp);
+        saveAudit(actorUserId, "SEND_VERIFICATION_OTP", targetUserId, "Admin triggered verification OTP");
+
+        return UserRoleStatusUpdateResponse.builder()
+            .userId(targetUserId)
+            .oldValue(target.getStatus().name())
+            .newValue(target.getStatus().name())
+            .updatedBy(actorUserId)
+            .updatedAt(OffsetDateTime.now())
+            .build();
+    }
+
+    @Transactional
+    public UserRoleStatusUpdateResponse verifyMarketplaceUserByOtp(
+        UUID actorUserId,
+        UUID targetUserId,
+        AdminVerificationConfirmRequest request
+    ) {
+        authz.requireAdminOrSuperAdmin(actorUserId);
+        UserEntity target = userRepository.findById(targetUserId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Target user not found"));
+
+        if (target.getRole() != UserRole.BUYER && target.getRole() != UserRole.SELLER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only BUYER or SELLER can be verified via this endpoint");
+        }
+
+        if (target.getStatus() != UserStatus.PENDING_VERIFICATION) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "User is not in PENDING_VERIFICATION state");
+        }
+
+        otpService.verify(target.getEmail(), "ADMIN_USER_VERIFY", request.getOtp());
+
+        String oldStatus = target.getStatus().name();
+        target.setStatus(UserStatus.ACTIVE);
+        userRepository.save(target);
+
+        String reason = request.getReason() == null || request.getReason().isBlank()
+            ? "Admin verified user by OTP"
+            : request.getReason();
+        saveAudit(actorUserId, "VERIFY_MARKETPLACE_USER", targetUserId, reason);
+
+        try {
+            otpDeliveryService.sendMarketplaceVerificationSuccessEmail(target.getEmail(), target.getRole().name());
+        } catch (Exception ex) {
+            log.warn("Marketplace verification confirmation email failed for {}", target.getEmail(), ex);
+        }
+
+        return UserRoleStatusUpdateResponse.builder()
+            .userId(targetUserId)
+            .oldValue(oldStatus)
+            .newValue(target.getStatus().name())
+            .updatedBy(actorUserId)
+            .updatedAt(OffsetDateTime.now())
+            .build();
     }
 
     private void validateRiderEnrollment(CreateEmployeeRequest request) {
@@ -538,6 +656,34 @@ public class UserService {
 
     private boolean isNotBlank(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private UserEntity createUserRecord(String email, String phone, String password, UserRole role, UserStatus status) {
+        if (userRepository.existsByEmail(email)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Email already registered");
+        }
+
+        if (userRepository.existsByPhone(phone)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Phone number already registered");
+        }
+
+        UserEntity user = new UserEntity();
+        user.setEmail(email);
+        user.setPhone(phone);
+        user.setPasswordHash(passwordEncoder.encode(password));
+        user.setRole(role);
+        user.setStatus(status);
+        return userRepository.save(user);
+    }
+
+    private ProfileEntity createProfileRecord(UUID userId, String displayName, String businessName, String address, String avatarUrl) {
+        ProfileEntity profile = new ProfileEntity();
+        profile.setUserId(userId);
+        profile.setDisplayName(displayName);
+        profile.setBusinessName(businessName);
+        profile.setAddress(address);
+        profile.setAvatarUrl(avatarUrl);
+        return profileRepository.save(profile);
     }
 
     private Page<UserDetailsResponse> listByRoles(String phone, String status, int page, int size, List<UserRole> roles) {

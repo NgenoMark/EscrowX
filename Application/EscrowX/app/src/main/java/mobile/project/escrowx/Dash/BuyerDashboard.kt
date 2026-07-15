@@ -151,7 +151,12 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     .fillMaxHeight()
                     .width(300.dp),
                 drawerContainerColor = colorScheme.surface,
-                drawerShape = RoundedCornerShape(16.dp)
+                drawerShape = RoundedCornerShape(
+                    topStart = 0.dp,
+                    bottomStart = 0.dp,
+                    topEnd = 16.dp,
+                    bottomEnd = 16.dp
+                )
             ) {
                 // Drawer Header
                 Box(
@@ -479,9 +484,34 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
     val brandPrimary = colorScheme.primary
 
     var realIncomingTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
+    var allBuyerTransactions by remember { mutableStateOf<List<EscrowResponse>>(emptyList()) }
     var sellerNamesById by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var isLoadingReal by remember { mutableStateOf(true) }
     var realError by remember { mutableStateOf<String?>(null) }
+
+    val pendingStates = remember {
+        setOf("CREATED", "PENDING_PAYMENT")
+    }
+    val completedStates = remember {
+        setOf("COMPLETED", "CANCELLED", "DECLINED", "REFUNDED", "EXPIRED")
+    }
+
+    val pendingCount = remember(allBuyerTransactions) {
+        allBuyerTransactions.count { txn ->
+            txn.status.trim().uppercase(Locale.ROOT) in pendingStates
+        }
+    }
+    val completedCount = remember(allBuyerTransactions) {
+        allBuyerTransactions.count { txn ->
+            txn.status.trim().uppercase(Locale.ROOT) in completedStates
+        }
+    }
+    val activeCount = remember(allBuyerTransactions) {
+        allBuyerTransactions.count { txn ->
+            val status = txn.status.trim().uppercase(Locale.ROOT)
+            status !in pendingStates && status !in completedStates
+        }
+    }
 
     fun formatAmount(amount: Double): String {
         return NumberFormat.getIntegerInstance(Locale.getDefault()).format(amount)
@@ -501,9 +531,11 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                     return@launch
                 }
                 val api = RetrofitClient.authenticated(token)
-                val response = api.getTransactionsByBuyer(buyerId, "CREATED")
+                val response = api.getTransactionsByBuyer(buyerId, null)
                 if (response.isSuccessful && response.body() != null) {
-                    val createdTransactions = response.body()!!.filter {
+                    val buyerTransactions = response.body()!!
+                    allBuyerTransactions = buyerTransactions
+                    val createdTransactions = buyerTransactions.filter {
                         it.status.equals("CREATED", ignoreCase = true)
                     }
                     realIncomingTransactions = createdTransactions
@@ -528,13 +560,16 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                     }
                 } else if (response.code() == 404) {
                     // Backward compatibility with older backend behavior that returned 404 on empty results.
+                    allBuyerTransactions = emptyList()
                     realIncomingTransactions = emptyList()
                     sellerNamesById = emptyMap()
                 } else {
+                    allBuyerTransactions = emptyList()
                     sellerNamesById = emptyMap()
                     realError = "Failed to load: ${response.code()}"
                 }
             } catch (e: Exception) {
+                allBuyerTransactions = emptyList()
                 sellerNamesById = emptyMap()
                 realError = "Network error. ${e.message ?: "Please check your connection."}"
             } finally {
@@ -673,7 +708,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.Pending,
                 title = "Pending",
-                value = "${awaitingAcceptanceItems.size}",
+                value = pendingCount.toString(),
                 color = Color(0xFFF59E0B),
                 colorScheme = colorScheme
             )
@@ -681,7 +716,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.CheckCircle,
                 title = "Active",
-                value = "0",
+                value = activeCount.toString(),
                 color = Color(0xFF10B981),
                 colorScheme = colorScheme
             )
@@ -689,7 +724,7 @@ private fun HomeTabContent(paddingValues: PaddingValues, context: Context, displ
                 modifier = Modifier.weight(1f),
                 icon = Icons.Default.History,
                 title = "Completed",
-                value = "0",
+                value = completedCount.toString(),
                 color = BrandBlue,
                 colorScheme = colorScheme
             )

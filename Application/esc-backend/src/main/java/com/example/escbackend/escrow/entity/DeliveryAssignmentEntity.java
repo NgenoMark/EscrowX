@@ -1,5 +1,6 @@
 package com.example.escbackend.escrow.entity;
 
+import com.example.escbackend.common.constants.DeliveryAssignmentStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
@@ -30,6 +31,12 @@ public class DeliveryAssignmentEntity {
 
     @Column(name = "assigned_by_user_id")
     private UUID assignedByUserId;
+
+    @Column(name = "previous_rider_user_id")
+    private UUID previousRiderUserId;
+
+    @Column(name = "reassignment_reason", length = 255)
+    private String reassignmentReason;
 
     @Column(name = "status", nullable = false, length = 30)
     private String status;
@@ -74,7 +81,7 @@ public class DeliveryAssignmentEntity {
             id = UUID.randomUUID();
         }
         if (status == null || status.isBlank()) {
-            status = "ASSIGNED";
+            status = DeliveryAssignmentStatus.ASSIGNED.value();
         }
         createdAt = now;
         updatedAt = now;

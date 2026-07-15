@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import mobile.project.escrowx.DeliveryAssignmentHistoryItemResponse
 import mobile.project.escrowx.DisputeDetailsResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.SessionManager
@@ -46,6 +47,7 @@ import mobile.project.escrowx.dash.ProfileActivity
 import mobile.project.escrowx.dash.TransactionsActivity
 import mobile.project.escrowx.ui.components.SellerNavBar
 import mobile.project.escrowx.ui.components.SellerNavItem
+import mobile.project.escrowx.ui.components.RiderAssignmentStatusCard as SharedRiderAssignmentStatusCard
 import mobile.project.escrowx.ui.components.navigateTab
 import mobile.project.escrowx.ui.theme.BrandBlue
 import java.text.NumberFormat
@@ -113,12 +115,21 @@ fun SellerTransactionDetailScreen(
     var displayOrderId by remember { mutableStateOf(orderId) }
     var displayDate by remember { mutableStateOf(date) }
     var displayShippingAddress by remember { mutableStateOf(shippingAddress) }
+    var displayBuyerName by remember { mutableStateOf(buyerName) }
+    var displayBuyerPhone by remember { mutableStateOf("-") }
     val normalizedCurrentStatus = remember(currentStatus) { normalizeSellerEscrowStatus(currentStatus) }
     var isUpdating by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var isPollingPayment by remember { mutableStateOf(false) }
     var showBuyerInfo by remember { mutableStateOf(false) }
     var disputeDetails by remember { mutableStateOf<DisputeDetailsResponse?>(null) }
+    var riderDisplayName by remember { mutableStateOf("Not assigned") }
+    var riderPhone by remember { mutableStateOf("-") }
+    var riderAssignmentStatus by remember { mutableStateOf<String?>(null) }
+    var assignmentHistory by remember { mutableStateOf<List<DeliveryAssignmentHistoryItemResponse>>(emptyList()) }
+    var currentActiveAssignmentId by remember { mutableStateOf<String?>(null) }
+    var riderNameMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var riderPhoneMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
 
     val parsedAmount = displayAmount.replace(",", "").toDoubleOrNull() ?: 0.0
     val formattedAmount = NumberFormat.getCurrencyInstance(Locale("en", "KE"))
@@ -221,10 +232,18 @@ fun SellerTransactionDetailScreen(
     }
 
     fun getStatusStep(): Int {
-        val flow = listOf("PENDING_PAYMENT", "FUNDS_HELD", "SELLER_ACCEPTED", "IN_DELIVERY",
-            "SELLER_DELIVERED", "BUYER_CONFIRMED_DELIVERED", "RELEASE_PENDING",
-            "RELEASE_PROCESSING", "COMPLETED")
-        return flow.indexOf(normalizedCurrentStatus).coerceAtLeast(0)
+        return when (normalizedCurrentStatus) {
+            "PENDING_PAYMENT" -> 0
+            "FUNDS_HELD" -> 1
+            "SELLER_ACCEPTED" -> 2
+            "IN_DELIVERY" -> 3
+            "SELLER_DELIVERED" -> 4
+            "BUYER_CONFIRMED_DELIVERED" -> 5
+            "RELEASE_PENDING" -> 6
+            "RELEASE_PROCESSING", "RELEASE_FAILED" -> 7
+            "COMPLETED" -> 8
+            else -> 0
+        }
     }
 
     fun getNextAction(): SellerAction? {
@@ -288,6 +307,76 @@ fun SellerTransactionDetailScreen(
                 displayShippingAddress = txn.deliveryAddress
                 displayOrderId = txn.reference ?: displayOrderId
                 displayDate = txn.createdAt.take(10)
+
+                if (!txn.buyerId.isNullOrBlank()) {
+                    runCatching { api.getUserById(txn.buyerId) }
+                        .onSuccess { buyerResp ->
+                            if (buyerResp.isSuccessful && buyerResp.body() != null) {
+                                val buyer = buyerResp.body()!!
+                                displayBuyerName = buyer.displayName?.takeIf { it.isNotBlank() }
+                                    ?: buyer.email.substringBefore("@")
+                                displayBuyerPhone = buyer.phone.ifBlank { "-" }
+                            }
+                        }
+                }
+
+                if (!txn.riderId.isNullOrBlank()) {
+                    try {
+                        val riderResp = api.getUserById(txn.riderId)
+                        if (riderResp.isSuccessful && riderResp.body() != null) {
+                            val rider = riderResp.body()!!
+                            riderDisplayName = rider.displayName?.takeIf { it.isNotBlank() }
+                                ?: rider.email.substringBefore("@")
+                            riderPhone = rider.phone.ifBlank { "-" }
+                        } else {
+                            riderDisplayName = txn.riderId.take(8)
+                            riderPhone = "-"
+                        }
+                    } catch (_: Exception) {
+                        riderDisplayName = txn.riderId.take(8)
+                        riderPhone = "-"
+                    }
+                } else {
+                    riderDisplayName = "Not assigned"
+                    riderPhone = "-"
+                }
+
+                riderAssignmentStatus = txn.riderAssignmentStatus
+
+                if (!sellerId.isNullOrBlank()) {
+                    runCatching { api.getDeliveryAssignmentHistory(transactionId, sellerId) }
+                        .onSuccess { historyResp ->
+                            if (historyResp.isSuccessful && historyResp.body() != null) {
+                                val history = historyResp.body()!!
+                                assignmentHistory = history.assignments
+                                currentActiveAssignmentId = history.currentActiveAssignmentId
+
+                                val riderIds = history.assignments
+                                    .flatMap { listOfNotNull(it.riderUserId, it.previousRiderUserId) }
+                                    .toSet()
+                                if (riderIds.isNotEmpty()) {
+                                    val names = mutableMapOf<String, String>()
+                                    val phones = mutableMapOf<String, String>()
+                                    riderIds.forEach { riderId ->
+                                        runCatching { api.getUserById(riderId) }
+                                            .onSuccess { riderResp ->
+                                                if (riderResp.isSuccessful && riderResp.body() != null) {
+                                                    val rider = riderResp.body()!!
+                                                    names[riderId] = rider.displayName?.takeIf { it.isNotBlank() }
+                                                        ?: rider.email.substringBefore("@")
+                                                    phones[riderId] = rider.phone.ifBlank { "-" }
+                                                }
+                                            }
+                                    }
+                                    riderNameMap = names
+                                    riderPhoneMap = phones
+                                } else {
+                                    riderNameMap = emptyMap()
+                                    riderPhoneMap = emptyMap()
+                                }
+                            }
+                        }
+                }
 
                 if (!sellerId.isNullOrBlank()) {
                     val disputeResp = api.getDisputeByTransactionId(sellerId, transactionId)
@@ -460,8 +549,9 @@ fun SellerTransactionDetailScreen(
             item {
                 SellerOrderSummaryCard(
                     productName = displayProductName,
-                    buyerName = buyerName,
-                    buyerInitials = buyerInitials,
+                    buyerName = displayBuyerName,
+                    buyerInitials = deriveInitials(displayBuyerName, buyerInitials),
+                    buyerPhone = displayBuyerPhone,
                     amount = formattedAmount,
                     shippingAddress = displayShippingAddress,
                     date = displayDate,
@@ -484,6 +574,21 @@ fun SellerTransactionDetailScreen(
             item {
                 SellerTransactionTimeline(
                     currentStatus = normalizedCurrentStatus,
+                    colorScheme = colorScheme
+                )
+            }
+
+            // ===== RIDER STATUS CARD =====
+            item {
+                SellerRiderStatusCard(
+                    statusUpper = normalizedCurrentStatus,
+                    riderName = riderDisplayName,
+                    riderPhone = riderPhone,
+                    riderAssignmentStatus = riderAssignmentStatus,
+                    assignmentHistory = assignmentHistory,
+                    currentActiveAssignmentId = currentActiveAssignmentId,
+                    riderNameMap = riderNameMap,
+                    riderPhoneMap = riderPhoneMap,
                     colorScheme = colorScheme
                 )
             }
@@ -648,6 +753,7 @@ fun SellerOrderSummaryCard(
     productName: String,
     buyerName: String,
     buyerInitials: String,
+    buyerPhone: String,
     amount: String,
     shippingAddress: String,
     date: String,
@@ -813,6 +919,12 @@ fun SellerOrderSummaryCard(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     DetailRow(
+                        icon = Icons.Default.Phone,
+                        label = "Buyer Phone",
+                        value = buyerPhone,
+                        colorScheme = colorScheme
+                    )
+                    DetailRow(
                         icon = Icons.Default.LocationOn,
                         label = "Delivery Address",
                         value = shippingAddress,
@@ -933,7 +1045,7 @@ fun SellerPaymentStatusCard(
 
             // Payment Stages - Seller Focused
             val stages = listOf(
-                "Buyer Funds" to Icons.Default.ArrowForward,
+                "Buyer Funds" to Icons.Default.ChevronRight,
                 "Escrow Secured" to Icons.Default.Shield,
                 "Release" to Icons.Default.CheckCircle
             )
@@ -1238,6 +1350,32 @@ fun SellerTransactionTimeline(
 }
 
 @Composable
+fun SellerRiderStatusCard(
+    statusUpper: String,
+    riderName: String,
+    riderPhone: String,
+    riderAssignmentStatus: String?,
+    assignmentHistory: List<DeliveryAssignmentHistoryItemResponse>,
+    currentActiveAssignmentId: String?,
+    riderNameMap: Map<String, String>,
+    riderPhoneMap: Map<String, String>,
+    colorScheme: ColorScheme
+) {
+    SharedRiderAssignmentStatusCard(
+        statusUpper = statusUpper,
+        riderName = riderName,
+        riderPhone = riderPhone,
+        riderAssignmentStatus = riderAssignmentStatus,
+        assignmentHistory = assignmentHistory,
+        currentActiveAssignmentId = currentActiveAssignmentId,
+        riderNameMap = riderNameMap,
+        riderPhoneMap = riderPhoneMap,
+        colorScheme = colorScheme,
+        accentColor = Color(0xFFE65100)
+    )
+}
+
+@Composable
 fun SellerActionsCard(
     nextAction: SellerAction?,
     isCompleted: Boolean,
@@ -1439,6 +1577,12 @@ private val SELLER_ESCROW_STATE_TRANSITIONS: Map<String, List<String>> = mapOf(
 
 private fun normalizeSellerEscrowStatus(raw: String): String {
     return raw.trim().uppercase(Locale.getDefault())
+}
+
+private fun deriveInitials(name: String, fallback: String): String {
+    val parts = name.trim().split(" ").filter { it.isNotBlank() }
+    if (parts.isEmpty()) return fallback
+    return parts.take(2).joinToString("") { it.take(1).uppercase(Locale.getDefault()) }
 }
 
 private fun prettySellerEscrowState(state: String): String {
