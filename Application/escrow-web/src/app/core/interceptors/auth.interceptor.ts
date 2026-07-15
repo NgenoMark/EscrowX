@@ -40,7 +40,9 @@ export class AuthInterceptor implements HttpInterceptor {
       '/admin/payouts',
       '/admin/payment-intents',
       '/audit-logs',
-      '/transactions/'
+      '/transactions/',
+      '/users/riders',
+      '/'
     ];
     return adminEndpoints.some(endpoint => url.includes(endpoint));
   }

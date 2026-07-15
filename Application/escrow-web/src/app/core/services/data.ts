@@ -162,13 +162,15 @@ export class DataService {
   // ================================================================
   // MAPPERS
   // ================================================================
+  // services/data.ts - Update mappers
+
   private mapApiUser(user: ApiUserDetails): User {
     return {
       id: user.id,
       phone: user.phone,
       email: user.email,
       role: user.role as 'BUYER' | 'SELLER' | 'ADMIN' | 'SUPER_ADMIN',
-      status: user.status as 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED',
+      status: user.status as 'PENDING_VERIFICATION' | 'PENDING_ADMIN_APPROVAL' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED',
       blacklistStatus: (user.blacklistStatus as any) ?? 'NOT_BLACKLISTED',
       displayName: user.displayName || user.email || user.phone,
       businessName: user.businessName ?? null,
@@ -176,6 +178,15 @@ export class DataService {
       createdAt: user.createdAt,
       updatedAt: user.updatedAt ?? undefined
     };
+  }
+
+  // Add helper methods
+  getPendingUsers(): User[] {
+    return this.usersSignal().filter(u => u.status === 'PENDING_VERIFICATION');
+  }
+
+  getPendingSellers(): User[] {
+    return this.usersSignal().filter(u => u.status === 'PENDING_ADMIN_APPROVAL');
   }
 
   private mapApiTransaction(tx: ApiEscrowTransaction, users: User[]): Transaction {

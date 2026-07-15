@@ -1,4 +1,5 @@
 // src/app/features/transactions/transactions.ts
+
 import { Component, inject, signal, computed, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -6,18 +7,14 @@ import { DataService } from '../../core/services/data';
 import { SearchService } from '../../core/services/search';
 import { ApiService } from '../../core/services/api.service';
 import { Transaction } from '../../core/models/transaction';
-// 👇 Import the skeleton directive
 import { NgxSmkSkeletonDirective } from 'ngxsmk-skeleton-loader';
+
+type FilterTab = 'all' | 'active' | 'inactive' | 'disputed' | 'completed';
 
 @Component({
   selector: 'app-transactions',
   standalone: true,
-  imports: [
-    CommonModule,
-    FormsModule,
-    // 👇 Add the directive to imports
-    NgxSmkSkeletonDirective
-  ],
+  imports: [CommonModule, FormsModule, NgxSmkSkeletonDirective],
   templateUrl: './transactions.html',
   styleUrls: ['./transactions.css']
 })
@@ -26,11 +23,14 @@ export class TransactionsComponent implements OnInit {
   private searchService = inject(SearchService);
   private apiService = inject(ApiService);
 
-  // 👇 Inject global loading state
+  // Global loading state
   isLoading = this.dataService.isLoading;
 
+  // Error state
+  error = signal<boolean>(false);
+
   // Filters
-  statusFilter = signal<string>('all');
+  activeTab = signal<FilterTab>('all');
   searchTerm = this.searchService.query;
 
   // Detail modal
@@ -40,7 +40,7 @@ export class TransactionsComponent implements OnInit {
   // Info modal (History & Ledger)
   showInfoModal = signal<boolean>(false);
   selectedTransactionForInfo = signal<Transaction | null>(null);
-  activeTab = signal<'history' | 'ledger'>('history');
+  activeTabInfo = signal<'history' | 'ledger'>('history');
   historyData = signal<any[]>([]);
   ledgerData = signal<any[]>([]);
   loadingHistory = signal<boolean>(false);
@@ -50,25 +50,85 @@ export class TransactionsComponent implements OnInit {
 
   // Computed filtered transactions
   filteredTransactions = computed(() => {
-    return this.dataService.getFilteredTransactions(
-      this.statusFilter(),
-      this.searchTerm()
-    );
+    const tab = this.activeTab();
+    const term = this.searchTerm();
+
+    let filtered = this.dataService.transactions();
+
+    // Apply tab filter
+    if (tab === 'active') {
+      const activeStatuses = ['FUNDS_HELD', 'PENDING_PAYMENT', 'IN_DELIVERY', 'SELLER_ACCEPTED', 'RELEASE_PENDING', 'RELEASE_PROCESSING'];
+      filtered = filtered.filter(t => activeStatuses.includes(t.status));
+    } else if (tab === 'inactive') {
+      // Inactive now excludes COMPLETED
+      const inactiveStatuses = ['REFUNDED', 'CANCELLED', 'EXPIRED'];
+      filtered = filtered.filter(t => inactiveStatuses.includes(t.status));
+    } else if (tab === 'disputed') {
+      filtered = filtered.filter(t => t.status === 'DISPUTED');
+    } else if (tab === 'completed') {
+      filtered = filtered.filter(t => t.status === 'COMPLETED');
+    }
+    // 'all' shows everything
+
+    // Apply search
+    if (term) {
+      const lower = term.toLowerCase();
+      filtered = filtered.filter(t =>
+        t.id.toLowerCase().includes(lower) ||
+        t.buyer.toLowerCase().includes(lower) ||
+        t.seller.toLowerCase().includes(lower)
+      );
+    }
+
+    return filtered;
   });
 
-  stats = computed(() => this.dataService.getTransactionStats());
+  // Statistics
+  stats = computed(() => {
+    const all = this.dataService.transactions();
+    const activeStatuses = ['FUNDS_HELD', 'PENDING_PAYMENT', 'IN_DELIVERY', 'SELLER_ACCEPTED', 'RELEASE_PENDING', 'RELEASE_PROCESSING'];
+    const inactiveStatuses = ['REFUNDED', 'CANCELLED', 'EXPIRED']; // COMPLETED removed
+    const active = all.filter(t => activeStatuses.includes(t.status));
+    const inactive = all.filter(t => inactiveStatuses.includes(t.status));
+    const disputed = all.filter(t => t.status === 'DISPUTED');
+    const total = all.length;
+    const totalVolume = all.reduce((sum, t) => sum + t.amount, 0);
+    const totalFees = totalVolume * 0.025;
 
-  ngOnInit() { }
+    return {
+      total,
+      active: active.length,
+      inactive: inactive.length,
+      disputed: disputed.length,
+      fundsHeld: all.filter(t => t.status === 'FUNDS_HELD').length,
+      completed: all.filter(t => t.status === 'COMPLETED').length,
+      refunded: all.filter(t => t.status === 'REFUNDED').length,
+      cancelled: all.filter(t => t.status === 'CANCELLED').length,
+      totalVolume,
+      totalFees
+    };
+  });
 
-  // ------------------------------------------------------------------
-  // Filter handlers
-  // ------------------------------------------------------------------
-
-  onStatusFilterChange(event: Event): void {
-    const select = event.target as HTMLSelectElement;
-    this.statusFilter.set(select.value);
+  ngOnInit() {
+    // If there's an error, try to reload after 5 seconds
+    if (this.error()) {
+      setTimeout(() => {
+        this.retryLoad();
+      }, 5000);
+    }
   }
 
+  // ---- Retry loading ----
+  retryLoad(): void {
+    (this.dataService as any).loadConfiguredData();
+  }
+
+  // ---- Tab switching ----
+  setTab(tab: FilterTab): void {
+    this.activeTab.set(tab);
+  }
+
+  // ---- Search ----
   onSearch(event: Event): void {
     const input = event.target as HTMLInputElement;
     this.searchService.setQuery(input.value);
@@ -78,19 +138,15 @@ export class TransactionsComponent implements OnInit {
     this.searchService.clear();
   }
 
-  // ------------------------------------------------------------------
-  // Admin Actions
-  // ------------------------------------------------------------------
+  clearAllFilters(): void {
+    this.searchService.clear();
+    this.activeTab.set('all');
+  }
 
+  // ---- Admin Actions ----
   forceRelease(transaction: Transaction): void {
     if (confirm(`⚠️ FORCE RELEASE FUNDS\n\nTransaction: ${transaction.id}\nAmount: KES ${transaction.amount.toLocaleString()}\nSeller: ${transaction.seller}\n\nContinue?`)) {
       this.dataService.forceReleaseFunds(transaction.id);
-    }
-  }
-
-  forceRefund(transaction: Transaction): void {
-    if (confirm(`⚠️ FORCE REFUND\n\nTransaction: ${transaction.id}\nAmount: KES ${transaction.amount.toLocaleString()}\nBuyer: ${transaction.buyer}\n\nContinue?`)) {
-      this.dataService.forceRefund(transaction.id);
     }
   }
 
@@ -100,14 +156,7 @@ export class TransactionsComponent implements OnInit {
     }
   }
 
-  clearAllFilters(): void {
-    this.searchService.clear();   // clears search term
-    this.statusFilter.set('all'); // resets status filter
-  }
-  // ------------------------------------------------------------------
-  // Detail Modal
-  // ------------------------------------------------------------------
-
+  // ---- Detail Modal ----
   viewTransactionDetails(transaction: Transaction): void {
     this.selectedTransaction.set(transaction);
     this.showDetailModal.set(true);
@@ -118,13 +167,10 @@ export class TransactionsComponent implements OnInit {
     this.selectedTransaction.set(null);
   }
 
-  // ------------------------------------------------------------------
-  // Info Modal (History & Ledger)
-  // ------------------------------------------------------------------
-
+  // ---- Info Modal (History & Ledger) ----
   viewHistory(transaction: Transaction): void {
     this.selectedTransactionForInfo.set(transaction);
-    this.activeTab.set('history');
+    this.activeTabInfo.set('history');
     this.showInfoModal.set(true);
     this.historyFetched.set(false);
     this.ledgerFetched.set(false);
@@ -133,18 +179,18 @@ export class TransactionsComponent implements OnInit {
 
   viewLedger(transaction: Transaction): void {
     this.selectedTransactionForInfo.set(transaction);
-    this.activeTab.set('ledger');
+    this.activeTabInfo.set('ledger');
     this.showInfoModal.set(true);
     this.historyFetched.set(false);
     this.ledgerFetched.set(false);
     this.fetchLedger(transaction.id);
   }
 
-  onTabChange(tab: 'history' | 'ledger'): void {
+  onTabInfoChange(tab: 'history' | 'ledger'): void {
     const transaction = this.selectedTransactionForInfo();
     if (!transaction) return;
 
-    this.activeTab.set(tab);
+    this.activeTabInfo.set(tab);
 
     if (tab === 'history' && !this.historyFetched() && !this.loadingHistory()) {
       this.fetchHistory(transaction.id);
@@ -170,8 +216,7 @@ export class TransactionsComponent implements OnInit {
         this.historyFetched.set(true);
         this.loadingHistory.set(false);
       },
-      error: (err: any) => {
-        console.error('Failed to load history:', err);
+      error: () => {
         this.historyData.set([]);
         this.loadingHistory.set(false);
       }
@@ -205,8 +250,7 @@ export class TransactionsComponent implements OnInit {
         this.ledgerFetched.set(true);
         this.loadingLedger.set(false);
       },
-      error: (err: any) => {
-        console.error('Failed to load ledger:', err);
+      error: () => {
         this.ledgerData.set([]);
         this.loadingLedger.set(false);
       }
@@ -224,10 +268,7 @@ export class TransactionsComponent implements OnInit {
     this.loadingLedger.set(false);
   }
 
-  // ------------------------------------------------------------------
-  // Helpers
-  // ------------------------------------------------------------------
-
+  // ---- Helpers ----
   getStatusBadgeClass(status: string): string {
     switch (status) {
       case 'FUNDS_HELD': return 'bg-yellow-100 text-yellow-800';
@@ -235,6 +276,8 @@ export class TransactionsComponent implements OnInit {
       case 'DISPUTED': return 'bg-red-100 text-red-800';
       case 'REFUNDED': return 'bg-gray-100 text-gray-800';
       case 'CANCELLED': return 'bg-gray-100 text-gray-800';
+      case 'PENDING_PAYMENT': return 'bg-blue-100 text-blue-800';
+      case 'IN_DELIVERY': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   }
@@ -246,6 +289,8 @@ export class TransactionsComponent implements OnInit {
       case 'DISPUTED': return 'fa-gavel';
       case 'REFUNDED': return 'fa-undo-alt';
       case 'CANCELLED': return 'fa-times-circle';
+      case 'PENDING_PAYMENT': return 'fa-hourglass-half';
+      case 'IN_DELIVERY': return 'fa-truck';
       default: return 'fa-question-circle';
     }
   }

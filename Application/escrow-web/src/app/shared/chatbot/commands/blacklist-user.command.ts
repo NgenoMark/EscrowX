@@ -15,7 +15,7 @@ export class BlacklistUserCommand extends BaseCommand {
     const userId = match[1];
 
     try {
-      await firstValueFrom(context.apiService.blacklistUser(userId));
+      await firstValueFrom(context.apiService.unblacklistUser(userId));
       return `✅ User ${userId} blacklisted.`;
     } catch (err: any) {
       return `❌ Failed to blacklist user: ${err.message || 'unknown error'}`;

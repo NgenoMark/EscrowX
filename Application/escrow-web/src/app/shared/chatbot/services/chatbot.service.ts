@@ -328,7 +328,18 @@ export class ChatbotService {
         const actionMap: Record<string, (id: string) => Promise<any>> = {
           suspend: (id) => firstValueFrom(this.apiService.suspendUser(id)),
           activate: (id) => firstValueFrom(this.apiService.activateUser(id)),
-          blacklist: (id) => firstValueFrom(this.apiService.blacklistUser(id))
+          // ApiService may expose blacklistUser or unblacklistUser depending on implementation.
+          // Try blacklistUser first, fall back to unblacklistUser if not present.
+          blacklist: (id) => {
+            const svc: any = this.apiService;
+            if (typeof svc.blacklistUser === 'function') {
+              return firstValueFrom(svc.blacklistUser(id));
+            }
+            if (typeof svc.unblacklistUser === 'function') {
+              return firstValueFrom(svc.unblacklistUser(id));
+            }
+            return Promise.reject(new Error('blacklist action not supported by API'));
+          }
         };
         if (!actionMap[action]) {
           return `❌ Unknown action. Please type \`suspend\`, \`activate\`, or \`blacklist\`.`;

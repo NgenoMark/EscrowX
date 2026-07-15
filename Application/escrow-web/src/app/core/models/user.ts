@@ -1,9 +1,10 @@
+// models/user.ts
 export interface User {
   id: string;
   phone: string;
   email: string;
   role: 'BUYER' | 'SELLER' | 'ADMIN' | 'SUPER_ADMIN';
-  status: 'PENDING_VERIFICATION' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED' | 'PENDING_ADMIN_APPROVAL';
+  status: 'PENDING_VERIFICATION' | 'PENDING_ADMIN_APPROVAL' | 'ACTIVE' | 'SUSPENDED' | 'BLACKLISTED';
   blacklistStatus: 'NOT_BLACKLISTED' | 'TEMPORARILY_MUTED' | 'PERMANENTLY_BANNED' | 'UNDER_INVESTIGATION';
   displayName: string;
   businessName: string | null;

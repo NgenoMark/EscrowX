@@ -29,17 +29,19 @@
             <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Active</span>
             <span class="text-lg font-bold text-green-600">{{ activeBuyers() }}</span>
           </div>
+          <p class="text-[11px] text-green-600 mt-1">Verified</p>
+        </div>
+        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Pending OTP</span>
+            <span class="text-lg font-bold text-yellow-600">{{ pendingBuyers() }}</span>
+          </div>
+          <p class="text-[11px] text-yellow-600 mt-1">Awaiting verification</p>
         </div>
         <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
           <div class="flex items-center justify-between">
             <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Suspended</span>
             <span class="text-lg font-bold text-red-600">{{ suspendedBuyers() }}</span>
-          </div>
-        </div>
-        <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-medium text-gray-400 uppercase tracking-wide">Pending</span>
-            <span class="text-lg font-bold text-yellow-600">{{ pendingBuyers() }}</span>
           </div>
         </div>
         <div class="stat-card bg-white rounded-lg border border-gray-100 p-3 shadow-sm hover:shadow transition">
@@ -58,7 +60,6 @@
     <!-- Sticky Header with search + filters -->
     <div class="search-header px-6 py-4 border-b border-gray-100 sticky-header">
       <div class="flex flex-col gap-3">
-        <!-- Top row: title + search -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <h3 class="text-base font-semibold text-gray-800">Buyer Directory</h3>
@@ -74,7 +75,6 @@
           </div>
         </div>
 
-        <!-- Bottom row: filters + clear -->
         <div class="flex flex-wrap items-center gap-3">
           <div class="flex items-center gap-1">
             <label class="text-xs font-medium text-gray-500">Status</label>
@@ -83,7 +83,7 @@
               <option value="ALL">All</option>
               <option value="ACTIVE">Active</option>
               <option value="SUSPENDED">Suspended</option>
-              <option value="PENDING_VERIFICATION">Pending</option>
+              <option value="PENDING_VERIFICATION">Pending OTP</option>
               <option value="BLACKLISTED">Blacklisted</option>
             </select>
           </div>
@@ -193,12 +193,12 @@
                   <p class="text-xs text-gray-400">{{ buyer.email }}</p>
                 </td>
                 <td class="px-6 py-3">
-                  <span class="inline-flex px-2 py-0.5 text-xs font-medium"
-                    [class.bg-green-100]="buyer.status === 'ACTIVE'"
-                    [class.bg-red-100]="buyer.status === 'SUSPENDED'"
-                    [class.bg-yellow-100]="buyer.status === 'PENDING_VERIFICATION'"
-                    [class.bg-gray-100]="buyer.status === 'BLACKLISTED'">
-                    {{ buyer.status }}
+                  <span class="inline-flex px-2 py-0.5 text-xs font-medium" [class]="getStatusBadgeClass(buyer.status)">
+                    @if (buyer.status === 'PENDING_VERIFICATION') {
+                      <i class="fas fa-clock mr-1"></i> Pending OTP
+                    } @else {
+                      {{ buyer.status }}
+                    }
                   </span>
                 </td>
                 <td class="px-6 py-3">
@@ -211,13 +211,40 @@
                 </td>
                 <td class="px-6 py-3 actions-column">
                   <div class="flex gap-1.5 justify-center flex-wrap">
+                    <!-- PENDING_VERIFICATION: Send OTP & Verify -->
+                    @if (canVerify(buyer)) {
+                      @if (!otpSent()[buyer.id]) {
+                        <button 
+                          (click)="sendOtpToUser(buyer)" 
+                          [disabled]="!canSendOtp(buyer.id)"
+                          class="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-medium hover:bg-blue-200 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                          {{ getOtpButtonText(buyer.id) }}
+                        </button>
+                      }
+                      @if (otpSent()[buyer.id]) {
+                        <button 
+                          (click)="openActionModal(buyer, 'verify')"
+                          class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200 transition">
+                          Verify OTP
+                        </button>
+                      }
+                      @if (canForceActivate(buyer)) {
+                        <button 
+                          (click)="openActionModal(buyer, 'forceActivate')"
+                          class="px-2 py-1 bg-amber-100 text-amber-700 rounded text-xs font-medium hover:bg-amber-200 transition">
+                          Force Activate
+                        </button>
+                      }
+                    }
+
+                    <!-- Regular actions -->
                     @if (canSuspend(buyer)) {
                       <button (click)="openActionModal(buyer, 'suspend')"
                         class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
                         Suspend
                       </button>
                     }
-                    @if (canActivate(buyer)) {
+                    @if (canActivate(buyer) && buyer.status !== 'PENDING_VERIFICATION') {
                       <button (click)="openActionModal(buyer, 'activate')"
                         class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition">
                         Activate
@@ -264,12 +291,12 @@
                     <p class="font-medium text-gray-800">{{ buyer.displayName }}</p>
                   </div>
                 </div>
-                <span class="inline-flex px-2 py-0.5 text-xs font-medium"
-                  [class.bg-green-100]="buyer.status === 'ACTIVE'"
-                  [class.bg-red-100]="buyer.status === 'SUSPENDED'"
-                  [class.bg-yellow-100]="buyer.status === 'PENDING_VERIFICATION'"
-                  [class.bg-gray-100]="buyer.status === 'BLACKLISTED'">
-                  {{ buyer.status }}
+                <span class="inline-flex px-2 py-0.5 text-xs font-medium" [class]="getStatusBadgeClass(buyer.status)">
+                  @if (buyer.status === 'PENDING_VERIFICATION') {
+                    Pending OTP
+                  } @else {
+                    {{ buyer.status }}
+                  }
                 </span>
               </div>
               <div class="grid grid-cols-2 gap-1 text-sm">
@@ -287,11 +314,25 @@
                 </div>
               </div>
               <div class="flex flex-wrap gap-2 pt-2">
+                @if (canVerify(buyer)) {
+                  @if (!otpSent()[buyer.id]) {
+                    <button (click)="sendOtpToUser(buyer)" [disabled]="!canSendOtp(buyer.id)"
+                      class="flex-1 py-1.5 bg-blue-100 text-blue-700 rounded text-xs hover:bg-blue-200 transition disabled:opacity-50">
+                      {{ getOtpButtonText(buyer.id) }}
+                    </button>
+                  }
+                  @if (otpSent()[buyer.id]) {
+                    <button (click)="openActionModal(buyer, 'verify')"
+                      class="flex-1 py-1.5 bg-green-100 text-green-700 rounded text-xs hover:bg-green-200 transition">
+                      Verify OTP
+                    </button>
+                  }
+                }
                 @if (canSuspend(buyer)) {
                   <button (click)="openActionModal(buyer, 'suspend')"
                     class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Suspend</button>
                 }
-                @if (canActivate(buyer)) {
+                @if (canActivate(buyer) && buyer.status !== 'PENDING_VERIFICATION') {
                   <button (click)="openActionModal(buyer, 'activate')"
                     class="flex-1 py-1.5 bg-gray-100 text-gray-700 rounded text-xs hover:bg-gray-200 transition">Activate</button>
                 }
@@ -340,55 +381,13 @@
   </div>
 </div>
 
-<!-- ================== SINGLE ACTION MODAL ================== -->
-@if (showModal()) {
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeModal()">
-    <div class="bg-white rounded-2xl shadow-xl max-w-md w-full" (click)="$event.stopPropagation()">
-      <div class="p-6">
-        <h3 class="text-xl font-bold text-gray-800 mb-2">
-          @if (modalAction() === 'suspend') { Suspend Buyer }
-          @else if (modalAction() === 'blacklist') { Blacklist Buyer }
-          @else if (modalAction() === 'activate') { Activate Buyer }
-          @else if (modalAction() === 'restore') { Restore Buyer }
-        </h3>
-        <p class="text-gray-600 mb-4">
-          @if (modalAction() === 'suspend') {
-            You are about to suspend <strong>{{ modalUser()?.displayName }}</strong>.
-          } @else if (modalAction() === 'blacklist') {
-            You are about to permanently blacklist <strong>{{ modalUser()?.displayName }}</strong>.
-            This action is irreversible.
-          } @else if (modalAction() === 'activate') {
-            Activate <strong>{{ modalUser()?.displayName }}</strong>? They will regain full access.
-          } @else if (modalAction() === 'restore') {
-            Remove <strong>{{ modalUser()?.displayName }}</strong> from blacklist.
-            Their status will become "Pending Verification".
-          }
-        </p>
-
-        @if (modalAction() === 'suspend' || modalAction() === 'blacklist') {
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-1">Reason *</label>
-            <textarea
-              [(ngModel)]="modalReason"
-              rows="3"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Provide a detailed reason for this action..."
-            ></textarea>
-          </div>
-        }
-
-        <div class="flex justify-end gap-3">
-          <button (click)="closeModal()" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">
-            Cancel
-          </button>
-          <button (click)="confirmAction()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
-            Confirm
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-}
+<!-- ================== SHARED OTP MODAL ================== -->
+<app-otp-modal
+  [isOpen]="showModal()"
+  [config]="modalConfig()!"
+  (onConfirm)="handleModalConfirm($event)"
+  (onClose)="closeModal()"
+/>
 
 <!-- ================== PROFILE MODAL ================== -->
 @if (showProfileModal()) {
@@ -431,7 +430,11 @@
           <div class="bg-gray-50 rounded-xl p-4">
             <p class="text-xs text-gray-500">Status</p>
             <span class="px-2 py-0.5 text-xs font-medium rounded-full" [class]="getStatusBadgeClass(user.status)">
-              {{ user.status }}
+              @if (user.status === 'PENDING_VERIFICATION') {
+                Pending OTP
+              } @else {
+                {{ user.status }}
+              }
             </span>
           </div>
           <div class="bg-gray-50 rounded-xl p-4">
@@ -448,13 +451,33 @@
         <div class="border-t border-gray-200 pt-4 mt-4">
           <p class="text-sm font-semibold text-gray-700 mb-2">Quick Actions</p>
           <div class="flex gap-2 flex-wrap">
+            @if (canVerify(user)) {
+              @if (!otpSent()[user.id]) {
+                <button (click)="sendOtpToUser(user)" [disabled]="!canSendOtp(user.id)"
+                  class="px-3 py-1 bg-blue-100 text-blue-800 rounded-lg text-xs font-medium hover:bg-blue-200 transition disabled:opacity-50">
+                  {{ getOtpButtonText(user.id) }}
+                </button>
+              }
+              @if (otpSent()[user.id]) {
+                <button (click)="openActionModal(user, 'verify'); closeProfileModal()"
+                  class="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-xs font-medium hover:bg-green-200 transition">
+                  Verify OTP
+                </button>
+              }
+              @if (canForceActivate(user)) {
+                <button (click)="openActionModal(user, 'forceActivate'); closeProfileModal()"
+                  class="px-3 py-1 bg-amber-100 text-amber-800 rounded-lg text-xs font-medium hover:bg-amber-200 transition">
+                  Force Activate
+                </button>
+              }
+            }
             @if (canSuspend(user)) {
               <button (click)="openActionModal(user, 'suspend'); closeProfileModal()"
                 class="px-3 py-1 bg-yellow-100 text-yellow-800 rounded-lg text-xs font-medium hover:bg-yellow-200 transition">
                 Suspend
               </button>
             }
-            @if (canActivate(user)) {
+            @if (canActivate(user) && user.status !== 'PENDING_VERIFICATION') {
               <button (click)="openActionModal(user, 'activate'); closeProfileModal()"
                 class="px-3 py-1 bg-green-100 text-green-800 rounded-lg text-xs font-medium hover:bg-green-200 transition">
                 Activate
