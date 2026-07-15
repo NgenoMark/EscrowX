@@ -16,6 +16,7 @@ import {
   OnChanges,
   SimpleChanges
 } from '@angular/core';
+import { CommonModule } from '@angular/common';
 import { RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { AuthService } from '../../../core/services/auth.service';
@@ -43,7 +44,7 @@ type NavItem = NavLinkItem | NavDropdownItem;
 @Component({
   selector: 'app-sidebar',
   standalone: true,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [CommonModule, RouterLink, RouterLinkActive],
   templateUrl: './sidebar.html',
   styleUrls: ['./sidebar.css']
 })
@@ -57,7 +58,7 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
 
   private authService = inject(AuthService);
   private dataService = inject(DataService);
-  private router = inject(Router);
+  public router = inject(Router);
   private ngZone = inject(NgZone);
 
   private routerSubscription!: Subscription;
@@ -85,7 +86,6 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
   }
 
   ngOnChanges(changes: SimpleChanges) {
-    // FIX: close dropdowns when sidebar is collapsing
     if (changes['collapsed'] && changes['collapsed'].currentValue === true) {
       this.openDropdowns.clear();
     }
@@ -121,7 +121,7 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
 
   private checkAndOpenActiveDropdown(): void {
     const currentUrl = this.router.url;
-    const usersDropdown = this.navItems.find(item => item.type === 'dropdown');
+    const usersDropdown = this.navItems.find(item => item.type === 'dropdown' && item.dropdownId === 'users-dropdown');
     if (usersDropdown && usersDropdown.type === 'dropdown') {
       const isChildActive = usersDropdown.children.some(child => currentUrl.includes(child.route));
       if (isChildActive) this.openDropdowns.add(usersDropdown.dropdownId);
@@ -130,7 +130,7 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
 
   private handleNavigationDropdownState(): void {
     const currentUrl = this.router.url;
-    const usersDropdown = this.navItems.find(item => item.type === 'dropdown');
+    const usersDropdown = this.navItems.find(item => item.type === 'dropdown' && item.dropdownId === 'users-dropdown');
     if (usersDropdown && usersDropdown.type === 'dropdown') {
       const isChildActive = usersDropdown.children.some(child => currentUrl.includes(child.route));
       const isOpen = this.openDropdowns.has(usersDropdown.dropdownId);
@@ -232,10 +232,11 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
           { label: 'All Users', route: '/users', icon: 'fa-users' },
           { label: 'Buyers', route: '/buyers', icon: 'fa-user' },
           { label: 'Sellers', route: '/sellers', icon: 'fa-store' },
+          { label: 'Riders', route: '/riders', icon: 'fa-motorcycle' }, // ✅ Added Riders
           { label: 'Admins', route: '/admins', icon: 'fa-user-shield' }
         ]
       },
-      { label: 'Transactions', route: '/transactions', icon: 'fa-exchange-alt', type: 'link' },
+      { label: 'Escrows', route: '/transactions', icon: 'fa-exchange-alt', type: 'link' },
       { label: 'Disputes', route: '/disputes', icon: 'fa-gavel', count, type: 'link' },
       { label: 'Payments', route: '/payments', icon: 'fa-credit-card', type: 'link' },
       { label: 'Payouts', route: '/payouts', icon: 'fa-money-bill-wave', type: 'link' },
@@ -250,7 +251,7 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
 
   getActiveChildLabel(): string {
     const currentUrl = this.router.url;
-    const usersDropdown = this.navItems.find(item => item.type === 'dropdown');
+    const usersDropdown = this.navItems.find(item => item.type === 'dropdown' && item.dropdownId === 'users-dropdown');
     if (usersDropdown && usersDropdown.type === 'dropdown') {
       const activeChild = usersDropdown.children.find(child => currentUrl.includes(child.route));
       if (activeChild) return activeChild.label;

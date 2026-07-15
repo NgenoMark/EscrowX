@@ -1,3 +1,5 @@
+// app.routes.ts
+
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { DashboardComponent } from './features/dashboard/dashboard';
@@ -15,8 +17,14 @@ import { LedgerComponent } from './features/ledger/ledger';
 import { BuyersComponent } from './features/users/buyers/buyers';
 import { AdminsComponent } from './features/users/admins/admins';
 import { SellersComponent } from './features/users/sellers/sellers';
+import { RidersComponent } from './features/users/riders/riders'; // ✅ Import RidersComponent
+import { ForgotPasswordComponent } from './features/auth/components/forgot-password/forgot-password';
+import { ResetPasswordComponent } from './features/auth/components/reset-password/reset-password';
+
 export const routes: Routes = [
   { path: 'login', component: AuthCardComponent },
+  { path: 'forgot-password', component: ForgotPasswordComponent },
+  { path: 'reset-password', component: ResetPasswordComponent },
   {
     path: '',
     component: LayoutComponent,
@@ -30,9 +38,10 @@ export const routes: Routes = [
       { path: 'disputes', component: DisputesComponent },
       { path: 'analytics', component: AnalyticsComponent },
       { path: 'audit', component: AuditComponent },
-      { path: 'admins', component: AdminsComponent},
-      { path: 'sellers', component: SellersComponent},
-      { path: 'buyers', component: BuyersComponent},
+      { path: 'admins', component: AdminsComponent },
+      { path: 'sellers', component: SellersComponent },
+      { path: 'buyers', component: BuyersComponent },
+      { path: 'riders', component: RidersComponent }, // ✅ Add Riders route
       { path: 'payments', component: PaymentIntentsComponent },
       { path: 'payouts', component: PayoutsComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }

@@ -1,6 +1,6 @@
 // src/app/features/users/buyers/buyers.ts
 
-import { Component, inject, signal, OnInit, computed } from '@angular/core';
+import { Component, inject, signal, OnInit, computed, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
@@ -9,22 +9,25 @@ import { NotificationService } from '../../../core/services/notifications';
 import { User } from '../../../core/models/user';
 import { CacheService } from '../../../core/services/cache.service';
 import { NgxSmkSkeletonDirective } from 'ngxsmk-skeleton-loader';
+import { OtpModalComponent, OtpModalConfig, OtpActionType } from '../common/otp-modal-component';
+import { OtpModalService } from '../../../core/services/otp-modal-service';
 
-type ActionType = 'suspend' | 'blacklist' | 'activate' | 'restore';
+type ActionType = OtpActionType;
 
 const CACHE_KEY_BUYERS = 'admin_buyers';
 
 @Component({
   selector: 'app-buyers',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgxSmkSkeletonDirective],
+  imports: [CommonModule, FormsModule, NgxSmkSkeletonDirective, OtpModalComponent],
   templateUrl: './buyers.html',
   styleUrls: ['./buyers.css']
 })
-export class BuyersComponent implements OnInit {
+export class BuyersComponent implements OnInit, OnDestroy {
   private apiService = inject(ApiService);
   private notificationService = inject(NotificationService);
   private cacheService = inject(CacheService);
+  private otpModalService = inject(OtpModalService);
 
   isLoading = signal<boolean>(true);
   searchTerm = signal<string>('');
@@ -45,11 +48,15 @@ export class BuyersComponent implements OnInit {
   // Multi-select
   selectedIds = signal<Set<string>>(new Set());
 
-  // Action modal (single user)
+  // OTP State
+  otpSending = signal<Record<string, boolean>>({});
+  otpSent = signal<Record<string, boolean>>({});
+  otpTimer = signal<Record<string, number>>({});
+  private timerInterval: any;
+
+  // Shared Modal State
   showModal = signal(false);
-  modalAction = signal<ActionType | null>(null);
-  modalUser = signal<User | null>(null);
-  modalReason = signal('');
+  modalConfig = signal<OtpModalConfig | null>(null);
 
   // Profile modal
   showProfileModal = signal(false);
@@ -106,9 +113,10 @@ export class BuyersComponent implements OnInit {
     this.loadBuyers();
   }
 
-  // Helper for Math.min in template
-  getMinValue(a: number, b: number): number {
-    return Math.min(a, b);
+  ngOnDestroy() {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+    }
   }
 
   // Helper for displaying pagination info
@@ -182,6 +190,70 @@ export class BuyersComponent implements OnInit {
     };
   }
 
+  // ------------------- OTP Management -------------------
+  
+  sendOtpToUser(user: User): void {
+    if (this.otpSending()[user.id]) return;
+
+    this.otpSending.update(map => ({ ...map, [user.id]: true }));
+    this.otpSent.update(map => ({ ...map, [user.id]: false }));
+
+    this.apiService.sendVerificationOtp(user.id).subscribe({
+      next: (response) => {
+        this.otpSending.update(map => ({ ...map, [user.id]: false }));
+        this.otpSent.update(map => ({ ...map, [user.id]: true }));
+        
+        this.otpTimer.update(map => ({ ...map, [user.id]: 60 }));
+        this.startTimer(user.id);
+        
+        const data = response.data as any;
+        const preview = data?.otpPreview ? ` (Preview: ${data.otpPreview})` : '';
+        this.notificationService.add(
+          'OTP Sent',
+          `Verification code sent to ${user.displayName}${preview}`,
+          'success'
+        );
+      },
+      error: (err) => {
+        this.otpSending.update(map => ({ ...map, [user.id]: false }));
+        const msg = err.error?.message || 'Failed to send OTP. Please try again.';
+        this.notificationService.add('Error', msg, 'danger');
+      }
+    });
+  }
+
+  private startTimer(userId: string): void {
+    if (this.timerInterval) {
+      clearInterval(this.timerInterval);
+    }
+
+    this.timerInterval = setInterval(() => {
+      const current = this.otpTimer()[userId];
+      if (current > 0) {
+        this.otpTimer.update(map => ({ ...map, [userId]: current - 1 }));
+      } else {
+        clearInterval(this.timerInterval);
+        this.otpSent.update(map => ({ ...map, [userId]: false }));
+        this.otpTimer.update(map => {
+          const newMap = { ...map };
+          delete newMap[userId];
+          return newMap;
+        });
+      }
+    }, 1000);
+  }
+
+  getOtpButtonText(userId: string): string {
+    if (this.otpSending()[userId]) return 'Sending...';
+    if (this.otpTimer()[userId]) return `Resend (${this.otpTimer()[userId]}s)`;
+    if (this.otpSent()[userId]) return 'Resend OTP';
+    return 'Send OTP';
+  }
+
+  canSendOtp(userId: string): boolean {
+    return !this.otpSending()[userId] && !this.otpTimer()[userId];
+  }
+
   // ------------------- Search & Filters -------------------
   onSearch(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -244,6 +316,119 @@ export class BuyersComponent implements OnInit {
 
   clearSelection(): void {
     this.selectedIds.set(new Set());
+  }
+
+  // ------------------- Shared Modal Actions -------------------
+  
+  openActionModal(user: User, action: ActionType): void {
+    const config = this.otpModalService.getConfigForAction(user, action);
+    this.modalConfig.set(config);
+    this.showModal.set(true);
+  }
+
+  closeModal(): void {
+    this.showModal.set(false);
+    this.modalConfig.set(null);
+  }
+
+  handleModalConfirm(event: { action: OtpActionType; user: User; otp?: string; reason?: string }): void {
+    const { action, user, otp, reason } = event;
+    
+    switch (action) {
+      case 'verify':
+        if (!otp) {
+          this.notificationService.add('Validation Error', 'OTP is required.', 'warning');
+          return;
+        }
+        this.apiService.verifyUserOtp(user.id, otp).subscribe({
+          next: () => {
+            this.loadBuyers(true);
+            this.closeModal();
+            this.notificationService.add('Success', `User ${user.displayName} verified and activated.`, 'success');
+          },
+          error: (err) => {
+            const msg = err.error?.message || 'Invalid OTP. Please try again.';
+            this.notificationService.add('Error', msg, 'danger');
+          }
+        });
+        break;
+
+      case 'forceActivate':
+        this.apiService.updateUserStatus(user.id, 'ACTIVE', 'Force activated by admin').subscribe({
+          next: () => {
+            this.loadBuyers(true);
+            this.closeModal();
+            this.notificationService.add('Success', `User ${user.displayName} force activated.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'activate')
+        });
+        break;
+
+      case 'suspend':
+        if (!reason) {
+          this.notificationService.add('Validation Error', 'Reason is required for suspension.', 'warning');
+          return;
+        }
+        this.apiService.updateUserStatus(user.id, 'SUSPENDED', reason).subscribe({
+          next: () => {
+            this.loadBuyers(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Buyer ${user.displayName} suspended.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'suspend')
+        });
+        break;
+
+      case 'blacklist':
+        if (!reason) {
+          this.notificationService.add('Validation Error', 'Reason is required for blacklisting.', 'warning');
+          return;
+        }
+        this.apiService.updateUserStatus(user.id, 'BLACKLISTED', reason).subscribe({
+          next: () => {
+            this.loadBuyers(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Buyer ${user.displayName} blacklisted.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'blacklist')
+        });
+        break;
+
+      case 'activate':
+        this.apiService.updateUserStatus(user.id, 'ACTIVE').subscribe({
+          next: () => {
+            this.loadBuyers(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Buyer ${user.displayName} activated.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'activate')
+        });
+        break;
+
+      case 'restore':
+        this.apiService.updateUserStatus(user.id, 'PENDING_VERIFICATION', 'Removed from blacklist by admin').subscribe({
+          next: () => {
+            this.loadBuyers(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Buyer ${user.displayName} restored.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'restore')
+        });
+        break;
+
+      case 'sendOtp':
+        this.sendOtpToUser(user);
+        this.closeModal();
+        break;
+    }
+  }
+
+  private handleError(err: any, action: string): void {
+    console.error(err);
+    const msg = err.status === 401 ? 'Session expired. Please log in again.' :
+                err.status === 403 ? `You do not have permission to ${action} buyers.` :
+                `Failed to ${action} buyer. Please try again.`;
+    this.notificationService.add('Error', msg, 'danger');
   }
 
   // ------------------- Bulk Actions -------------------
@@ -344,91 +529,6 @@ export class BuyersComponent implements OnInit {
     this.viewProfile(user);
   }
 
-  // ------------------- Single Action Modal -------------------
-  openActionModal(user: User, action: ActionType): void {
-    this.modalUser.set(user);
-    this.modalAction.set(action);
-    this.modalReason.set('');
-    this.showModal.set(true);
-  }
-
-  closeModal(): void {
-    this.showModal.set(false);
-    this.modalUser.set(null);
-    this.modalAction.set(null);
-    this.modalReason.set('');
-  }
-
-  confirmAction(): void {
-    const user = this.modalUser();
-    const action = this.modalAction();
-    const reason = this.modalReason().trim();
-
-    if (!user || !action) return;
-
-    switch (action) {
-      case 'suspend':
-        if (!reason) {
-          this.notificationService.add('Validation Error', 'Please provide a reason for suspension.', 'warning');
-          return;
-        }
-        this.apiService.updateUserStatus(user.id, 'SUSPENDED', reason).subscribe({
-          next: () => {
-            this.loadBuyers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Buyer ${user.displayName} suspended.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'suspend')
-        });
-        break;
-
-      case 'blacklist':
-        if (!reason) {
-          this.notificationService.add('Validation Error', 'Please provide a reason for blacklisting.', 'warning');
-          return;
-        }
-        this.apiService.updateUserStatus(user.id, 'BLACKLISTED', reason).subscribe({
-          next: () => {
-            this.loadBuyers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Buyer ${user.displayName} blacklisted.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'blacklist')
-        });
-        break;
-
-      case 'activate':
-        this.apiService.updateUserStatus(user.id, 'ACTIVE').subscribe({
-          next: () => {
-            this.loadBuyers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Buyer ${user.displayName} activated.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'activate')
-        });
-        break;
-
-      case 'restore':
-        this.apiService.updateUserStatus(user.id, 'PENDING_VERIFICATION', 'Removed from blacklist by admin').subscribe({
-          next: () => {
-            this.loadBuyers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Buyer ${user.displayName} restored.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'restore')
-        });
-        break;
-    }
-  }
-
-  private handleError(err: any, action: string): void {
-    console.error(err);
-    const msg = err.status === 401 ? 'Session expired. Please log in again.' :
-                err.status === 403 ? `You do not have permission to ${action} buyers.` :
-                `Failed to ${action} buyer. Please try again.`;
-    this.notificationService.add('Error', msg, 'danger');
-  }
-
   // ------------------- Helpers -------------------
   isBlacklisted(user: User): boolean {
     return user.status === 'BLACKLISTED';
@@ -440,6 +540,24 @@ export class BuyersComponent implements OnInit {
 
   canSuspend(user: User): boolean {
     return user.status === 'ACTIVE';
+  }
+
+  canVerify(user: User): boolean {
+    return user.status === 'PENDING_VERIFICATION';
+  }
+
+  canForceActivate(user: User): boolean {
+    return user.status === 'PENDING_VERIFICATION';
+  }
+
+  getRoleBadgeClass(role: string): string {
+    switch(role) {
+      case 'BUYER': return 'bg-blue-100 text-blue-800';
+      case 'SELLER': return 'bg-purple-100 text-purple-800';
+      case 'ADMIN': return 'bg-red-100 text-red-800';
+      case 'SUPER_ADMIN': return 'bg-amber-100 text-amber-800';
+      default: return 'bg-gray-100 text-gray-600';
+    }
   }
 
   getStatusBadgeClass(status: string): string {

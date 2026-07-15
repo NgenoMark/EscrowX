@@ -1,4 +1,4 @@
-// src/app/features/users/sellers/sellers.ts
+// src/app/features/users/riders/riders.ts
 
 import { Component, inject, signal, OnInit, computed, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -9,25 +9,22 @@ import { NotificationService } from '../../../core/services/notifications';
 import { User } from '../../../core/models/user';
 import { CacheService } from '../../../core/services/cache.service';
 import { NgxSmkSkeletonDirective } from 'ngxsmk-skeleton-loader';
-import { OtpModalComponent, OtpModalConfig, OtpActionType } from '../common/otp-modal-component';
-import { OtpModalService } from '../../../core/services/otp-modal-service';
 
-type ActionType = OtpActionType;
+type ActionType = 'suspend' | 'blacklist' | 'activate' | 'restore' | 'verify' | 'sendOtp' | 'forceActivate';
 
-const CACHE_KEY_SELLERS = 'admin_sellers';
+const CACHE_KEY_RIDERS = 'admin_riders';
 
 @Component({
-  selector: 'app-sellers',
+  selector: 'app-riders',
   standalone: true,
-  imports: [CommonModule, FormsModule, NgxSmkSkeletonDirective, OtpModalComponent],
-  templateUrl: './sellers.html',
-  styleUrls: ['./sellers.css']
+  imports: [CommonModule, FormsModule, NgxSmkSkeletonDirective],
+  templateUrl: './riders.html',
+  styleUrls: ['./riders.css']
 })
-export class SellersComponent implements OnInit, OnDestroy {
+export class RidersComponent implements OnInit, OnDestroy {
   private apiService = inject(ApiService);
   private notificationService = inject(NotificationService);
   private cacheService = inject(CacheService);
-  private otpModalService = inject(OtpModalService);
 
   isLoading = signal<boolean>(true);
   searchTerm = signal<string>('');
@@ -36,8 +33,8 @@ export class SellersComponent implements OnInit, OnDestroy {
   filterStatus = signal<string>('ALL');
   filterBlacklist = signal<string>('ALL');
 
-  private sellersSignal = signal<User[]>([]);
-  sellers = this.sellersSignal.asReadonly();
+  private ridersSignal = signal<User[]>([]);
+  riders = this.ridersSignal.asReadonly();
 
   // Pagination
   currentPage = signal<number>(0);
@@ -48,15 +45,18 @@ export class SellersComponent implements OnInit, OnDestroy {
   // Multi-select
   selectedIds = signal<Set<string>>(new Set());
 
-  // OTP State
+  // OTP Verification State
   otpSending = signal<Record<string, boolean>>({});
   otpSent = signal<Record<string, boolean>>({});
   otpTimer = signal<Record<string, number>>({});
   private timerInterval: any;
 
-  // Shared Modal State
+  // Action modal (single user)
   showModal = signal(false);
-  modalConfig = signal<OtpModalConfig | null>(null);
+  modalAction = signal<ActionType | null>(null);
+  modalUser = signal<User | null>(null);
+  modalReason = signal('');
+  otpCode = signal('');
 
   // Profile modal
   showProfileModal = signal(false);
@@ -67,19 +67,18 @@ export class SellersComponent implements OnInit, OnDestroy {
   bulkActionType = signal<ActionType | null>(null);
   bulkReason = signal('');
 
-  // Computed filtered sellers
-  filteredSellers = computed<User[]>(() => {
-    const sellers = this.sellersSignal();
+  // Computed filtered riders
+  filteredRiders = computed<User[]>(() => {
+    const riders = this.ridersSignal();
     const term = this.searchTerm().toLowerCase();
     const status = this.filterStatus();
     const blacklist = this.filterBlacklist();
 
-    return sellers.filter(u => {
+    return riders.filter(u => {
       if (term) {
         const matchesTerm = (u.displayName || '').toLowerCase().includes(term)
           || String(u.phone || '').toLowerCase().includes(term)
-          || (u.email || '').toLowerCase().includes(term)
-          || (u.businessName || '').toLowerCase().includes(term);
+          || (u.email || '').toLowerCase().includes(term);
         if (!matchesTerm) return false;
       }
       if (status && status !== 'ALL' && u.status !== status) return false;
@@ -89,23 +88,21 @@ export class SellersComponent implements OnInit, OnDestroy {
   });
 
   // Stats
-  totalSellers = computed(() => this.filteredSellers().length);
-  activeSellers = computed(() => this.filteredSellers().filter(u => u.status === 'ACTIVE').length);
-  pendingSellers = computed(() => this.filteredSellers().filter(u => u.status === 'PENDING_VERIFICATION').length);
-  pendingAdminApprovalSellers = computed(() => this.filteredSellers().filter(u => u.status === 'PENDING_ADMIN_APPROVAL').length);
-  suspendedSellers = computed(() => this.filteredSellers().filter(u => u.status === 'SUSPENDED').length);
-  blacklistedSellers = computed(() => this.filteredSellers().filter(u => u.status === 'BLACKLISTED').length);
-  approvedSellers = computed(() => this.filteredSellers().filter(u => u.status === 'ACTIVE' && u.blacklistStatus === 'NOT_BLACKLISTED').length);
+  totalRiders = computed(() => this.filteredRiders().length);
+  activeRiders = computed(() => this.filteredRiders().filter(u => u.status === 'ACTIVE').length);
+  pendingRiders = computed(() => this.filteredRiders().filter(u => u.status === 'PENDING_VERIFICATION').length);
+  suspendedRiders = computed(() => this.filteredRiders().filter(u => u.status === 'SUSPENDED').length);
+  blacklistedRiders = computed(() => this.filteredRiders().filter(u => u.status === 'BLACKLISTED').length);
 
   // Selection helpers
   isAllSelected = computed(() => {
-    const filtered = this.filteredSellers();
+    const filtered = this.filteredRiders();
     const selected = this.selectedIds();
     return filtered.length > 0 && filtered.every(u => selected.has(u.id));
   });
 
   isSomeSelected = computed(() => {
-    const filtered = this.filteredSellers();
+    const filtered = this.filteredRiders();
     const selected = this.selectedIds();
     return !this.isAllSelected() && selected.size > 0 && filtered.some(u => selected.has(u.id));
   });
@@ -113,7 +110,7 @@ export class SellersComponent implements OnInit, OnDestroy {
   selectedCount = computed(() => this.selectedIds().size);
 
   ngOnInit() {
-    this.loadSellers();
+    this.loadRiders();
   }
 
   ngOnDestroy() {
@@ -132,49 +129,49 @@ export class SellersComponent implements OnInit, OnDestroy {
   }
 
   // ------------------- Data Loading -------------------
-  loadSellers(forceRefresh = false): void {
+  loadRiders(forceRefresh = false): void {
     if (forceRefresh) {
-      this.cacheService.clear(CACHE_KEY_SELLERS);
+      this.cacheService.clear(CACHE_KEY_RIDERS);
     }
 
-    const cached = this.cacheService.get<User[]>(CACHE_KEY_SELLERS);
+    const cached = this.cacheService.get<User[]>(CACHE_KEY_RIDERS);
     if (cached && !forceRefresh) {
-      this.sellersSignal.set(cached);
+      this.ridersSignal.set(cached);
       this.isLoading.set(false);
       return;
     }
 
     this.isLoading.set(true);
-    this.apiService.getSellers({
+    this.apiService.getRiders({
       page: this.currentPage(),
       size: this.pageSize()
     }).subscribe({
       next: (response) => {
         if (!response || !response.content) {
-          this.notificationService.add('Data Error', 'Received invalid seller data from server.', 'danger');
+          this.notificationService.add('Data Error', 'Received invalid rider data from server.', 'danger');
           this.isLoading.set(false);
           return;
         }
-        const sellers = response.content.map(apiUser => this.mapApiUser(apiUser));
-        this.sellersSignal.set(sellers);
+        const riders = response.content.map(apiUser => this.mapApiUser(apiUser));
+        this.ridersSignal.set(riders);
         this.totalElements.set(response.totalElements);
         this.totalPages.set(response.totalPages);
-        this.cacheService.set(CACHE_KEY_SELLERS, sellers);
+        this.cacheService.set(CACHE_KEY_RIDERS, riders);
         this.isLoading.set(false);
       },
       error: (err) => {
-        console.error('Failed to fetch sellers:', err);
+        console.error('Failed to fetch riders:', err);
         const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
-                         err.status === 403 ? 'You do not have permission to view sellers.' :
-                         'Could not load sellers. Please try again later.';
+                         err.status === 403 ? 'You do not have permission to view riders.' :
+                         'Could not load riders. Please try again later.';
         this.notificationService.add('Error', errorMsg, 'danger');
         this.isLoading.set(false);
       }
     });
   }
 
-  refreshSellers(): void {
-    this.loadSellers(true);
+  refreshRiders(): void {
+    this.loadRiders(true);
   }
 
   private mapApiUser(user: ApiUserDetails): User {
@@ -277,21 +274,21 @@ export class SellersComponent implements OnInit, OnDestroy {
   goToPage(page: number): void {
     if (page >= 0 && page < this.totalPages()) {
       this.currentPage.set(page);
-      this.loadSellers(true);
+      this.loadRiders(true);
     }
   }
 
   nextPage(): void {
     if (this.currentPage() < this.totalPages() - 1) {
       this.currentPage.set(this.currentPage() + 1);
-      this.loadSellers(true);
+      this.loadRiders(true);
     }
   }
 
   prevPage(): void {
     if (this.currentPage() > 0) {
       this.currentPage.set(this.currentPage() - 1);
-      this.loadSellers(true);
+      this.loadRiders(true);
     }
   }
 
@@ -310,7 +307,7 @@ export class SellersComponent implements OnInit, OnDestroy {
 
   toggleAll(checked: boolean): void {
     if (checked) {
-      const ids = this.filteredSellers().map(u => u.id);
+      const ids = this.filteredRiders().map(u => u.id);
       this.selectedIds.set(new Set(ids));
     } else {
       this.selectedIds.set(new Set());
@@ -321,136 +318,12 @@ export class SellersComponent implements OnInit, OnDestroy {
     this.selectedIds.set(new Set());
   }
 
-  // ------------------- Shared Modal Actions -------------------
-  
-  openActionModal(user: User, action: ActionType): void {
-    const config = this.otpModalService.getConfigForAction(user, action);
-    this.modalConfig.set(config);
-    this.showModal.set(true);
-  }
-
-  closeModal(): void {
-    this.showModal.set(false);
-    this.modalConfig.set(null);
-  }
-
-  handleModalConfirm(event: { action: OtpActionType; user: User; otp?: string; reason?: string }): void {
-    const { action, user, otp, reason } = event;
-    
-    switch (action) {
-      case 'verify':
-        if (!otp) {
-          this.notificationService.add('Validation Error', 'OTP is required.', 'warning');
-          return;
-        }
-        this.apiService.verifyUserOtp(user.id, otp).subscribe({
-          next: () => {
-            this.loadSellers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `User ${user.displayName} verified and activated.`, 'success');
-          },
-          error: (err) => {
-            const msg = err.error?.message || 'Invalid OTP. Please try again.';
-            this.notificationService.add('Error', msg, 'danger');
-          }
-        });
-        break;
-
-      case 'approve':
-        this.apiService.approveSeller(user.id, reason || 'Approved by admin').subscribe({
-          next: () => {
-            this.loadSellers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Seller ${user.displayName} approved.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'approve')
-        });
-        break;
-
-      case 'forceActivate':
-        this.apiService.updateUserStatus(user.id, 'ACTIVE', 'Force activated by admin').subscribe({
-          next: () => {
-            this.loadSellers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `User ${user.displayName} force activated.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'activate')
-        });
-        break;
-
-      case 'suspend':
-        if (!reason) {
-          this.notificationService.add('Validation Error', 'Reason is required for suspension.', 'warning');
-          return;
-        }
-        this.apiService.updateUserStatus(user.id, 'SUSPENDED', reason).subscribe({
-          next: () => {
-            this.loadSellers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Seller ${user.displayName} suspended.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'suspend')
-        });
-        break;
-
-      case 'blacklist':
-        if (!reason) {
-          this.notificationService.add('Validation Error', 'Reason is required for blacklisting.', 'warning');
-          return;
-        }
-        this.apiService.updateUserStatus(user.id, 'BLACKLISTED', reason).subscribe({
-          next: () => {
-            this.loadSellers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Seller ${user.displayName} blacklisted.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'blacklist')
-        });
-        break;
-
-      case 'activate':
-        this.apiService.updateUserStatus(user.id, 'ACTIVE').subscribe({
-          next: () => {
-            this.loadSellers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Seller ${user.displayName} activated.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'activate')
-        });
-        break;
-
-      case 'restore':
-        this.apiService.updateUserStatus(user.id, 'PENDING_VERIFICATION', 'Removed from blacklist by admin').subscribe({
-          next: () => {
-            this.loadSellers(true);
-            this.closeModal();
-            this.notificationService.add('Success', `Seller ${user.displayName} restored.`, 'success');
-          },
-          error: (err) => this.handleError(err, 'restore')
-        });
-        break;
-
-      case 'sendOtp':
-        this.sendOtpToUser(user);
-        this.closeModal();
-        break;
-    }
-  }
-
-  private handleError(err: any, action: string): void {
-    console.error(err);
-    const msg = err.status === 401 ? 'Session expired. Please log in again.' :
-                err.status === 403 ? `You do not have permission to ${action} sellers.` :
-                `Failed to ${action} seller. Please try again.`;
-    this.notificationService.add('Error', msg, 'danger');
-  }
-
   // ------------------- Bulk Actions -------------------
   bulkAction(action: ActionType): void {
-    const selectedSellers = this.filteredSellers().filter(u => this.selectedIds().has(u.id));
-    if (selectedSellers.length === 0) return;
+    const selectedRiders = this.filteredRiders().filter(u => this.selectedIds().has(u.id));
+    if (selectedRiders.length === 0) return;
 
-    if (action === 'suspend' || action === 'blacklist' || action === 'approve') {
+    if (action === 'suspend' || action === 'blacklist') {
       this.openBulkActionModal(action);
     } else {
       this.executeBulkAction(action, '');
@@ -483,8 +356,8 @@ export class SellersComponent implements OnInit, OnDestroy {
   }
 
   private executeBulkAction(action: ActionType, reason: string): void {
-    const selectedSellers = this.filteredSellers().filter(u => this.selectedIds().has(u.id));
-    if (selectedSellers.length === 0) return;
+    const selectedRiders = this.filteredRiders().filter(u => this.selectedIds().has(u.id));
+    if (selectedRiders.length === 0) return;
 
     let status: string;
     let apiReason = reason || 'Bulk action by admin';
@@ -494,35 +367,31 @@ export class SellersComponent implements OnInit, OnDestroy {
       case 'blacklist': status = 'BLACKLISTED'; break;
       case 'activate': status = 'ACTIVE'; break;
       case 'restore': status = 'PENDING_VERIFICATION'; apiReason = 'Restored from blacklist by admin'; break;
-      case 'approve': status = 'ACTIVE'; apiReason = 'Approved by admin'; break;
       default: return;
     }
 
     this.isLoading.set(true);
 
-    const requests = selectedSellers.map(user => {
-      if (action === 'approve') {
-        return this.apiService.approveSeller(user.id, apiReason);
-      }
-      return this.apiService.updateUserStatus(user.id, status, apiReason);
-    });
+    const requests = selectedRiders.map(user =>
+      this.apiService.updateUserStatus(user.id, status, apiReason)
+    );
 
     forkJoin(requests).subscribe({
       next: () => {
         this.isLoading.set(false);
         this.notificationService.add(
           'Success',
-          `Bulk action '${action}' applied to ${selectedSellers.length} seller(s).`,
+          `Bulk action '${action}' applied to ${selectedRiders.length} rider(s).`,
           'success'
         );
-        this.loadSellers(true);
+        this.loadRiders(true);
         this.clearSelection();
       },
       error: (err) => {
         this.isLoading.set(false);
         console.error('Bulk action error:', err);
         this.notificationService.add('Error', 'Some actions failed. Check logs.', 'danger');
-        this.loadSellers(true);
+        this.loadRiders(true);
         this.clearSelection();
       }
     });
@@ -547,6 +416,127 @@ export class SellersComponent implements OnInit, OnDestroy {
     this.viewProfile(user);
   }
 
+  // ------------------- Single Action Modal -------------------
+  openActionModal(user: User, action: ActionType): void {
+    this.modalUser.set(user);
+    this.modalAction.set(action);
+    this.modalReason.set('');
+    this.otpCode.set('');
+    this.showModal.set(true);
+  }
+
+  closeModal(): void {
+    this.showModal.set(false);
+    this.modalUser.set(null);
+    this.modalAction.set(null);
+    this.modalReason.set('');
+    this.otpCode.set('');
+  }
+
+  confirmAction(): void {
+    const user = this.modalUser();
+    const action = this.modalAction();
+    const reason = this.modalReason().trim();
+
+    if (!user || !action) return;
+
+    switch (action) {
+      case 'verify':
+        if (!this.otpCode()) {
+          this.notificationService.add('Validation Error', 'Please enter the OTP sent to the user.', 'warning');
+          return;
+        }
+        this.apiService.verifyUserOtp(user.id, this.otpCode()).subscribe({
+          next: () => {
+            this.loadRiders(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Rider ${user.displayName} verified and activated.`, 'success');
+          },
+          error: (err) => {
+            const msg = err.error?.message || 'Invalid OTP. Please try again.';
+            this.notificationService.add('Error', msg, 'danger');
+          }
+        });
+        break;
+
+      case 'sendOtp':
+        this.sendOtpToUser(user);
+        this.closeModal();
+        break;
+
+      case 'forceActivate':
+        this.apiService.updateUserStatus(user.id, 'ACTIVE', 'Force activated by admin').subscribe({
+          next: () => {
+            this.loadRiders(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Rider ${user.displayName} force activated.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'activate')
+        });
+        break;
+
+      case 'suspend':
+        if (!reason) {
+          this.notificationService.add('Validation Error', 'Please provide a reason for suspension.', 'warning');
+          return;
+        }
+        this.apiService.updateUserStatus(user.id, 'SUSPENDED', reason).subscribe({
+          next: () => {
+            this.loadRiders(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Rider ${user.displayName} suspended.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'suspend')
+        });
+        break;
+
+      case 'blacklist':
+        if (!reason) {
+          this.notificationService.add('Validation Error', 'Please provide a reason for blacklisting.', 'warning');
+          return;
+        }
+        this.apiService.updateUserStatus(user.id, 'BLACKLISTED', reason).subscribe({
+          next: () => {
+            this.loadRiders(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Rider ${user.displayName} blacklisted.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'blacklist')
+        });
+        break;
+
+      case 'activate':
+        this.apiService.updateUserStatus(user.id, 'ACTIVE').subscribe({
+          next: () => {
+            this.loadRiders(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Rider ${user.displayName} activated.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'activate')
+        });
+        break;
+
+      case 'restore':
+        this.apiService.updateUserStatus(user.id, 'PENDING_VERIFICATION', 'Removed from blacklist by admin').subscribe({
+          next: () => {
+            this.loadRiders(true);
+            this.closeModal();
+            this.notificationService.add('Success', `Rider ${user.displayName} restored.`, 'success');
+          },
+          error: (err) => this.handleError(err, 'restore')
+        });
+        break;
+    }
+  }
+
+  private handleError(err: any, action: string): void {
+    console.error(err);
+    const msg = err.status === 401 ? 'Session expired. Please log in again.' :
+                err.status === 403 ? `You do not have permission to ${action} riders.` :
+                `Failed to ${action} rider. Please try again.`;
+    this.notificationService.add('Error', msg, 'danger');
+  }
+
   // ------------------- Helpers -------------------
   isBlacklisted(user: User): boolean {
     return user.status === 'BLACKLISTED';
@@ -560,10 +550,6 @@ export class SellersComponent implements OnInit, OnDestroy {
     return user.status === 'ACTIVE';
   }
 
-  canApprove(user: User): boolean {
-    return user.status === 'PENDING_ADMIN_APPROVAL';
-  }
-
   canVerify(user: User): boolean {
     return user.status === 'PENDING_VERIFICATION';
   }
@@ -574,6 +560,7 @@ export class SellersComponent implements OnInit, OnDestroy {
 
   getRoleBadgeClass(role: string): string {
     switch(role) {
+      case 'RIDER': return 'bg-emerald-100 text-emerald-800';
       case 'BUYER': return 'bg-blue-100 text-blue-800';
       case 'SELLER': return 'bg-purple-100 text-purple-800';
       case 'ADMIN': return 'bg-red-100 text-red-800';
@@ -587,7 +574,6 @@ export class SellersComponent implements OnInit, OnDestroy {
       case 'ACTIVE': return 'bg-green-100 text-green-800';
       case 'SUSPENDED': return 'bg-red-100 text-red-800';
       case 'PENDING_VERIFICATION': return 'bg-yellow-100 text-yellow-800';
-      case 'PENDING_ADMIN_APPROVAL': return 'bg-blue-100 text-blue-800';
       case 'BLACKLISTED': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-600';
     }

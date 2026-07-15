@@ -1,21 +1,22 @@
 <!-- src/app/features/transactions/transactions.html -->
 
 <div class="space-y-6">
-  
+
   <!-- Statistics Cards -->
-  <ng-container *ngxsmkSkeleton="isLoading(); type: 'text'; count: 6; width: '100%'; height: '90px'; gap: '16px'; appearance: 'rect'; animation: 'progress'">
+  <ng-container
+    *ngxsmkSkeleton="isLoading(); type: 'text'; count: 6; width: '100%'; height: '90px'; gap: '16px'; appearance: 'rect'; animation: 'progress'">
     <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
       <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
         <p class="text-xs text-gray-500">Total Transactions</p>
         <p class="text-2xl font-bold text-gray-800">{{ stats().total }}</p>
       </div>
       <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-        <p class="text-xs text-gray-500">Funds Held</p>
-        <p class="text-2xl font-bold text-yellow-600">{{ stats().fundsHeld }}</p>
+        <p class="text-xs text-gray-500">Active Escrows</p>
+        <p class="text-2xl font-bold text-yellow-600">{{ stats().active }}</p>
       </div>
       <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
-        <p class="text-xs text-gray-500">Completed</p>
-        <p class="text-2xl font-bold text-green-600">{{ stats().completed }}</p>
+        <p class="text-xs text-gray-500">Inactive</p>
+        <p class="text-2xl font-bold text-green-600">{{ stats().inactive }}</p>
       </div>
       <div class="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
         <p class="text-xs text-gray-500">Disputed</p>
@@ -34,44 +35,69 @@
 
   <!-- Main Transaction Table -->
   <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-    
-    <!-- Sticky Header with filters -->
-    <div class="sticky-header px-5 py-4 border-b border-gray-100 bg-white">
-      <div class="flex flex-wrap gap-3 justify-between items-center">
-        <h3 class="text-lg font-bold text-gray-800">
-          <i class="fas fa-exchange-alt mr-2 text-indigo-600"></i>
-          Transaction Monitoring
-        </h3>
-        <div class="flex gap-3">
-          <select
-            (change)="onStatusFilterChange($event)"
-            class="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-200 bg-white"
-          >
-            <option value="all">All Status</option>
-            <option value="FUNDS_HELD">Funds Held</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="DISPUTED">Disputed</option>
-            <option value="REFUNDED">Refunded</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
 
+    <!-- Sticky Header with tabs and search -->
+    <div class="sticky-header px-5 py-4 border-b border-gray-100 bg-white">
+      <div class="flex flex-col gap-3">
+        <!-- Top row: title + search -->
+        <div class="flex flex-wrap gap-3 justify-between items-center">
+          <h3 class="text-lg font-bold text-gray-800">
+            <i class="fas fa-exchange-alt mr-2 text-indigo-600"></i>
+            Transaction Monitoring
+          </h3>
           <div class="relative">
             <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
-            <input
-              type="text"
-              placeholder="Search by ID, buyer, seller..."
-              (input)="onSearch($event)"
+            <input type="text" placeholder="Search by ID, buyer, seller..." (input)="onSearch($event)"
               [value]="searchTerm()"
-              class="pl-9 pr-10 py-2 border border-gray-200 rounded-xl text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            />
-            <button
-              *ngIf="searchTerm()"
-              (click)="clearSearch()"
-              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-            >
+              class="pl-9 pr-10 py-2 border border-gray-200 rounded-xl text-sm w-64 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+            <button *ngIf="searchTerm()" (click)="clearSearch()"
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
               <i class="fas fa-times-circle"></i>
             </button>
           </div>
+        </div>
+
+        <!-- Bottom row: tabs + clear -->
+        <div class="flex flex-wrap items-center gap-3">
+          <!-- Tab Buttons -->
+          <div class="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            <button (click)="setTab('all')" class="px-4 py-1.5 rounded-md text-sm font-medium transition"
+              [class.bg-white]="activeTab() === 'all'" [class.shadow-sm]="activeTab() === 'all'"
+              [class.text-gray-700]="activeTab() === 'all'" [class.text-gray-500]="activeTab() !== 'all'">
+              All
+            </button>
+            <button (click)="setTab('active')" class="px-4 py-1.5 rounded-md text-sm font-medium transition"
+              [class.bg-white]="activeTab() === 'active'" [class.shadow-sm]="activeTab() === 'active'"
+              [class.text-yellow-700]="activeTab() === 'active'" [class.text-gray-500]="activeTab() !== 'active'">
+              🟡 Active ({{ stats().active }})
+            </button>
+            <button (click)="setTab('completed')" class="px-4 py-1.5 rounded-md text-sm font-medium transition"
+              [class.bg-white]="activeTab() === 'completed'" [class.shadow-sm]="activeTab() === 'completed'"
+              [class.text-blue-700]="activeTab() === 'completed'" [class.text-gray-500]="activeTab() !== 'completed'">
+              ✅ Completed ({{ stats().completed }})
+            </button>
+            <button (click)="setTab('inactive')" class="px-4 py-1.5 rounded-md text-sm font-medium transition"
+              [class.bg-white]="activeTab() === 'inactive'" [class.shadow-sm]="activeTab() === 'inactive'"
+              [class.text-green-700]="activeTab() === 'inactive'" [class.text-gray-500]="activeTab() !== 'inactive'">
+              ✅ Inactive ({{ stats().inactive }})
+            </button>
+            <button (click)="setTab('disputed')" class="px-4 py-1.5 rounded-md text-sm font-medium transition"
+              [class.bg-white]="activeTab() === 'disputed'" [class.shadow-sm]="activeTab() === 'disputed'"
+              [class.text-red-700]="activeTab() === 'disputed'" [class.text-gray-500]="activeTab() !== 'disputed'">
+              🔴 Disputed ({{ stats().disputed }})
+            </button>
+          </div>
+
+          <button (click)="clearAllFilters()"
+            class="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200 transition">
+            Clear Filters
+          </button>
+
+          @if (activeTab() !== 'all' || searchTerm()) {
+          <span class="text-xs text-gray-400">
+            ({{ filteredTransactions().length }} results)
+          </span>
+          }
         </div>
       </div>
     </div>
@@ -79,7 +105,8 @@
     <!-- Scrollable table container -->
     <div class="table-scroll-container">
       <div class="overflow-x-auto">
-        <ng-container *ngxsmkSkeleton="isLoading(); type: 'text'; count: 5; width: '100%'; height: '60px'; gap: '2px'; appearance: 'rect'; animation: 'progress'">
+        <ng-container
+          *ngxsmkSkeleton="isLoading(); type: 'text'; count: 5; width: '100%'; height: '60px'; gap: '2px'; appearance: 'rect'; animation: 'progress'">
           <table class="min-w-full">
             <thead class="bg-gray-50 border-b border-gray-200">
               <tr>
@@ -95,323 +122,310 @@
             </thead>
             <tbody class="divide-y divide-gray-100">
               @for (tx of filteredTransactions(); track tx.id) {
-                <tr class="hover:bg-gray-50 transition duration-150">
-                  <td class="px-6 py-4">
-                    <span class="font-mono text-xs font-medium text-indigo-600">{{ tx.id }}</span>
-                  </td>
-                  <td class="px-6 py-4">
-                    <p class="text-sm font-medium text-gray-800">{{ tx.buyer }}</p>
-                  </td>
-                  <td class="px-6 py-4">
-                    <p class="text-sm text-gray-700">{{ tx.seller }}</p>
-                  </td>
-                  <td class="px-6 py-4">
-                    <p class="font-semibold text-gray-800">KES {{ tx.amount | number }}</p>
-                  </td>
-                  <td class="px-6 py-4">
-                    <span class="px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit" [class]="getStatusBadgeClass(tx.status)">
-                      <i class="fas" [class]="getStatusIcon(tx.status)"></i>
-                      {{ tx.status }}
-                    </span>
-                  </td>
-                  <td class="px-6 py-4 text-sm text-gray-500">
-                    {{ formatDate(tx.created) }}
-                  </td>
-                  <td class="px-6 py-4 text-xs text-gray-400">
-                    {{ tx.autoReleaseDate ? (tx.autoReleaseDate | date) : '-' }}
-                  </td>
-                  <td class="px-6 py-4">
-                    <div class="flex gap-1 flex-wrap justify-center">
-                      <button
-                        (click)="viewTransactionDetails(tx)"
-                        class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition"
-                        title="View Details"
-                      >
-                         View
-                      </button>
-
-                      <button
-                        (click)="viewHistory(tx)"
-                        class="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-xs font-medium hover:bg-indigo-100 transition"
-                        title="Status History"
-                      >
-                        History
-                      </button>
-
-                      <button
-                        (click)="viewLedger(tx)"
-                        class="px-2 py-1 bg-purple-50 text-purple-600 rounded text-xs font-medium hover:bg-purple-100 transition"
-                        title="Ledger Entries"
-                      >
-                         Ledger
-                      </button>
-
-                      @if (tx.status === 'FUNDS_HELD') {
-                        <button
-                          (click)="forceRelease(tx)"
-                          class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200 transition"
-                          title="Force Release"
-                        >
-                          Release
-                        </button>
-                      }
-
-                      @if (tx.status === 'FUNDS_HELD') {
-                        <button
-                          (click)="cancelTransaction(tx)"
-                          class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium hover:bg-gray-200 transition"
-                          title="Cancel"
-                        >
-                          Refund
-                        </button>
-                      }
-                    </div>
-                  </td>
-                </tr>
-              } @empty {
-                <tr>
-                  <td colspan="8" class="px-6 py-12 text-center text-gray-500">
-                    <i class="fas fa-search text-4xl mb-3 block text-gray-300"></i>
-                    <p class="text-lg">No transactions found</p>
-                    <p class="text-sm mt-1">Try changing your filters</p>
-                    <button (click)="clearAllFilters()" class="mt-3 text-indigo-600 text-sm hover:underline">
-                      Clear all filters
+              <tr class="hover:bg-gray-50 transition duration-150">
+                <td class="px-6 py-4">
+                  <span class="font-mono text-xs font-medium text-indigo-600">{{ tx.id }}</span>
+                </td>
+                <td class="px-6 py-4">
+                  <p class="text-sm font-medium text-gray-800">{{ tx.buyer }}</p>
+                </td>
+                <td class="px-6 py-4">
+                  <p class="text-sm text-gray-700">{{ tx.seller }}</p>
+                </td>
+                <td class="px-6 py-4">
+                  <p class="font-semibold text-gray-800">KES {{ tx.amount | number }}</p>
+                </td>
+                <td class="px-6 py-4">
+                  <span class="px-2 py-1 rounded-full text-xs font-semibold flex items-center gap-1 w-fit"
+                    [class]="getStatusBadgeClass(tx.status)">
+                    <i class="fas" [class]="getStatusIcon(tx.status)"></i>
+                    {{ tx.status }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-500">
+                  {{ formatDate(tx.created) }}
+                </td>
+                <td class="px-6 py-4 text-xs text-gray-400">
+                  {{ tx.autoReleaseDate ? (tx.autoReleaseDate | date) : '-' }}
+                </td>
+                <td class="px-6 py-4">
+                  <div class="flex gap-1 flex-wrap justify-center">
+                    <button (click)="viewTransactionDetails(tx)"
+                      class="px-2 py-1 bg-gray-100 text-gray-700 rounded text-xs font-medium hover:bg-gray-200 transition"
+                      title="View Details">
+                      View
                     </button>
-                  </td>
-                </tr>
+
+                    <button (click)="viewHistory(tx)"
+                      class="px-2 py-1 bg-indigo-50 text-indigo-600 rounded text-xs font-medium hover:bg-indigo-100 transition"
+                      title="Status History">
+                      History
+                    </button>
+
+                    <button (click)="viewLedger(tx)"
+                      class="px-2 py-1 bg-purple-50 text-purple-600 rounded text-xs font-medium hover:bg-purple-100 transition"
+                      title="Ledger Entries">
+                      Ledger
+                    </button>
+
+                    @if (tx.status === 'FUNDS_HELD') {
+                    <button (click)="forceRelease(tx)"
+                      class="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-medium hover:bg-green-200 transition"
+                      title="Force Release">
+                      Release
+                    </button>
+                    }
+
+                    @if (tx.status === 'FUNDS_HELD') {
+                    <button (click)="cancelTransaction(tx)"
+                      class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium hover:bg-gray-200 transition"
+                      title="Cancel">
+                      Refund
+                    </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+              } @empty {
+              <tr>
+                <td colspan="8" class="px-6 py-12 text-center text-gray-500">
+                  <i class="fas fa-search text-4xl mb-3 block text-gray-300"></i>
+                  <p class="text-lg">No transactions found</p>
+                  <p class="text-sm mt-1">Try changing your filters</p>
+                  <button (click)="clearAllFilters()" class="mt-3 text-indigo-600 text-sm hover:underline">
+                    Clear all filters
+                  </button>
+                </td>
+              </tr>
               }
             </tbody>
           </table>
         </ng-container>
       </div>
     </div>
-
-    <!-- Footer -->
-
   </div>
 </div>
 
 <!-- ================== DETAIL MODAL ================== -->
 @if (showDetailModal()) {
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeDetailModal()">
-    <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" (click)="$event.stopPropagation()">
-      <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
-        <h3 class="text-xl font-bold text-gray-800">
-          <i class="fas fa-info-circle text-indigo-600 mr-2"></i> Transaction Details
-        </h3>
-        <button (click)="closeDetailModal()" class="text-gray-400 hover:text-gray-600">
-          <i class="fas fa-times text-xl"></i>
-        </button>
-      </div>
-      <div class="p-6 space-y-4" *ngIf="selectedTransaction() as tx">
-        <div class="grid grid-cols-2 gap-4">
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">ID</p>
-            <p class="font-mono text-sm text-indigo-600">{{ tx.id }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Reference</p>
-            <p class="font-mono text-sm text-gray-800">{{ tx.reference || '-' }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Buyer</p>
-            <p class="font-semibold text-gray-800">{{ tx.buyer }}</p>
-            <p class="text-xs text-gray-500">{{ tx.buyerId }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Seller</p>
-            <p class="font-semibold text-gray-800">{{ tx.seller }}</p>
-            <p class="text-xs text-gray-500">{{ tx.sellerId }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Amount</p>
-            <p class="text-2xl font-bold text-indigo-600">KES {{ tx.amount | number }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Status</p>
-            <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getStatusBadgeClass(tx.status)">
-              {{ tx.status }}
-            </span>
-          </div>
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Created</p>
-            <p class="text-sm text-gray-800">{{ formatDate(tx.created) }}</p>
-          </div>
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Auto Release</p>
-            <p class="text-sm text-gray-800">{{ tx.autoReleaseDate ? (tx.autoReleaseDate | date) : 'Not set' }}</p>
-          </div>
+<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+  (click)="closeDetailModal()">
+  <div class="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+    (click)="$event.stopPropagation()">
+    <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white">
+      <h3 class="text-xl font-bold text-gray-800">
+        <i class="fas fa-info-circle text-indigo-600 mr-2"></i> Transaction Details
+      </h3>
+      <button (click)="closeDetailModal()" class="text-gray-400 hover:text-gray-600">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
+    <div class="p-6 space-y-4" *ngIf="selectedTransaction() as tx">
+      <div class="grid grid-cols-2 gap-4">
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">ID</p>
+          <p class="font-mono text-sm text-indigo-600">{{ tx.id }}</p>
         </div>
-        @if (tx.description) {
-          <div class="bg-gray-50 rounded-xl p-4">
-            <p class="text-xs text-gray-500">Description</p>
-            <p class="text-sm text-gray-700">{{ tx.description }}</p>
-          </div>
-        }
-        @if (tx.status === 'FUNDS_HELD') {
-          <div class="border-t border-gray-200 pt-4">
-            <p class="text-sm font-semibold text-gray-700 mb-3">Admin Override Actions</p>
-            <div class="flex gap-3 flex-wrap">
-              <button (click)="forceRelease(tx); closeDetailModal()" class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">
-                <i class="fas fa-hand-holding-usd mr-1"></i> Force Release
-              </button>
-              <button (click)="cancelTransaction(tx); closeDetailModal()" class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition">
-                <i class="fas fa-times mr-1"></i> Cancel
-              </button>
-            </div>
-          </div>
-        }
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Reference</p>
+          <p class="font-mono text-sm text-gray-800">{{ tx.reference || '-' }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Buyer</p>
+          <p class="font-semibold text-gray-800">{{ tx.buyer }}</p>
+          <p class="text-xs text-gray-500">{{ tx.buyerId }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Seller</p>
+          <p class="font-semibold text-gray-800">{{ tx.seller }}</p>
+          <p class="text-xs text-gray-500">{{ tx.sellerId }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Amount</p>
+          <p class="text-2xl font-bold text-indigo-600">KES {{ tx.amount | number }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Status</p>
+          <span class="px-2 py-1 rounded-full text-xs font-semibold" [class]="getStatusBadgeClass(tx.status)">
+            {{ tx.status }}
+          </span>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Created</p>
+          <p class="text-sm text-gray-800">{{ formatDate(tx.created) }}</p>
+        </div>
+        <div class="bg-gray-50 rounded-xl p-4">
+          <p class="text-xs text-gray-500">Auto Release</p>
+          <p class="text-sm text-gray-800">{{ tx.autoReleaseDate ? (tx.autoReleaseDate | date) : 'Not set' }}</p>
+        </div>
       </div>
-      <div class="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-        <button (click)="closeDetailModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Close</button>
+      @if (tx.description) {
+      <div class="bg-gray-50 rounded-xl p-4">
+        <p class="text-xs text-gray-500">Description</p>
+        <p class="text-sm text-gray-700">{{ tx.description }}</p>
       </div>
+      }
+      @if (tx.status === 'FUNDS_HELD') {
+      <div class="border-t border-gray-200 pt-4">
+        <p class="text-sm font-semibold text-gray-700 mb-3">Admin Override Actions</p>
+        <div class="flex gap-3 flex-wrap">
+          <button (click)="forceRelease(tx); closeDetailModal()"
+            class="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition">
+            <i class="fas fa-hand-holding-usd mr-1"></i> Force Release
+          </button>
+          <button (click)="cancelTransaction(tx); closeDetailModal()"
+            class="px-4 py-2 bg-gray-600 text-white rounded-lg text-sm font-medium hover:bg-gray-700 transition">
+            <i class="fas fa-times mr-1"></i> Cancel
+          </button>
+        </div>
+      </div>
+      }
+    </div>
+    <div class="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+      <button (click)="closeDetailModal()"
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">Close</button>
     </div>
   </div>
+</div>
 }
 
 <!-- ================== INFO MODAL (HISTORY & LEDGER) ================== -->
 @if (showInfoModal()) {
-  <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeInfoModal()">
-    <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col" (click)="$event.stopPropagation()">
-      <!-- Header -->
-      <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
-        <h3 class="text-xl font-bold text-gray-800">
-          <i class="fas fa-info-circle text-indigo-600 mr-2"></i>
-          {{ selectedTransactionForInfo()?.id ? 'Transaction: ' + (selectedTransactionForInfo()?.id | slice:0:8) : 'Loading...' }}
-        </h3>
-        <button (click)="closeInfoModal()" class="text-gray-400 hover:text-gray-600 transition">
-          <i class="fas fa-times text-xl"></i>
-        </button>
-      </div>
+<div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" (click)="closeInfoModal()">
+  <div class="bg-white rounded-2xl shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+    (click)="$event.stopPropagation()">
+    <!-- Header -->
+    <div class="p-6 border-b border-gray-100 flex justify-between items-center sticky top-0 bg-white rounded-t-2xl">
+      <h3 class="text-xl font-bold text-gray-800">
+        <i class="fas fa-info-circle text-indigo-600 mr-2"></i>
+        {{ selectedTransactionForInfo()?.id ? 'Transaction: ' + (selectedTransactionForInfo()?.id | slice:0:8) :
+        'Loading...' }}
+      </h3>
+      <button (click)="closeInfoModal()" class="text-gray-400 hover:text-gray-600 transition">
+        <i class="fas fa-times text-xl"></i>
+      </button>
+    </div>
 
-      <!-- Tabs -->
-      <div class="flex border-b border-gray-200 bg-gray-50/50 px-2 pt-2">
-        <button
-          (click)="onTabChange('history')"
-          class="px-6 py-2.5 text-sm font-medium transition rounded-t-lg"
-          [class.bg-white]="activeTab() === 'history'"
-          [class.text-indigo-600]="activeTab() === 'history'"
-          [class.text-gray-500]="activeTab() !== 'history'"
-          [class.border]="activeTab() === 'history'"
-          [class.border-b-0]="activeTab() === 'history'"
-          [class.border-gray-200]="activeTab() === 'history'"
-        >
-          <i class="fas fa-history mr-2"></i> Status History
-        </button>
-        <button
-          (click)="onTabChange('ledger')"
-          class="px-6 py-2.5 text-sm font-medium transition rounded-t-lg"
-          [class.bg-white]="activeTab() === 'ledger'"
-          [class.text-indigo-600]="activeTab() === 'ledger'"
-          [class.text-gray-500]="activeTab() !== 'ledger'"
-          [class.border]="activeTab() === 'ledger'"
-          [class.border-b-0]="activeTab() === 'ledger'"
-          [class.border-gray-200]="activeTab() === 'ledger'"
-        >
-          <i class="fas fa-book mr-2"></i> Ledger Entries
-        </button>
-      </div>
+    <!-- Tabs -->
+    <div class="flex border-b border-gray-200 bg-gray-50/50 px-2 pt-2">
+      <button (click)="onTabInfoChange('history')" class="px-6 py-2.5 text-sm font-medium transition rounded-t-lg"
+        [class.bg-white]="activeTabInfo() === 'history'" [class.text-indigo-600]="activeTabInfo() === 'history'"
+        [class.text-gray-500]="activeTabInfo() !== 'history'" [class.border]="activeTabInfo() === 'history'"
+        [class.border-b-0]="activeTabInfo() === 'history'" [class.border-gray-200]="activeTabInfo() === 'history'">
+        <i class="fas fa-history mr-2"></i> Status History
+      </button>
+      <button (click)="onTabInfoChange('ledger')" class="px-6 py-2.5 text-sm font-medium transition rounded-t-lg"
+        [class.bg-white]="activeTabInfo() === 'ledger'" [class.text-indigo-600]="activeTabInfo() === 'ledger'"
+        [class.text-gray-500]="activeTabInfo() !== 'ledger'" [class.border]="activeTabInfo() === 'ledger'"
+        [class.border-b-0]="activeTabInfo() === 'ledger'" [class.border-gray-200]="activeTabInfo() === 'ledger'">
+        <i class="fas fa-book mr-2"></i> Ledger Entries
+      </button>
+    </div>
 
-      <!-- Content -->
-      <div class="p-6 overflow-y-auto flex-1">
-        <!-- History Tab -->
-        @if (activeTab() === 'history') {
-          @if (loadingHistory()) {
-            <div class="text-center py-8 text-gray-500">
-              <i class="fas fa-spinner fa-spin text-2xl"></i>
-              <p class="mt-2">Loading history...</p>
-            </div>
-          } @else if (historyData().length === 0) {
-            <div class="text-center py-8 text-gray-500">
-              <i class="fas fa-inbox text-3xl block mb-2"></i>
-              <p>No status history available.</p>
-            </div>
-          } @else {
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">By</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-100">
-                  @for (entry of historyData(); track entry.id) {
-                    <tr>
-                      <td class="px-4 py-3 text-sm text-gray-700">{{ entry.fromStatus || '—' }}</td>
-                      <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ entry.toStatus }}</td>
-                      <td class="px-4 py-3 text-sm text-gray-600">{{ entry.reason || '—' }}</td>
-                      <td class="px-4 py-3 text-sm text-gray-600">{{ entry.changedBy ? (entry.changedBy | slice:0:8) : '—' }}</td>
-                      <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ formatDateTime(entry.createdAt) }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-        }
-
-        <!-- Ledger Tab -->
-        @if (activeTab() === 'ledger') {
-          @if (loadingLedger()) {
-            <div class="text-center py-8 text-gray-500">
-              <i class="fas fa-spinner fa-spin text-2xl"></i>
-              <p class="mt-2">Loading ledger entries...</p>
-            </div>
-          } @else if (ledgerData().length === 0) {
-            <div class="text-center py-8 text-gray-500">
-              <i class="fas fa-inbox text-3xl block mb-2"></i>
-              <p>No ledger entries found.</p>
-            </div>
-          } @else {
-            <div class="overflow-x-auto">
-              <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                  <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Direction</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
-                  </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-100">
-                  @for (entry of ledgerData(); track entry.id) {
-                    <tr>
-                      <td class="px-4 py-3 text-sm text-gray-700">{{ entry.entryType || entry.entry_type || '—' }}</td>
-                      <td class="px-4 py-3 text-sm">
-                        <span class="px-2 py-0.5 rounded-full text-xs font-medium"
-                              [class.bg-green-100]="entry.direction === 'CREDIT'"
-                              [class.text-green-800]="entry.direction === 'CREDIT'"
-                              [class.bg-red-100]="entry.direction === 'DEBIT'"
-                              [class.text-red-800]="entry.direction === 'DEBIT'">
-                          {{ entry.direction || '—' }}
-                        </span>
-                      </td>
-                      <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ entry.amount | number }} {{ entry.currency }}</td>
-                      <td class="px-4 py-3 text-sm text-gray-600">
-                        {{ entry.referenceType || entry.reference_type || '—' }}
-                        <span class="text-xs text-gray-400">{{ entry.referenceId || entry.reference_id ? '(' + (entry.referenceId || entry.reference_id | slice:0:8) + ')' : '' }}</span>
-                      </td>
-                      <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ formatDateTime(entry.createdAt || entry.created_at) }}</td>
-                    </tr>
-                  }
-                </tbody>
-              </table>
-            </div>
-          }
-        }
+    <!-- Content -->
+    <div class="p-6 overflow-y-auto flex-1">
+      <!-- History Tab -->
+      @if (activeTabInfo() === 'history') {
+      @if (loadingHistory()) {
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-spinner fa-spin text-2xl"></i>
+        <p class="mt-2">Loading history...</p>
       </div>
-
-      <!-- Footer -->
-      <div class="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
-        <button (click)="closeInfoModal()" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
-          Close
-        </button>
+      } @else if (historyData().length === 0) {
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-inbox text-3xl block mb-2"></i>
+        <p>No status history available.</p>
       </div>
+      } @else {
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">By</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-100">
+            @for (entry of historyData(); track entry.id) {
+            <tr>
+              <td class="px-4 py-3 text-sm text-gray-700">{{ entry.fromStatus || '—' }}</td>
+              <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ entry.toStatus }}</td>
+              <td class="px-4 py-3 text-sm text-gray-600">{{ entry.reason || '—' }}</td>
+              <td class="px-4 py-3 text-sm text-gray-600">{{ entry.changedBy ? (entry.changedBy | slice:0:8) : '—' }}
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ formatDateTime(entry.createdAt) }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+      }
+
+      <!-- Ledger Tab -->
+      @if (activeTabInfo() === 'ledger') {
+      @if (loadingLedger()) {
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-spinner fa-spin text-2xl"></i>
+        <p class="mt-2">Loading ledger entries...</p>
+      </div>
+      } @else if (ledgerData().length === 0) {
+      <div class="text-center py-8 text-gray-500">
+        <i class="fas fa-inbox text-3xl block mb-2"></i>
+        <p>No ledger entries found.</p>
+      </div>
+      } @else {
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Direction</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Timestamp</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-100">
+            @for (entry of ledgerData(); track entry.id) {
+            <tr>
+              <td class="px-4 py-3 text-sm text-gray-700">{{ entry.entryType || entry.entry_type || '—' }}</td>
+              <td class="px-4 py-3 text-sm">
+                <span class="px-2 py-0.5 rounded-full text-xs font-medium"
+                  [class.bg-green-100]="entry.direction === 'CREDIT'"
+                  [class.text-green-800]="entry.direction === 'CREDIT'" [class.bg-red-100]="entry.direction === 'DEBIT'"
+                  [class.text-red-800]="entry.direction === 'DEBIT'">
+                  {{ entry.direction || '—' }}
+                </span>
+              </td>
+              <td class="px-4 py-3 text-sm font-medium text-gray-900">{{ entry.amount | number }} {{ entry.currency }}
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-600">
+                {{ entry.referenceType || entry.reference_type || '—' }}
+                <span class="text-xs text-gray-400">{{ entry.referenceId || entry.reference_id ? '(' +
+                  (entry.referenceId || entry.reference_id | slice:0:8) + ')' : '' }}</span>
+              </td>
+              <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{{ formatDateTime(entry.createdAt ||
+                entry.created_at) }}</td>
+            </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      }
+      }
+    </div>
+
+    <!-- Footer -->
+    <div class="p-6 border-t border-gray-100 bg-gray-50 rounded-b-2xl">
+      <button (click)="closeInfoModal()"
+        class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition">
+        Close
+      </button>
     </div>
   </div>
+</div>
 }
