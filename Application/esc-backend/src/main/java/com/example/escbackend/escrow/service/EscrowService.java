@@ -166,6 +166,7 @@ public class EscrowService {
         adminAuthorizationService.requireAdminOrSuperAdmin(actorUserId);
 
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertState(transaction, "SELLER_ACCEPTED");
         UUID previousRiderUserId = transaction.getRider() != null ? transaction.getRider().getId() : null;
         UserEntity rider = userRepository.findById(riderId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Rider not found"));
