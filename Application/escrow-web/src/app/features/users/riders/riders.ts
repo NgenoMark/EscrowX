@@ -4,9 +4,11 @@ import { Component, inject, signal, OnInit, computed, OnDestroy } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
+import { DataService } from '../../../core/services/data';
 import { ApiService, ApiUserDetails } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notifications';
 import { User } from '../../../core/models/user';
+import { Rider } from '../../../core/models/rider';
 import { CacheService } from '../../../core/services/cache.service';
 import { NgxSmkSkeletonDirective } from 'ngxsmk-skeleton-loader';
 
@@ -22,6 +24,7 @@ const CACHE_KEY_RIDERS = 'admin_riders';
   styleUrls: ['./riders.css']
 })
 export class RidersComponent implements OnInit, OnDestroy {
+  private dataService = inject(DataService);
   private apiService = inject(ApiService);
   private notificationService = inject(NotificationService);
   private cacheService = inject(CacheService);
@@ -33,8 +36,8 @@ export class RidersComponent implements OnInit, OnDestroy {
   filterStatus = signal<string>('ALL');
   filterBlacklist = signal<string>('ALL');
 
-  private ridersSignal = signal<User[]>([]);
-  riders = this.ridersSignal.asReadonly();
+  private directRidersSignal = signal<Rider[]>([]);
+  riders = this.directRidersSignal.asReadonly();
 
   // Pagination
   currentPage = signal<number>(0);
@@ -67,9 +70,12 @@ export class RidersComponent implements OnInit, OnDestroy {
   bulkActionType = signal<ActionType | null>(null);
   bulkReason = signal('');
 
-  // Computed filtered riders
-  filteredRiders = computed<User[]>(() => {
-    const riders = this.ridersSignal();
+  // Computed filtered riders - uses DataService as fallback
+  filteredRiders = computed<Rider[]>(() => {
+    // Use direct riders if available, otherwise fallback to DataService
+    const riders = this.directRidersSignal().length 
+      ? this.directRidersSignal() 
+      : this.dataService.users().filter(u => u.role === 'RIDER') as Rider[];
     const term = this.searchTerm().toLowerCase();
     const status = this.filterStatus();
     const blacklist = this.filterBlacklist();
@@ -134,13 +140,26 @@ export class RidersComponent implements OnInit, OnDestroy {
       this.cacheService.clear(CACHE_KEY_RIDERS);
     }
 
-    const cached = this.cacheService.get<User[]>(CACHE_KEY_RIDERS);
+    // Try cache first
+    const cached = this.cacheService.get<Rider[]>(CACHE_KEY_RIDERS);
     if (cached && !forceRefresh) {
-      this.ridersSignal.set(cached);
+      this.directRidersSignal.set(cached);
       this.isLoading.set(false);
       return;
     }
 
+    // If DataService already has riders loaded, use them
+    const dataServiceRiders = this.dataService.users().filter(u => u.role === 'RIDER') as Rider[];
+    if (dataServiceRiders.length > 0 && !forceRefresh) {
+      this.directRidersSignal.set(dataServiceRiders);
+      this.totalElements.set(dataServiceRiders.length);
+      this.totalPages.set(1);
+      this.cacheService.set(CACHE_KEY_RIDERS, dataServiceRiders);
+      this.isLoading.set(false);
+      return;
+    }
+
+    // Fetch from API
     this.isLoading.set(true);
     this.apiService.getRiders({
       page: this.currentPage(),
@@ -148,29 +167,51 @@ export class RidersComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (response) => {
         if (!response || !response.content) {
-          this.notificationService.add('Data Error', 'Received invalid rider data from server.', 'danger');
+          // If API fails, try DataService again (maybe it loaded in the meantime)
+          const fallbackRiders = this.dataService.users().filter(u => u.role === 'RIDER') as Rider[];
+          if (fallbackRiders.length > 0) {
+            this.directRidersSignal.set(fallbackRiders);
+            this.totalElements.set(fallbackRiders.length);
+            this.totalPages.set(1);
+            this.cacheService.set(CACHE_KEY_RIDERS, fallbackRiders);
+            this.notificationService.add('Info', 'Using mock data for riders.', 'info');
+          } else {
+            this.notificationService.add('Data Error', 'Received invalid rider data from server.', 'danger');
+          }
           this.isLoading.set(false);
           return;
         }
-        const riders = response.content.map(apiUser => this.mapApiUser(apiUser));
-        this.ridersSignal.set(riders);
+        const riders = response.content.map(apiUser => this.mapApiUser(apiUser)) as Rider[];
+        this.directRidersSignal.set(riders);
         this.totalElements.set(response.totalElements);
         this.totalPages.set(response.totalPages);
         this.cacheService.set(CACHE_KEY_RIDERS, riders);
         this.isLoading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to fetch riders:', err);
-        const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
-                         err.status === 403 ? 'You do not have permission to view riders.' :
-                         'Could not load riders. Please try again later.';
-        this.notificationService.add('Error', errorMsg, 'danger');
+        
+        // Fallback to DataService mock data
+        const fallbackRiders = this.dataService.users().filter(u => u.role === 'RIDER') as Rider[];
+        if (fallbackRiders.length > 0) {
+          this.directRidersSignal.set(fallbackRiders);
+          this.totalElements.set(fallbackRiders.length);
+          this.totalPages.set(1);
+          this.cacheService.set(CACHE_KEY_RIDERS, fallbackRiders);
+          this.notificationService.add('Info', 'Using mock data for riders.', 'info');
+        } else {
+          const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
+                           err.status === 403 ? 'You do not have permission to view riders.' :
+                           'Could not load riders. Using mock data.';
+          this.notificationService.add('Error', errorMsg, 'danger');
+        }
         this.isLoading.set(false);
       }
     });
   }
 
   refreshRiders(): void {
+    this.cacheService.clear(CACHE_KEY_RIDERS);
     this.loadRiders(true);
   }
 

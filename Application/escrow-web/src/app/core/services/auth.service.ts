@@ -1,14 +1,15 @@
+// src/app/core/services/auth.service.ts
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { Observable, tap } from 'rxjs';
-import { environment } from '../../../environments/environment.prod';
+import { Observable, of, tap, throwError } from 'rxjs';
+import { environment } from '../../../environments/environment.global';
 
 export interface AuthUser {
   id: string;
   email: string;
   phone: string;
-  role: 'BUYER' | 'SELLER' | 'ADMIN' | 'SUPER_ADMIN' | string;
+  role: 'BUYER' | 'SELLER' | 'ADMIN' | 'SUPER_ADMIN' | 'RIDER' | string;
   status: string;
   blacklistStatus?: string;
   createdAt?: string;
@@ -37,6 +38,40 @@ export interface ConfirmResponse {
   confirmed: boolean;
 }
 
+// Mock users for testing
+const MOCK_USERS: AuthUser[] = [
+  {
+    id: 'admin-001',
+    email: 'admin@escrowx.com',
+    phone: '+254712345678',
+    role: 'SUPER_ADMIN',
+    status: 'ACTIVE',
+    blacklistStatus: 'NOT_BLACKLISTED',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'admin-002',
+    email: 'admin@example.com',
+    phone: '+254723456789',
+    role: 'ADMIN',
+    status: 'ACTIVE',
+    blacklistStatus: 'NOT_BLACKLISTED',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: 'admin-003',
+    email: 'super@admin.com',
+    phone: '+254734567890',
+    role: 'SUPER_ADMIN',
+    status: 'ACTIVE',
+    blacklistStatus: 'NOT_BLACKLISTED',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
 @Injectable({
   providedIn: 'root'
 })
@@ -62,7 +97,59 @@ export class AuthService {
     return localStorage.getItem('refresh_token');
   }
 
+  /**
+   * Check if we're in mock mode
+   */
+  private get isMockMode(): boolean {
+    return environment.useMockData === true;
+  }
+
+  /**
+   * Mock login - validates credentials against mock users
+   */
+  private mockLogin(credentials: { email: string; password: string }): Observable<LoginResponse> {
+    console.log('🔐 Mock login attempt:', credentials.email);
+
+    // Mock passwords (in real app, these would be hashed)
+    const mockPassword = 'Admin@123';
+    
+    // Find user by email
+    const user = MOCK_USERS.find(u => u.email.toLowerCase() === credentials.email.toLowerCase());
+    
+    if (!user) {
+      return throwError(() => new Error('Invalid email or password.'));
+    }
+
+    // Check password (mock validation)
+    if (credentials.password !== mockPassword) {
+      return throwError(() => new Error('Invalid email or password.'));
+    }
+
+    // Generate mock token
+    const token = btoa(`${user.id}:${Date.now()}`); // Simple mock token
+    const refreshToken = btoa(`${user.id}:refresh:${Date.now()}`);
+
+    const response: LoginResponse = {
+      accessToken: token,
+      refreshToken: refreshToken,
+      tokenType: 'Bearer',
+      expiresIn: 3600, // 1 hour
+      user: user
+    };
+
+    console.log('✅ Mock login successful for:', user.email);
+    return of(response);
+  }
+
   login(credentials: { email: string; password: string }): Observable<LoginResponse> {
+    // Use mock login if in mock mode
+    if (this.isMockMode) {
+      return this.mockLogin(credentials).pipe(
+        tap(response => this.storeSession(response))
+      );
+    }
+
+    // Real API call
     return this.http.post<LoginResponse>(`${this.authUrl}/login`, credentials).pipe(
       tap(response => this.storeSession(response))
     );
@@ -75,10 +162,37 @@ export class AuthService {
     displayName?: string;
     businessName?: string;
   }): Observable<RegisterResponse> {
+    // Mock registration
+    if (this.isMockMode) {
+      const mockResponse: RegisterResponse = {
+        userId: `user-${Date.now()}`,
+        phone: payload.phone,
+        status: 'PENDING_VERIFICATION',
+        role: payload.businessName ? 'SELLER' : 'BUYER',
+        otpPreview: '123456'
+      };
+      console.log('📝 Mock registration:', payload.email);
+      return of(mockResponse);
+    }
+
     return this.http.post<RegisterResponse>(`${this.authUrl}/register`, payload);
   }
 
   confirm(payload: { email: string; otp: string }): Observable<ConfirmResponse> {
+    // Mock confirmation
+    if (this.isMockMode) {
+      if (payload.otp === '123456') {
+        const mockResponse: ConfirmResponse = {
+          email: payload.email,
+          status: 'ACTIVE',
+          confirmed: true
+        };
+        return of(mockResponse);
+      } else {
+        return throwError(() => new Error('Invalid OTP code.'));
+      }
+    }
+
     return this.http.post<ConfirmResponse>(`${this.authUrl}/confirm`, payload);
   }
 
@@ -90,7 +204,7 @@ export class AuthService {
     localStorage.removeItem('auth_expires_at');
     this.userSignal.set(null);
 
-    if (refreshToken) {
+    if (refreshToken && !this.isMockMode) {
       this.http.post(`${this.authUrl}/logout`, { refreshToken }).subscribe({ error: () => undefined });
     }
 

@@ -4,6 +4,7 @@ import { Component, inject, signal, OnInit, computed, OnDestroy } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
+import { DataService } from '../../../core/services/data';
 import { ApiService, ApiUserDetails } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notifications';
 import { User } from '../../../core/models/user';
@@ -24,6 +25,7 @@ const CACHE_KEY_BUYERS = 'admin_buyers';
   styleUrls: ['./buyers.css']
 })
 export class BuyersComponent implements OnInit, OnDestroy {
+  private dataService = inject(DataService);
   private apiService = inject(ApiService);
   private notificationService = inject(NotificationService);
   private cacheService = inject(CacheService);
@@ -36,8 +38,8 @@ export class BuyersComponent implements OnInit, OnDestroy {
   filterStatus = signal<string>('ALL');
   filterBlacklist = signal<string>('ALL');
 
-  private buyersSignal = signal<User[]>([]);
-  buyers = this.buyersSignal.asReadonly();
+  private directBuyersSignal = signal<User[]>([]);
+  directBuyers = this.directBuyersSignal.asReadonly();
 
   // Pagination
   currentPage = signal<number>(0);
@@ -67,9 +69,10 @@ export class BuyersComponent implements OnInit, OnDestroy {
   bulkActionType = signal<ActionType | null>(null);
   bulkReason = signal('');
 
-  // Computed filtered buyers
+  // Computed filtered buyers - uses DataService as fallback
   filteredBuyers = computed<User[]>(() => {
-    const buyers = this.buyersSignal();
+    // Use direct buyers if available, otherwise fallback to DataService
+    const buyers = this.directBuyersSignal().length ? this.directBuyersSignal() : this.dataService.users().filter(u => u.role === 'BUYER');
     const term = this.searchTerm().toLowerCase();
     const status = this.filterStatus();
     const blacklist = this.filterBlacklist();
@@ -134,13 +137,26 @@ export class BuyersComponent implements OnInit, OnDestroy {
       this.cacheService.clear(CACHE_KEY_BUYERS);
     }
 
+    // Try cache first
     const cached = this.cacheService.get<User[]>(CACHE_KEY_BUYERS);
     if (cached && !forceRefresh) {
-      this.buyersSignal.set(cached);
+      this.directBuyersSignal.set(cached);
       this.isLoading.set(false);
       return;
     }
 
+    // If DataService already has buyers loaded, use them
+    const dataServiceBuyers = this.dataService.users().filter(u => u.role === 'BUYER');
+    if (dataServiceBuyers.length > 0 && !forceRefresh) {
+      this.directBuyersSignal.set(dataServiceBuyers);
+      this.totalElements.set(dataServiceBuyers.length);
+      this.totalPages.set(1);
+      this.cacheService.set(CACHE_KEY_BUYERS, dataServiceBuyers);
+      this.isLoading.set(false);
+      return;
+    }
+
+    // Fetch from API
     this.isLoading.set(true);
     this.apiService.getBuyers({
       page: this.currentPage(),
@@ -148,29 +164,52 @@ export class BuyersComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (response) => {
         if (!response || !response.content) {
-          this.notificationService.add('Data Error', 'Received invalid buyer data from server.', 'danger');
+          // If API fails, try DataService again (maybe it loaded in the meantime)
+          const fallbackBuyers = this.dataService.users().filter(u => u.role === 'BUYER');
+          if (fallbackBuyers.length > 0) {
+            this.directBuyersSignal.set(fallbackBuyers);
+            this.totalElements.set(fallbackBuyers.length);
+            this.totalPages.set(1);
+            this.cacheService.set(CACHE_KEY_BUYERS, fallbackBuyers);
+            this.notificationService.add('Info', 'Using mock data for buyers.', 'info');
+          } else {
+            this.notificationService.add('Data Error', 'Received invalid buyer data from server.', 'danger');
+          }
           this.isLoading.set(false);
           return;
         }
         const buyers = response.content.map(apiUser => this.mapApiUser(apiUser));
-        this.buyersSignal.set(buyers);
+        this.directBuyersSignal.set(buyers);
         this.totalElements.set(response.totalElements);
         this.totalPages.set(response.totalPages);
         this.cacheService.set(CACHE_KEY_BUYERS, buyers);
         this.isLoading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to fetch buyers:', err);
-        const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
-                         err.status === 403 ? 'You do not have permission to view buyers.' :
-                         'Could not load buyers. Please try again later.';
-        this.notificationService.add('Error', errorMsg, 'danger');
+        
+        // Fallback to DataService mock data
+        const fallbackBuyers = this.dataService.users().filter(u => u.role === 'BUYER');
+        if (fallbackBuyers.length > 0) {
+          this.directBuyersSignal.set(fallbackBuyers);
+          this.totalElements.set(fallbackBuyers.length);
+          this.totalPages.set(1);
+          this.cacheService.set(CACHE_KEY_BUYERS, fallbackBuyers);
+          this.notificationService.add('Info', 'Using mock data for buyers.', 'info');
+        } else {
+          const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
+                           err.status === 403 ? 'You do not have permission to view buyers.' :
+                           'Could not load buyers. Using mock data.';
+          this.notificationService.add('Error', errorMsg, 'danger');
+        }
         this.isLoading.set(false);
       }
     });
   }
 
   refreshBuyers(): void {
+    // Clear cache and force reload from API
+    this.cacheService.clear(CACHE_KEY_BUYERS);
     this.loadBuyers(true);
   }
 

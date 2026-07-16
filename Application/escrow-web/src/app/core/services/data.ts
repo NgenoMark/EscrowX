@@ -739,4 +739,41 @@ export class DataService {
       .sort((a, b) => b.volume - a.volume)
       .slice(0, limit);
   }
+
+  // ================================================================
+  // WAIT FOR DATA – Added for components that need to wait for data
+  // ================================================================
+
+  /**
+   * Check if data has been loaded (either from mock or API)
+   */
+  hasData(): boolean {
+    return this.transactionsSignal().length > 0 || this.usersSignal().length > 0;
+  }
+
+  /**
+   * Wait for data to be loaded (useful for components that need data immediately)
+   */
+  async waitForData(): Promise<void> {
+    // If data is already loaded, return immediately
+    if (this.hasData()) {
+      return;
+    }
+
+    // If data is loading, wait for it
+    return new Promise((resolve) => {
+      const checkInterval = setInterval(() => {
+        if (this.hasData()) {
+          clearInterval(checkInterval);
+          resolve();
+        }
+      }, 100);
+
+      // Timeout after 10 seconds to prevent infinite waiting
+      setTimeout(() => {
+        clearInterval(checkInterval);
+        resolve();
+      }, 10000);
+    });
+  }
 }

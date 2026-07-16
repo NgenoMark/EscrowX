@@ -17,7 +17,9 @@ import { LedgerComponent } from './features/ledger/ledger';
 import { BuyersComponent } from './features/users/buyers/buyers';
 import { AdminsComponent } from './features/users/admins/admins';
 import { SellersComponent } from './features/users/sellers/sellers';
-import { RidersComponent } from './features/users/riders/riders'; // ✅ Import RidersComponent
+import { RidersComponent } from './features/users/riders/riders';
+import { RiderAssignmentsComponent } from './features/riders/assignments.component';
+import { TransactionDetailsComponent } from './features/transactions/transactiondetailscomponent';
 import { ForgotPasswordComponent } from './features/auth/components/forgot-password/forgot-password';
 import { ResetPasswordComponent } from './features/auth/components/reset-password/reset-password';
 
@@ -33,7 +35,8 @@ export const routes: Routes = [
       { path: 'dashboard', component: DashboardComponent },
       { path: 'users', component: UsersComponent },
       { path: 'transactions/:id/history', component: TransactionHistoryComponent },
-      { path: 'transactions/:id/ledger', component: LedgerComponent }, 
+      { path: 'transactions/:id/ledger', component: LedgerComponent },
+      { path: 'transactions/:id', component: TransactionDetailsComponent }, 
       { path: 'transactions', component: TransactionsComponent },
       { path: 'disputes', component: DisputesComponent },
       { path: 'analytics', component: AnalyticsComponent },
@@ -41,7 +44,8 @@ export const routes: Routes = [
       { path: 'admins', component: AdminsComponent },
       { path: 'sellers', component: SellersComponent },
       { path: 'buyers', component: BuyersComponent },
-      { path: 'riders', component: RidersComponent }, // ✅ Add Riders route
+      { path: 'riders', component: RidersComponent },
+      { path: 'rider-assignments', component: RiderAssignmentsComponent },
       { path: 'payments', component: PaymentIntentsComponent },
       { path: 'payouts', component: PayoutsComponent },
       { path: '', redirectTo: 'dashboard', pathMatch: 'full' }

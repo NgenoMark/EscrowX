@@ -4,6 +4,7 @@ import { Component, inject, signal, OnInit, computed, OnDestroy } from '@angular
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
+import { DataService } from '../../../core/services/data';
 import { ApiService, ApiUserDetails } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notifications';
 import { User } from '../../../core/models/user';
@@ -24,6 +25,7 @@ const CACHE_KEY_SELLERS = 'admin_sellers';
   styleUrls: ['./sellers.css']
 })
 export class SellersComponent implements OnInit, OnDestroy {
+  private dataService = inject(DataService);
   private apiService = inject(ApiService);
   private notificationService = inject(NotificationService);
   private cacheService = inject(CacheService);
@@ -36,8 +38,8 @@ export class SellersComponent implements OnInit, OnDestroy {
   filterStatus = signal<string>('ALL');
   filterBlacklist = signal<string>('ALL');
 
-  private sellersSignal = signal<User[]>([]);
-  sellers = this.sellersSignal.asReadonly();
+  private directSellersSignal = signal<User[]>([]);
+  sellers = this.directSellersSignal.asReadonly();
 
   // Pagination
   currentPage = signal<number>(0);
@@ -67,9 +69,12 @@ export class SellersComponent implements OnInit, OnDestroy {
   bulkActionType = signal<ActionType | null>(null);
   bulkReason = signal('');
 
-  // Computed filtered sellers
+  // Computed filtered sellers - uses DataService as fallback
   filteredSellers = computed<User[]>(() => {
-    const sellers = this.sellersSignal();
+    // Use direct sellers if available, otherwise fallback to DataService
+    const sellers = this.directSellersSignal().length 
+      ? this.directSellersSignal() 
+      : this.dataService.users().filter(u => u.role === 'SELLER');
     const term = this.searchTerm().toLowerCase();
     const status = this.filterStatus();
     const blacklist = this.filterBlacklist();
@@ -137,13 +142,26 @@ export class SellersComponent implements OnInit, OnDestroy {
       this.cacheService.clear(CACHE_KEY_SELLERS);
     }
 
+    // Try cache first
     const cached = this.cacheService.get<User[]>(CACHE_KEY_SELLERS);
     if (cached && !forceRefresh) {
-      this.sellersSignal.set(cached);
+      this.directSellersSignal.set(cached);
       this.isLoading.set(false);
       return;
     }
 
+    // If DataService already has sellers loaded, use them
+    const dataServiceSellers = this.dataService.users().filter(u => u.role === 'SELLER');
+    if (dataServiceSellers.length > 0 && !forceRefresh) {
+      this.directSellersSignal.set(dataServiceSellers);
+      this.totalElements.set(dataServiceSellers.length);
+      this.totalPages.set(1);
+      this.cacheService.set(CACHE_KEY_SELLERS, dataServiceSellers);
+      this.isLoading.set(false);
+      return;
+    }
+
+    // Fetch from API
     this.isLoading.set(true);
     this.apiService.getSellers({
       page: this.currentPage(),
@@ -151,29 +169,51 @@ export class SellersComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (response) => {
         if (!response || !response.content) {
-          this.notificationService.add('Data Error', 'Received invalid seller data from server.', 'danger');
+          // If API fails, try DataService again (maybe it loaded in the meantime)
+          const fallbackSellers = this.dataService.users().filter(u => u.role === 'SELLER');
+          if (fallbackSellers.length > 0) {
+            this.directSellersSignal.set(fallbackSellers);
+            this.totalElements.set(fallbackSellers.length);
+            this.totalPages.set(1);
+            this.cacheService.set(CACHE_KEY_SELLERS, fallbackSellers);
+            this.notificationService.add('Info', 'Using mock data for sellers.', 'info');
+          } else {
+            this.notificationService.add('Data Error', 'Received invalid seller data from server.', 'danger');
+          }
           this.isLoading.set(false);
           return;
         }
         const sellers = response.content.map(apiUser => this.mapApiUser(apiUser));
-        this.sellersSignal.set(sellers);
+        this.directSellersSignal.set(sellers);
         this.totalElements.set(response.totalElements);
         this.totalPages.set(response.totalPages);
         this.cacheService.set(CACHE_KEY_SELLERS, sellers);
         this.isLoading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to fetch sellers:', err);
-        const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
-                         err.status === 403 ? 'You do not have permission to view sellers.' :
-                         'Could not load sellers. Please try again later.';
-        this.notificationService.add('Error', errorMsg, 'danger');
+        
+        // Fallback to DataService mock data
+        const fallbackSellers = this.dataService.users().filter(u => u.role === 'SELLER');
+        if (fallbackSellers.length > 0) {
+          this.directSellersSignal.set(fallbackSellers);
+          this.totalElements.set(fallbackSellers.length);
+          this.totalPages.set(1);
+          this.cacheService.set(CACHE_KEY_SELLERS, fallbackSellers);
+          this.notificationService.add('Info', 'Using mock data for sellers.', 'info');
+        } else {
+          const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
+                           err.status === 403 ? 'You do not have permission to view sellers.' :
+                           'Could not load sellers. Using mock data.';
+          this.notificationService.add('Error', errorMsg, 'danger');
+        }
         this.isLoading.set(false);
       }
     });
   }
 
   refreshSellers(): void {
+    this.cacheService.clear(CACHE_KEY_SELLERS);
     this.loadSellers(true);
   }
 

@@ -4,6 +4,7 @@ import { Component, inject, signal, OnInit, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
+import { DataService } from '../../../core/services/data';
 import { ApiService, ApiUserDetails } from '../../../core/services/api.service';
 import { NotificationService } from '../../../core/services/notifications';
 import { User } from '../../../core/models/user';
@@ -23,6 +24,7 @@ const CACHE_KEY_ADMINS = 'admin_employees';
   styleUrls: ['./admins.css']
 })
 export class AdminsComponent implements OnInit {
+  private dataService = inject(DataService);
   private apiService = inject(ApiService);
   private notificationService = inject(NotificationService);
   private cacheService = inject(CacheService);
@@ -35,8 +37,8 @@ export class AdminsComponent implements OnInit {
   filterStatus = signal<string>('ALL');
   filterBlacklist = signal<string>('ALL');
 
-  private adminsSignal = signal<User[]>([]);
-  admins = this.adminsSignal.asReadonly();
+  private directAdminsSignal = signal<User[]>([]);
+  admins = this.directAdminsSignal.asReadonly();
 
   // Pagination
   currentPage = signal<number>(0);
@@ -84,9 +86,12 @@ export class AdminsComponent implements OnInit {
     adminType: 'ADMIN'
   });
 
-  // Computed filtered admins
+  // Computed filtered admins - uses DataService as fallback
   filteredAdmins = computed<User[]>(() => {
-    const admins = this.adminsSignal();
+    // Use direct admins if available, otherwise fallback to DataService
+    const admins = this.directAdminsSignal().length 
+      ? this.directAdminsSignal() 
+      : this.dataService.users().filter(u => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN');
     const term = this.searchTerm().toLowerCase();
     const status = this.filterStatus();
     const role = this.filterRole();
@@ -152,13 +157,26 @@ export class AdminsComponent implements OnInit {
       this.cacheService.clear(CACHE_KEY_ADMINS);
     }
 
+    // Try cache first
     const cached = this.cacheService.get<User[]>(CACHE_KEY_ADMINS);
     if (cached && !forceRefresh) {
-      this.adminsSignal.set(cached);
+      this.directAdminsSignal.set(cached);
       this.isLoading.set(false);
       return;
     }
 
+    // If DataService already has admins loaded, use them
+    const dataServiceAdmins = this.dataService.users().filter(u => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN');
+    if (dataServiceAdmins.length > 0 && !forceRefresh) {
+      this.directAdminsSignal.set(dataServiceAdmins);
+      this.totalElements.set(dataServiceAdmins.length);
+      this.totalPages.set(1);
+      this.cacheService.set(CACHE_KEY_ADMINS, dataServiceAdmins);
+      this.isLoading.set(false);
+      return;
+    }
+
+    // Fetch from API
     this.isLoading.set(true);
     this.apiService.getEmployees({
       page: this.currentPage(),
@@ -166,29 +184,51 @@ export class AdminsComponent implements OnInit {
     }).subscribe({
       next: (response) => {
         if (!response || !response.content) {
-          this.notificationService.add('Data Error', 'Received invalid admin data from server.', 'danger');
+          // If API fails, try DataService again (maybe it loaded in the meantime)
+          const fallbackAdmins = this.dataService.users().filter(u => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN');
+          if (fallbackAdmins.length > 0) {
+            this.directAdminsSignal.set(fallbackAdmins);
+            this.totalElements.set(fallbackAdmins.length);
+            this.totalPages.set(1);
+            this.cacheService.set(CACHE_KEY_ADMINS, fallbackAdmins);
+            this.notificationService.add('Info', 'Using mock data for admins.', 'info');
+          } else {
+            this.notificationService.add('Data Error', 'Received invalid admin data from server.', 'danger');
+          }
           this.isLoading.set(false);
           return;
         }
         const admins = response.content.map(apiUser => this.mapApiUser(apiUser));
-        this.adminsSignal.set(admins);
+        this.directAdminsSignal.set(admins);
         this.totalElements.set(response.totalElements);
         this.totalPages.set(response.totalPages);
         this.cacheService.set(CACHE_KEY_ADMINS, admins);
         this.isLoading.set(false);
       },
-      error: (err) => {
+      error: (err: any) => {
         console.error('Failed to fetch admins:', err);
-        const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
-                         err.status === 403 ? 'You do not have permission to view admins.' :
-                         'Could not load admins. Please try again later.';
-        this.notificationService.add('Error', errorMsg, 'danger');
+        
+        // Fallback to DataService mock data
+        const fallbackAdmins = this.dataService.users().filter(u => u.role === 'ADMIN' || u.role === 'SUPER_ADMIN');
+        if (fallbackAdmins.length > 0) {
+          this.directAdminsSignal.set(fallbackAdmins);
+          this.totalElements.set(fallbackAdmins.length);
+          this.totalPages.set(1);
+          this.cacheService.set(CACHE_KEY_ADMINS, fallbackAdmins);
+          this.notificationService.add('Info', 'Using mock data for admins.', 'info');
+        } else {
+          const errorMsg = err.status === 401 ? 'Session expired. Please log in again.' :
+                           err.status === 403 ? 'You do not have permission to view admins.' :
+                           'Could not load admins. Using mock data.';
+          this.notificationService.add('Error', errorMsg, 'danger');
+        }
         this.isLoading.set(false);
       }
     });
   }
 
   refreshAdmins(): void {
+    this.cacheService.clear(CACHE_KEY_ADMINS);
     this.loadAdmins(true);
   }
 

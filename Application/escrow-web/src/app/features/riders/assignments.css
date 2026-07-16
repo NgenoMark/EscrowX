@@ -1,0 +1,57 @@
+/* src/app/features/riders/assignments/assignments.css */
+
+.stat-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+}
+
+/* Scrollbar styling */
+.overflow-x-auto::-webkit-scrollbar {
+  height: 6px;
+}
+.overflow-x-auto::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb {
+  background: #a7f3d0;
+  border-radius: 10px;
+}
+.overflow-x-auto::-webkit-scrollbar-thumb:hover {
+  background: #34d399;
+}
+
+tr {
+  transition: background-color 0.15s ease;
+}
+
+/* Modal scrollbar */
+.max-h-60::-webkit-scrollbar {
+  width: 4px;
+}
+.max-h-60::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+.max-h-60::-webkit-scrollbar-thumb {
+  background: #a7f3d0;
+  border-radius: 10px;
+}
+.max-h-60::-webkit-scrollbar-thumb:hover {
+  background: #34d399;
+}
+
+@media (max-width: 640px) {
+  .stat-card {
+    padding: 0.75rem;
+  }
+  .stat-card p:first-child {
+    font-size: 0.65rem;
+  }
+  .stat-card p:last-child {
+    font-size: 1.25rem;
+  }
+}

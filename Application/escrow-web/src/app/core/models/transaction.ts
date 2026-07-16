@@ -40,4 +40,6 @@ export interface Transaction {
   description?: string;
   deliveryTimeline?: string;
   disputeId?: string;
+  riderId?: string;
+  riderName?: string;
 }

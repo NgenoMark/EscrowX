@@ -1,0 +1,244 @@
+<!-- src/app/features/riders/assignments/assignments.html -->
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-800">Rider Assignments</h2>
+      <p class="text-sm text-gray-500">Assign riders to escrows and track delivery status</p>
+    </div>
+    <div class="flex gap-2">
+      <button
+        (click)="refreshData()"
+        [disabled]="loading()"
+        class="px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-lg text-sm font-medium hover:bg-indigo-100 transition disabled:opacity-50 flex items-center gap-2"
+      >
+        <i class="fas fa-sync-alt" [class.fa-spin]="loading()"></i>
+        Refresh
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats -->
+  <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+    <div class="stat-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+      <p class="text-sm text-gray-500">Total Escrows</p>
+      <p class="text-2xl font-bold">{{ totalEscrows() }}</p>
+    </div>
+    <div class="stat-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+      <p class="text-sm text-gray-500">Assigned</p>
+      <p class="text-2xl font-bold text-green-600">{{ assignedEscrows() }}</p>
+    </div>
+    <div class="stat-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+      <p class="text-sm text-gray-500">Unassigned</p>
+      <p class="text-2xl font-bold text-yellow-600">{{ unassignedEscrows() }}</p>
+    </div>
+    <div class="stat-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+      <p class="text-sm text-gray-500">In Transit</p>
+      <p class="text-2xl font-bold text-blue-600">{{ inTransitEscrows() }}</p>
+    </div>
+    <div class="stat-card bg-white rounded-lg p-4 shadow-sm border border-gray-100">
+      <p class="text-sm text-gray-500">Delivered</p>
+      <p class="text-2xl font-bold text-emerald-600">{{ filteredEscrows().filter(e => e.assignmentStatus === 'DELIVERED_TO_BUYER').length }}</p>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="bg-white rounded-lg shadow-sm border border-gray-100 p-4">
+    <div class="flex flex-wrap items-center gap-4">
+      <div class="flex items-center gap-2">
+        <label class="text-sm font-medium text-gray-700">Status:</label>
+        <select
+          [(ngModel)]="filterStatus"
+          (change)="filterEscrows()"
+          class="px-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
+        >
+          <option value="ALL">All</option>
+          <option value="UNASSIGNED">Unassigned</option>
+          <option value="ASSIGNED">Assigned</option>
+          <option value="IN_TRANSIT">In Transit</option>
+          <option value="DELIVERED">Delivered</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="DISPUTED">Disputed</option>
+        </select>
+      </div>
+
+      <div class="flex-1 min-w-[200px] relative">
+        <i class="fas fa-search absolute left-3 top-2.5 text-gray-400"></i>
+        <input
+          type="text"
+          [(ngModel)]="searchTerm"
+          (input)="filterEscrows()"
+          placeholder="Search by ID, buyer, or seller..."
+          class="w-full pl-9 pr-3 py-1.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        />
+      </div>
+
+      <span class="text-sm text-gray-500">{{ filteredEscrows().length }} escrows</span>
+    </div>
+  </div>
+
+  <!-- Escrow List -->
+  <div class="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+    @if (loading()) {
+      <div class="flex justify-center py-12">
+        <div class="text-center">
+          <i class="fas fa-spinner fa-spin text-3xl text-emerald-600 mb-3 block"></i>
+          <p class="text-gray-500">Loading escrows...</p>
+        </div>
+      </div>
+    } @else {
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-50 border-b border-gray-200">
+            <tr>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Buyer</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seller</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assignment</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rider</th>
+              <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Progress</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-100">
+            @for (escrow of filteredEscrows(); track escrow.id) {
+              <tr class="hover:bg-gray-50 transition">
+                <td class="px-4 py-3">
+                  <span class="font-mono text-sm">{{ escrow.id.slice(0, 8) }}...</span>
+                </td>
+                <td class="px-4 py-3 font-medium">KES {{ escrow.amount | number:'1.2-2' }}</td>
+                <td class="px-4 py-3 text-sm truncate max-w-[100px]">{{ escrow.buyer }}</td>
+                <td class="px-4 py-3 text-sm truncate max-w-[100px]">{{ escrow.seller }}</td>
+                <td class="px-4 py-3">
+                  <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full" [class]="getStatusBadge(escrow.status)">
+                    {{ escrow.status }}
+                  </span>
+                </td>
+                <td class="px-4 py-3">
+                  @if (escrow.assignmentStatus) {
+                    <span class="inline-flex px-2 py-0.5 text-xs font-medium rounded-full" [class]="getAssignmentStatusBadge(escrow.assignmentStatus)">
+                      {{ escrow.assignmentStatus }}
+                    </span>
+                  } @else {
+                    <span class="text-gray-400 text-xs">—</span>
+                  }
+                </td>
+                <td class="px-4 py-3 text-sm">
+                  @if (escrow.riderId) {
+                    <span class="text-emerald-600">
+                      <i class="fas fa-check-circle mr-1"></i> {{ escrow.riderName || 'Assigned' }}
+                    </span>
+                  } @else {
+                    <span class="text-gray-400">
+                      <i class="fas fa-clock mr-1"></i> Pending
+                    </span>
+                  }
+                </td>
+                <td class="px-4 py-3">
+                  <!-- Delivery Progress Tracker -->
+                  @if (escrow.riderId && escrow.assignmentStatus) {
+                    <div class="flex items-center gap-1">
+                      @if (escrow.assignmentStatus === 'ASSIGNED' || escrow.assignmentStatus === 'ACCEPTED') {
+                        <span class="text-yellow-500 text-sm" title="Waiting for pickup">
+                          <i class="fas fa-clock"></i> Waiting
+                        </span>
+                      } @else if (escrow.assignmentStatus === 'PICKED_UP') {
+                        <span class="text-blue-500 text-sm" title="Picked up">
+                          <i class="fas fa-box"></i> Picked Up
+                        </span>
+                      } @else if (escrow.assignmentStatus === 'IN_TRANSIT') {
+                        <span class="text-blue-600 text-sm font-medium" title="In Transit">
+                          <i class="fas fa-truck fa-beat"></i> In Transit
+                        </span>
+                      } @else if (escrow.assignmentStatus === 'ARRIVED_AT_BUYER') {
+                        <span class="text-purple-500 text-sm" title="Arrived at buyer">
+                          <i class="fas fa-location-dot"></i> Arrived
+                        </span>
+                      } @else if (escrow.assignmentStatus === 'DELIVERED_TO_BUYER') {
+                        <span class="text-green-500 text-sm font-medium" title="Delivered">
+                          <i class="fas fa-check-circle"></i> Delivered
+                        </span>
+                      } @else if (escrow.assignmentStatus === 'FAILED') {
+                        <span class="text-red-500 text-sm" title="Failed">
+                          <i class="fas fa-times-circle"></i> Failed
+                        </span>
+                      } @else if (escrow.assignmentStatus === 'CANCELLED') {
+                        <span class="text-gray-400 text-sm" title="Cancelled">
+                          <i class="fas fa-ban"></i> Cancelled
+                        </span>
+                      }
+                    </div>
+                  } @else {
+                    <span class="text-gray-400 text-xs">—</span>
+                  }
+                </td>
+                <td class="px-4 py-3 text-center">
+                  <div class="flex items-center justify-center gap-2">
+                    <!-- View Details -->
+                    <button
+                      (click)="viewDetails(escrow.id)"
+                      class="text-blue-600 hover:text-blue-800 text-sm p-1.5 rounded hover:bg-blue-50 transition"
+                      title="View Details"
+                    >
+                      <i class="fas fa-eye"></i>
+                    </button>
+
+                    <!-- Assign Rider -->
+                    @if (!escrow.riderId && escrow.status !== 'COMPLETED' && escrow.status !== 'CANCELLED' && escrow.status !== 'DISPUTED') {
+                      <button
+                        (click)="openAssignModal(escrow)"
+                        class="text-emerald-600 hover:text-emerald-800 text-sm p-1.5 rounded hover:bg-emerald-50 transition"
+                        title="Assign Rider"
+                      >
+                        <i class="fas fa-motorcycle"></i>
+                      </button>
+                    }
+
+                    <!-- View Rider -->
+                    @if (escrow.riderId) {
+                      <button
+                        (click)="viewRider(escrow.riderId)"
+                        class="text-indigo-600 hover:text-indigo-800 text-sm p-1.5 rounded hover:bg-indigo-50 transition"
+                        title="View Rider Details"
+                      >
+                        <i class="fas fa-user-circle"></i>
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9" class="px-4 py-12 text-center text-gray-500">
+                  <i class="fas fa-inbox text-3xl text-gray-300 mb-2 block"></i>
+                  <p>No escrows found matching your filters</p>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- ========== ASSIGN RIDER MODAL ========== -->
+<app-assign-rider-modal
+  [isOpen]="showAssignModal()"
+  [escrowId]="selectedEscrowId()"
+  [escrowTitle]="selectedEscrowTitle()"
+  [maxConcurrentDeliveries]="maxConcurrentDeliveries"
+  (onAssign)="onRiderAssigned($event)"
+  (onClose)="closeAssignModal()"
+/>
+
+<!-- ========== RIDER DETAILS MODAL ========== -->
+<app-rider-details-modal
+  [isOpen]="showRiderDetailsModal()"
+  [riderId]="selectedRiderIdForDetails()"
+  [showAssignButton]="showAssignButtonInDetails()"
+  (onClose)="closeRiderDetailsModal()"
+  (onAssignToCurrent)="openAssignModalForCurrentEscrow()"
+/>

@@ -216,6 +216,7 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
     if (this.mobileOpen) this.closeMobile.emit();
   }
 
+
   get navItems(): NavItem[] {
     const activeDisputes = this.dataService.disputes().filter(d =>
       ['PENDING', 'UNDER_REVIEW', 'OPEN', 'ESCALATED'].includes(d.status)
@@ -232,11 +233,20 @@ export class SidebarComponent implements OnInit, OnChanges, AfterViewInit, OnDes
           { label: 'All Users', route: '/users', icon: 'fa-users' },
           { label: 'Buyers', route: '/buyers', icon: 'fa-user' },
           { label: 'Sellers', route: '/sellers', icon: 'fa-store' },
-          { label: 'Riders', route: '/riders', icon: 'fa-motorcycle' }, // ✅ Added Riders
+          { label: 'Riders', route: '/riders', icon: 'fa-motorcycle' },
           { label: 'Admins', route: '/admins', icon: 'fa-user-shield' }
         ]
       },
-      { label: 'Escrows', route: '/transactions', icon: 'fa-exchange-alt', type: 'link' },
+      {
+        label: 'Escrows',
+        icon: 'fa-exchange-alt',
+        type: 'dropdown',
+        dropdownId: 'escrows-dropdown',
+        children: [
+          { label: 'All Escrows', route: '/transactions', icon: 'fa-list' },
+          { label: 'Rider Assignments', route: '/rider-assignments', icon: 'fa-motorcycle' }
+        ]
+      },
       { label: 'Disputes', route: '/disputes', icon: 'fa-gavel', count, type: 'link' },
       { label: 'Payments', route: '/payments', icon: 'fa-credit-card', type: 'link' },
       { label: 'Payouts', route: '/payouts', icon: 'fa-money-bill-wave', type: 'link' },
