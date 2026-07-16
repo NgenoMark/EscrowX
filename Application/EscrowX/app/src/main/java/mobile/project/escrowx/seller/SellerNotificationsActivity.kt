@@ -1,5 +1,6 @@
 package mobile.project.escrowx.seller
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -39,6 +40,8 @@ import kotlinx.coroutines.withContext
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.auth.InAppNotificationResponse
 import mobile.project.escrowx.auth.SessionManager
+import mobile.project.escrowx.dash.BuyerTransactionDetailActivity
+import mobile.project.escrowx.dash.RiderAssignmentDetailsActivity
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 import mobile.project.escrowx.ui.theme.BrandBlue
@@ -180,6 +183,9 @@ private fun SellerNotificationsScreen(onBack: () -> Unit) {
     fun openNotification(item: InAppNotificationResponse) {
         if (item.status.equals("UNREAD", true)) {
             markRead(item)
+        }
+        if (openNotificationDeepLink(context, session, item)) {
+            return
         }
         selectedNotification = item
         showDetailDialog = true
@@ -898,5 +904,45 @@ fun SellerNotificationsScreenPreview() {
 fun SellerNotificationsScreenPreviewDark() {
     EscrowXTheme(darkTheme = true) {
         SellerNotificationsScreen(onBack = {})
+    }
+}
+
+private fun openNotificationDeepLink(
+    context: android.content.Context,
+    session: SessionManager,
+    item: InAppNotificationResponse
+): Boolean {
+    val payload = item.payloadJson.orEmpty()
+    val transactionId = payload["transactionId"]?.toString()?.takeIf { it.isNotBlank() }
+        ?: item.referenceId?.takeIf { it.isNotBlank() }
+        ?: return false
+    val status = payload["status"]?.toString()?.ifBlank { null } ?: "FUNDS_HELD"
+
+    val role = session.getUserRole()?.uppercase(Locale.getDefault()) ?: "BUYER"
+    val intent = when (role) {
+        "SELLER" -> Intent(context, SellerTransactionDetailActivity::class.java).apply {
+            putExtra("TRANSACTION_ID", transactionId)
+            putExtra("STATUS", status)
+            putExtra("CURRENT_STEP", sellerStepForNotificationStatus(status))
+        }
+        "RIDER" -> Intent(context, RiderAssignmentDetailsActivity::class.java).apply {
+            putExtra(RiderAssignmentDetailsActivity.EXTRA_TRANSACTION_ID, transactionId)
+        }
+        else -> Intent(context, BuyerTransactionDetailActivity::class.java).apply {
+            putExtra("TRANSACTION_ID", transactionId)
+            putExtra("STATUS", status)
+        }
+    }
+    context.startActivity(intent)
+    return true
+}
+
+private fun sellerStepForNotificationStatus(statusRaw: String): Int {
+    return when (statusRaw.trim().uppercase(Locale.getDefault())) {
+        "CREATED", "PENDING_PAYMENT", "FUNDS_HELD" -> 1
+        "SELLER_ACCEPTED", "IN_DELIVERY", "SELLER_DELIVERED" -> 2
+        "BUYER_CONFIRMED_DELIVERED", "RELEASE_PENDING", "RELEASED", "COMPLETED" -> 3
+        "DECLINED", "CANCELLED", "DISPUTED", "RELEASE_FAILED" -> 3
+        else -> 1
     }
 }

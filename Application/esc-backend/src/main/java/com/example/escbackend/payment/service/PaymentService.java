@@ -17,6 +17,7 @@ import com.example.escbackend.payment.entity.PayoutEntity;
 import com.example.escbackend.payment.repository.PaymentCallbackRepository;
 import com.example.escbackend.payment.repository.PaymentIntentRepository;
 import com.example.escbackend.payment.repository.PayoutRepository;
+import com.example.escbackend.notification.service.TransactionNotificationService;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.UserRepository;
 import org.slf4j.Logger;
@@ -33,6 +34,7 @@ import java.math.RoundingMode;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -51,6 +53,7 @@ public class PaymentService {
     private final LedgerService ledgerService;
     private final TransactionStatusHistoryService transactionStatusHistoryService;
     private final UserRepository userRepository;
+    private final TransactionNotificationService transactionNotificationService;
 
     @Value("${escrowx.mpesa.reconciliation.enabled:true}")
     private boolean reconciliationEnabled;
@@ -66,7 +69,8 @@ public class PaymentService {
             MpesaDarajaService mpesaDarajaService,
             LedgerService ledgerService,
             TransactionStatusHistoryService transactionStatusHistoryService,
-            UserRepository userRepository
+                UserRepository userRepository,
+                TransactionNotificationService transactionNotificationService
     ) {
         this.escrowRepository = escrowRepository;
         this.paymentIntentRepository = paymentIntentRepository;
@@ -76,6 +80,7 @@ public class PaymentService {
         this.ledgerService = ledgerService;
         this.transactionStatusHistoryService = transactionStatusHistoryService;
         this.userRepository = userRepository;
+        this.transactionNotificationService = transactionNotificationService;
     }
 
     @Transactional
@@ -104,6 +109,13 @@ public class PaymentService {
         paymentIntentRepository.save(payment);
 
         updateEscrowStatus(transaction, "PENDING_PAYMENT", actorUserId, "STK push initiated");
+        notifyPaymentEvent(
+            transaction,
+            "PAYMENT_STK_INITIATED",
+            "Payment prompt sent",
+            "An STK payment prompt was sent for transaction " + transaction.getReference() + ".",
+            actorUserId
+        );
 
         return InitiateStkPushResponse.builder()
                 .paymentId(payment.getId())
@@ -169,12 +181,26 @@ public class PaymentService {
             EscrowTransaction transaction = payment.getTransaction();
             updateEscrowStatus(transaction, "FUNDS_HELD", null, "STK callback success");
             ledgerService.recordHold(transaction, payment.getAmount(), payment.getId());
+            notifyPaymentEvent(
+                transaction,
+                "PAYMENT_SUCCEEDED",
+                "Payment received",
+                "Payment was successful and funds are now held for transaction " + transaction.getReference() + ".",
+                null
+            );
         } else {
             payment.setStatus("FAILED");
             EscrowTransaction transaction = payment.getTransaction();
             if ("PENDING_PAYMENT".equals(transaction.getStatus())) {
                 updateEscrowStatus(transaction, "PENDING_PAYMENT", null, "STK callback failed");
             }
+            notifyPaymentEvent(
+                transaction,
+                "PAYMENT_FAILED",
+                "Payment failed",
+                "Payment failed for transaction " + transaction.getReference() + ". Please retry payment.",
+                null
+            );
         }
 
         paymentIntentRepository.save(payment);
@@ -192,6 +218,13 @@ public class PaymentService {
         payout = payoutRepository.save(payout);
 
         updateEscrowStatus(transaction, "RELEASE_PROCESSING", actorUserId, "Payout release initiated");
+        notifyPaymentEvent(
+            transaction,
+            "PAYOUT_RELEASE_INITIATED",
+            "Payout release started",
+            "Payout release has been initiated for transaction " + transaction.getReference() + ".",
+            actorUserId
+        );
 
         MpesaDarajaService.B2cResult result = mpesaDarajaService.initiateB2cPayout(
                 payout.getSellerPhoneNumber(),
@@ -219,6 +252,13 @@ public class PaymentService {
             );
             payout.setStatus("FAILED");
             updateEscrowStatus(transaction, "RELEASE_FAILED", actorUserId, "Payout request rejected");
+            notifyPaymentEvent(
+                transaction,
+                "PAYOUT_RELEASE_FAILED",
+                "Payout release failed",
+                "Payout release request was rejected for transaction " + transaction.getReference() + ".",
+                actorUserId
+            );
         }
         payoutRepository.save(payout);
         escrowRepository.save(transaction);
@@ -296,6 +336,13 @@ public class PaymentService {
 
             EscrowTransaction transaction = payout.getTransaction();
             updateEscrowStatus(transaction, "RELEASE_FAILED", actorUserId, reason);
+            notifyPaymentEvent(
+                transaction,
+                "PAYOUT_RELEASE_FAILED",
+                "Payout release failed",
+                "Payout release failed for transaction " + transaction.getReference() + ". " + reason,
+                actorUserId
+            );
 
             payoutRepository.save(payout);
             escrowRepository.save(transaction);
@@ -374,10 +421,24 @@ public class PaymentService {
 
             log.info("B2C Verification Payout process successful for transaction reference {}. Dispatching ledger releases.", transaction.getReference());
             ledgerService.recordRelease(transaction, payout.getAmount(), payout.getId());
+            notifyPaymentEvent(
+                transaction,
+                "PAYOUT_RELEASE_COMPLETED",
+                "Payout completed",
+                "Payout to seller completed for transaction " + transaction.getReference() + ".",
+                null
+            );
         } else {
             payout.setStatus("FAILED");
             updateEscrowStatus(transaction, "RELEASE_FAILED", null, "B2C callback failed");
             log.warn("M-Pesa Core Layer rejected payout request for Payout ID {} with Safaricom reason code details: {}", payout.getId(), resultDescription);
+            notifyPaymentEvent(
+                transaction,
+                "PAYOUT_RELEASE_FAILED",
+                "Payout failed",
+                "Payout failed for transaction " + transaction.getReference() + ".",
+                null
+            );
         }
 
         payoutRepository.save(payout);
@@ -424,6 +485,13 @@ public class PaymentService {
 
         EscrowTransaction transaction = payout.getTransaction();
         updateEscrowStatus(transaction, "RELEASE_FAILED", null, "B2C timeout");
+        notifyPaymentEvent(
+            transaction,
+            "PAYOUT_RELEASE_TIMEOUT",
+            "Payout timeout",
+            "Payout timed out for transaction " + transaction.getReference() + ".",
+            null
+        );
 
         payoutRepository.save(payout);
         escrowRepository.save(transaction);
@@ -439,6 +507,108 @@ public class PaymentService {
         transaction.setStatus(newStatus);
         EscrowTransaction saved = escrowRepository.save(transaction);
         transactionStatusHistoryService.recordStatusChange(saved, fromStatus, newStatus, changedBy, reason);
+    }
+
+    private void notifyStatusChange(
+        EscrowTransaction transaction,
+        String fromStatus,
+        String newStatus,
+        UUID actorUserId,
+        String reason
+    ) {
+        if (fromStatus != null && fromStatus.equalsIgnoreCase(newStatus)) {
+            return;
+        }
+
+        Map<UUID, String> recipients = collectRecipients(transaction, actorUserId);
+        for (Map.Entry<UUID, String> entry : recipients.entrySet()) {
+            UUID recipientId = entry.getKey();
+            String targetRole = entry.getValue();
+            String title = recipientId.equals(actorUserId)
+                ? "You updated transaction " + transaction.getReference()
+                : "Transaction " + transaction.getReference() + " updated";
+            String body = "Status changed from " + humanizeStatus(fromStatus) + " to " + humanizeStatus(newStatus) + ".";
+            if (reason != null && !reason.isBlank()) {
+                body = body + " " + reason;
+            }
+
+            safeNotify(
+                recipientId,
+                transaction,
+                "TRANSACTION_STATUS_" + newStatus,
+                title,
+                body,
+                newStatus,
+                targetRole
+            );
+        }
+    }
+
+    private void notifyPaymentEvent(
+        EscrowTransaction transaction,
+        String type,
+        String title,
+        String body,
+        UUID actorUserId
+    ) {
+        String status = transaction.getStatus();
+        Map<UUID, String> recipients = collectRecipients(transaction, actorUserId);
+        for (Map.Entry<UUID, String> entry : recipients.entrySet()) {
+            safeNotify(
+                entry.getKey(),
+                transaction,
+                type,
+                title,
+                body,
+                status,
+                entry.getValue()
+            );
+        }
+    }
+
+    private Map<UUID, String> collectRecipients(EscrowTransaction transaction, UUID actorUserId) {
+        Map<UUID, String> recipients = new HashMap<>();
+        recipients.put(transaction.getBuyer().getId(), "BUYER");
+        recipients.put(transaction.getSeller().getId(), "SELLER");
+        if (transaction.getRider() != null) {
+            recipients.put(transaction.getRider().getId(), "RIDER");
+        }
+        if (actorUserId != null && !recipients.containsKey(actorUserId)) {
+            UserEntity actor = userRepository.findById(actorUserId).orElse(null);
+            recipients.put(actorUserId, actor == null ? "ADMIN" : actor.getRole().name());
+        }
+        return recipients;
+    }
+
+    private void safeNotify(
+        UUID recipientId,
+        EscrowTransaction transaction,
+        String type,
+        String title,
+        String body,
+        String status,
+        String targetRole
+    ) {
+        try {
+            transactionNotificationService.sendTransactionNotification(
+                recipientId,
+                transaction.getId(),
+                type,
+                title,
+                body,
+                status,
+                targetRole
+            );
+        } catch (Exception ignored) {
+            // Notifications must not block payment operations.
+        }
+    }
+
+    private String humanizeStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "unknown";
+        }
+        return status.toLowerCase(Locale.ROOT).replace('_', ' ');
     }
 
     private PaymentIntentEntity newPaymentIntent(EscrowTransaction transaction, String phoneNumber) {

@@ -7,13 +7,17 @@ import com.example.escbackend.escrow.entity.EscrowTransaction;
 import com.example.escbackend.escrow.entity.TransactionStatusHistoryEntity;
 import com.example.escbackend.escrow.repository.EscrowRepository;
 import com.example.escbackend.escrow.repository.TransactionStatusHistoryRepository;
+import com.example.escbackend.notification.service.TransactionNotificationService;
 import com.example.escbackend.user.entity.UserEntity;
 import com.example.escbackend.user.repository.UserRepository;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -23,15 +27,18 @@ public class TransactionStatusHistoryService {
     private final TransactionStatusHistoryRepository transactionStatusHistoryRepository;
     private final EscrowRepository escrowRepository;
     private final UserRepository userRepository;
+        private final TransactionNotificationService transactionNotificationService;
 
     public TransactionStatusHistoryService(
             TransactionStatusHistoryRepository transactionStatusHistoryRepository,
             EscrowRepository escrowRepository,
-            UserRepository userRepository
+                        UserRepository userRepository,
+                        TransactionNotificationService transactionNotificationService
     ) {
         this.transactionStatusHistoryRepository = transactionStatusHistoryRepository;
         this.escrowRepository = escrowRepository;
         this.userRepository = userRepository;
+                this.transactionNotificationService = transactionNotificationService;
     }
 
     public void recordStatusChange(
@@ -56,7 +63,64 @@ public class TransactionStatusHistoryService {
         history.setChangedBy(changedBy);
         history.setReason(reason);
         transactionStatusHistoryRepository.save(history);
+
+                notifyStatusChange(transaction, fromStatus, toStatus, changedBy, reason);
     }
+
+        private void notifyStatusChange(
+                        EscrowTransaction transaction,
+                        String fromStatus,
+                        String toStatus,
+                        UUID changedBy,
+                        String reason
+        ) {
+                Map<UUID, String> recipients = new HashMap<>();
+                recipients.put(transaction.getBuyer().getId(), "BUYER");
+                recipients.put(transaction.getSeller().getId(), "SELLER");
+                if (transaction.getRider() != null) {
+                        recipients.put(transaction.getRider().getId(), "RIDER");
+                }
+
+                if (changedBy != null && !recipients.containsKey(changedBy)) {
+                        UserEntity actor = userRepository.findById(changedBy).orElse(null);
+                        recipients.put(changedBy, actor == null ? "ADMIN" : actor.getRole().name());
+                }
+
+                for (Map.Entry<UUID, String> recipient : recipients.entrySet()) {
+                        UUID recipientId = recipient.getKey();
+                        String role = recipient.getValue();
+                        boolean isActor = changedBy != null && recipientId.equals(changedBy);
+
+                        String title = isActor
+                                ? "You updated transaction " + transaction.getReference()
+                                : "Transaction " + transaction.getReference() + " updated";
+                        String body = "Status changed from " + humanizeStatus(fromStatus) + " to " + humanizeStatus(toStatus) + ".";
+                        if (reason != null && !reason.isBlank()) {
+                                body = body + " " + reason;
+                        }
+
+                        try {
+                                transactionNotificationService.sendTransactionNotification(
+                                        recipientId,
+                                        transaction.getId(),
+                                        "TRANSACTION_STATUS_" + toStatus,
+                                        title,
+                                        body,
+                                        toStatus,
+                                        role
+                                );
+                        } catch (Exception ignored) {
+                                // Status notifications should never block business flow.
+                        }
+                }
+        }
+
+        private String humanizeStatus(String status) {
+                if (status == null || status.isBlank()) {
+                        return "unknown";
+                }
+                return status.toLowerCase(Locale.ROOT).replace('_', ' ');
+        }
 
     public List<TransactionStatusHistoryResponse> getHistoryByTransactionId(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = escrowRepository.findById(transactionId)
