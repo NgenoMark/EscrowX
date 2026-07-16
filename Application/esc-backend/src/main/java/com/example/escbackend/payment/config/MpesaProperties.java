@@ -19,6 +19,7 @@ public class MpesaProperties {
     private String callbackUrl;
     private String initiatorName;
     private String securityCredential;
+    private String b2cCommandId;
     private String resultUrl;
     private String timeoutUrl;
 }

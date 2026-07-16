@@ -2,6 +2,8 @@ package com.example.escbackend.payment.service;
 
 import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.payment.config.MpesaProperties;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -18,6 +20,7 @@ import static java.util.Map.entry;
 
 @Service
 public class MpesaDarajaService {
+    private static final Logger log = LoggerFactory.getLogger(MpesaDarajaService.class);
     private static final DateTimeFormatter MPESA_TIMESTAMP = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");
 
     private final MpesaProperties properties;
@@ -85,13 +88,27 @@ public class MpesaDarajaService {
         assertConfigured(properties.getResultUrl(), "MPESA B2C result URL is not configured");
         assertConfigured(properties.getTimeoutUrl(), "MPESA B2C timeout URL is not configured");
 
+        String normalizedSellerPhone = toDarajaMsisdn(sellerPhoneNumber);
+        String commandId = resolveB2cCommandId();
+
+        log.info(
+            "MPESA_B2C_REQUEST commandId={} partyA={} partyBMasked={} amount={} occasion={} resultUrl={} timeoutUrl={}",
+            commandId,
+            properties.getB2cShortCode(),
+            maskMsisdn(normalizedSellerPhone),
+            amount,
+            occasion,
+            properties.getResultUrl(),
+            properties.getTimeoutUrl()
+        );
+
         Map<String, Object> body = Map.of(
             "InitiatorName", properties.getInitiatorName(),
             "SecurityCredential", properties.getSecurityCredential(),
-            "CommandID", "BusinessPayment",
+            "CommandID", commandId,
             "Amount", amount,
             "PartyA", properties.getB2cShortCode(),
-            "PartyB", toDarajaPhone(sellerPhoneNumber),
+            "PartyB", normalizedSellerPhone,
             "Remarks", remarks,
             "QueueTimeOutURL", properties.getTimeoutUrl(),
             "ResultURL", properties.getResultUrl(),
@@ -113,6 +130,15 @@ public class MpesaDarajaService {
         if (response == null) {
             throw new ApiException(HttpStatus.BAD_GATEWAY, "Empty M-Pesa B2C response");
         }
+
+        log.info(
+            "MPESA_B2C_RESPONSE commandId={} responseCode={} responseDescription={} conversationId={} originatorConversationId={}",
+            commandId,
+            asString(response.get("ResponseCode")),
+            asString(response.get("ResponseDescription")),
+            asString(response.get("ConversationID")),
+            asString(response.get("OriginatorConversationID"))
+        );
 
         return new B2cResult(
             asString(response.get("ConversationID")),
@@ -145,6 +171,44 @@ public class MpesaDarajaService {
 
     private String toDarajaPhone(String phoneNumber) {
         return phoneNumber.replace("+", "");
+    }
+
+    private String toDarajaMsisdn(String phoneNumber) {
+        if (!StringUtils.hasText(phoneNumber)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Seller phone number is missing for B2C payout");
+        }
+
+        String digits = phoneNumber.trim().replace("+", "").replaceAll("\\s+", "");
+        if (digits.startsWith("254") && digits.length() == 12) {
+            return digits;
+        }
+        if ((digits.startsWith("07") || digits.startsWith("01")) && digits.length() == 10) {
+            return "254" + digits.substring(1);
+        }
+        if (digits.startsWith("7") && digits.length() == 9) {
+            return "254" + digits;
+        }
+        if (digits.startsWith("1") && digits.length() == 9) {
+            return "254" + digits;
+        }
+
+        throw new ApiException(HttpStatus.BAD_REQUEST, "Unsupported seller phone format for B2C payout: " + phoneNumber);
+    }
+
+    private String resolveB2cCommandId() {
+        String configured = properties.getB2cCommandId();
+        return StringUtils.hasText(configured) ? configured.trim() : "BusinessPayment";
+    }
+
+    private String maskMsisdn(String msisdn) {
+        if (!StringUtils.hasText(msisdn) || msisdn.length() < 4) {
+            return "****";
+        }
+        int keepStart = Math.min(3, msisdn.length());
+        int keepEnd = Math.min(2, msisdn.length() - keepStart);
+        String start = msisdn.substring(0, keepStart);
+        String end = msisdn.substring(msisdn.length() - keepEnd);
+        return start + "******" + end;
     }
 
     private String asString(Object value) {

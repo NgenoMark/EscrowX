@@ -31,8 +31,8 @@ public class SecurityConfig {
                                 "/swagger-ui.html",
                                 "/webjars/**",
                             "/uploads/**",
-                                "/api/v1/payments/mpesa/b2c-result",
-                                "/api/v1/payments/mpesa/b2c-timeout",
+                                "/api/v1/payments/mpesa/b2c/result",
+                                "/api/v1/payments/mpesa/b2c/queue",
                                 "/api/v1/payments/mpesa/stk-callback"
                         ).permitAll()
                         // Permit your API endpoints

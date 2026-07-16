@@ -9,6 +9,7 @@ import com.example.escbackend.common.exception.ApiException;
 import com.example.escbackend.payment.entity.EscrowLedgerEntryEntity;
 import com.example.escbackend.payment.entity.PaymentIntentEntity;
 import com.example.escbackend.payment.entity.PayoutEntity;
+import com.example.escbackend.payment.dto.CallbackReplayResult;
 import com.example.escbackend.payment.repository.EscrowLedgerEntryRepository;
 import com.example.escbackend.payment.repository.PaymentIntentRepository;
 import com.example.escbackend.payment.repository.PayoutRepository;
@@ -96,6 +97,12 @@ public class AdminService {
 				.message("Reconciliation completed")
 				.build();
 	 }
+
+	public CallbackReplayResult replayUnmatchedB2cCallbacks(UUID actorUserId) {
+		UUID adminUserId = requireActorUserId(actorUserId);
+		adminAuthorizationService.requireAdminOrSuperAdmin(adminUserId);
+		return paymentService.replayUnmatchedB2cCallbacks(adminUserId);
+	}
 
 	private UUID requireActorUserId(UUID actorUserId) {
 		if (actorUserId == null) {

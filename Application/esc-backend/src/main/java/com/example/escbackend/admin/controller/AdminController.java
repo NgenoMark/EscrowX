@@ -8,6 +8,7 @@ import com.example.escbackend.admin.service.AdminService;
 import com.example.escbackend.audit.dto.AuditLogResponse;
 import com.example.escbackend.audit.service.AuditLogService;
 import com.example.escbackend.common.constants.UserRole;
+import com.example.escbackend.payment.dto.CallbackReplayResult;
 import com.example.escbackend.user.dto.AdminVerificationConfirmRequest;
 import com.example.escbackend.user.dto.CreateEmployeeRequest;
 import com.example.escbackend.user.dto.CreateMarketplaceUserRequest;
@@ -164,6 +165,13 @@ public class AdminController {
         @RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId
     ) {
         return adminService.reconcileStuckProcessingPayouts(actorUserId);
+    }
+
+    @PostMapping("/payouts/replay-unmatched-callbacks")
+    public CallbackReplayResult replayUnmatchedB2cCallbacks(
+        @RequestHeader(value = "X-Actor-User-Id", required = false) UUID actorUserId
+    ) {
+        return adminService.replayUnmatchedB2cCallbacks(actorUserId);
     }
 
     @GetMapping("/audit-logs/all-logs")
