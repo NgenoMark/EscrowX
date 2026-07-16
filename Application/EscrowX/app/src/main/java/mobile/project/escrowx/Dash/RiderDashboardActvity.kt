@@ -223,23 +223,25 @@ private fun RiderDashboardScreen() {
                         IconButton(onClick = {
                             context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
                         }) {
-                            if (unreadNotificationsCount > 0) {
-                                Badge(
-                                    containerColor = Color(0xFFDC2626),
-                                    modifier = Modifier.offset(x = 4.dp, y = (-4).dp)
-                                ) {
-                                    Text(
-                                        if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
-                                        fontSize = 9.sp,
-                                        color = Color.White
-                                    )
+                            BadgedBox(
+                                badge = {
+                                    if (unreadNotificationsCount > 0) {
+                                        Badge(containerColor = Color(0xFFDC2626)) {
+                                            Text(
+                                                if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
+                                                fontSize = 9.sp,
+                                                color = Color.White
+                                            )
+                                        }
+                                    }
                                 }
+                            ) {
+                                Icon(
+                                    Icons.Default.NotificationsNone,
+                                    contentDescription = "Notifications",
+                                    tint = colorScheme.onSurface
+                                )
                             }
-                            Icon(
-                                Icons.Default.NotificationsNone,
-                                contentDescription = "Notifications",
-                                tint = colorScheme.onSurface
-                            )
                         }
                     }
                 },
