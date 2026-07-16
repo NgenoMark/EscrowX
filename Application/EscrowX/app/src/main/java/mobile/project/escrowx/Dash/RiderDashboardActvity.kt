@@ -172,64 +172,75 @@ private fun RiderDashboardScreen() {
     Scaffold(
         containerColor = colorScheme.background,
         topBar = {
+            val isHomeTab = selectedTab == RiderNavItem.Home.index
             TopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        colors = listOf(
-                                            BrandBlue,
-                                            BrandBlue.copy(alpha = 0.7f)
-                                        )
-                                    )
-                                ),
-                            contentAlignment = Alignment.Center
+                    if (isHomeTab) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                Icons.Default.DirectionsBike,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp),
-                                tint = Color.White
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            colors = listOf(
+                                                BrandBlue,
+                                                BrandBlue.copy(alpha = 0.7f)
+                                            )
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.DirectionsBike,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp),
+                                    tint = Color.White
+                                )
+                            }
+                            Text(
+                                text = "Rider Workspace",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                color = colorScheme.onSurface,
+                                letterSpacing = 0.3.sp
                             )
                         }
+                    } else {
                         Text(
-                            text = "Rider Workspace",
+                            text = if (selectedTab == RiderNavItem.Assignments.index) "Assignments" else "Profile",
                             fontWeight = FontWeight.Bold,
                             fontSize = 18.sp,
-                            color = colorScheme.onSurface,
-                            letterSpacing = 0.3.sp
+                            color = colorScheme.onSurface
                         )
                     }
                 },
                 actions = {
-                    // Notification Bell
-                    IconButton(onClick = {
-                        context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
-                    }) {
-                        if (unreadNotificationsCount > 0) {
-                            Badge(
-                                containerColor = Color(0xFFDC2626),
-                                modifier = Modifier.offset(x = 4.dp, y = (-4).dp)
-                            ) {
-                                Text(
-                                    if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
-                                    fontSize = 9.sp,
-                                    color = Color.White
-                                )
+                    if (isHomeTab) {
+                        IconButton(onClick = {
+                            context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
+                        }) {
+                            if (unreadNotificationsCount > 0) {
+                                Badge(
+                                    containerColor = Color(0xFFDC2626),
+                                    modifier = Modifier.offset(x = 4.dp, y = (-4).dp)
+                                ) {
+                                    Text(
+                                        if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
+                                        fontSize = 9.sp,
+                                        color = Color.White
+                                    )
+                                }
                             }
+                            Icon(
+                                Icons.Default.NotificationsNone,
+                                contentDescription = "Notifications",
+                                tint = colorScheme.onSurface
+                            )
                         }
-                        Icon(
-                            Icons.Default.NotificationsNone,
-                            contentDescription = "Notifications",
-                            tint = colorScheme.onSurface
-                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
