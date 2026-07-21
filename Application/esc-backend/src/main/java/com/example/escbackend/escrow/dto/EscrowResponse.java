@@ -27,6 +27,7 @@ public class EscrowResponse {
     private BigDecimal initialDepositAmount;
     private String currency;
     private String status;
+    private String deliveryMode;
     private String riderAssignmentStatus;
     private UUID riderPreviousRiderUserId;
     private String riderReassignmentReason;

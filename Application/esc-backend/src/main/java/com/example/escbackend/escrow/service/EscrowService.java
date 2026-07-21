@@ -38,6 +38,8 @@ import java.util.UUID;
 
 @Service
 public class EscrowService {
+    private static final String DELIVERY_MODE_RIDER_REQUIRED = "RIDER_REQUIRED";
+    private static final String DELIVERY_MODE_SELLER_SELF_DELIVERY = "SELLER_SELF_DELIVERY";
 
     private final EscrowRepository escrowRepository;
     private final DeliveryAssignmentRepository deliveryAssignmentRepository;
@@ -93,6 +95,7 @@ public class EscrowService {
         transaction.setInitialDepositAmount(request.getAmount());
         transaction.setCurrency(request.getCurrency() == null ? "KES" : request.getCurrency().trim().toUpperCase(Locale.ROOT));
         transaction.setStatus("CREATED");
+        transaction.setDeliveryMode(DELIVERY_MODE_RIDER_REQUIRED);
         transaction.setDeliveryDueAt(request.getDeliveryDueAt());
         transaction.setAutoReleaseAt(request.getDeliveryDueAt());
 
@@ -167,6 +170,7 @@ public class EscrowService {
 
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertState(transaction, "SELLER_ACCEPTED");
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "Rider assignment is allowed only in RIDER_REQUIRED mode");
         UUID previousRiderUserId = transaction.getRider() != null ? transaction.getRider().getId() : null;
         UserEntity rider = userRepository.findById(riderId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Rider not found"));
@@ -310,9 +314,50 @@ public class EscrowService {
     }
 
     @Transactional
+    public EscrowResponse setDeliveryMode(UUID transactionId, UUID actorUserId, String requestedDeliveryMode) {
+        EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertActorIsSeller(transaction, actorUserId);
+        assertState(transaction, "SELLER_ACCEPTED");
+
+        if (transaction.getRider() != null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Cannot change delivery mode after a rider has been assigned");
+        }
+
+        String normalizedDeliveryMode = normalizeDeliveryMode(requestedDeliveryMode);
+        if (normalizedDeliveryMode.equalsIgnoreCase(transaction.getDeliveryMode())) {
+            return toResponse(transaction);
+        }
+
+        transaction.setDeliveryMode(normalizedDeliveryMode);
+        EscrowTransaction saved = escrowRepository.save(transaction);
+
+        notifyDeliveryMilestone(
+            saved,
+            "DELIVERY_MODE_SELECTED",
+            "Delivery mode selected",
+            "Seller selected " + humanizeStatus(normalizedDeliveryMode) + " for transaction " + saved.getReference() + ".",
+            saved.getBuyer().getId(),
+            actorUserId,
+            saved.getStatus()
+        );
+        notifyDeliveryMilestone(
+            saved,
+            "DELIVERY_MODE_SELECTED",
+            "Delivery mode selected",
+            "You selected " + humanizeStatus(normalizedDeliveryMode) + " for transaction " + saved.getReference() + ".",
+            saved.getSeller().getId(),
+            actorUserId,
+            saved.getStatus()
+        );
+
+        return toResponse(saved);
+    }
+
+    @Transactional
     public EscrowResponse riderAcceptDelivery(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertState(transaction, "SELLER_ACCEPTED");
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "Rider delivery actions require RIDER_REQUIRED mode");
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
 
@@ -365,6 +410,7 @@ public class EscrowService {
     @Transactional
     public EscrowResponse riderMarkPickedUp(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "Rider pickup requires RIDER_REQUIRED mode");
         if (!"SELLER_ACCEPTED".equals(transaction.getStatus()) && !"IN_DELIVERY".equals(transaction.getStatus())) {
             throw new ApiException(
                 HttpStatus.BAD_REQUEST,
@@ -427,6 +473,7 @@ public class EscrowService {
     @Transactional
     public EscrowResponse riderStartTransit(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "Rider transit requires RIDER_REQUIRED mode");
         assertState(transaction, "IN_DELIVERY");
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
@@ -479,6 +526,7 @@ public class EscrowService {
     @Transactional
     public EscrowResponse riderArrivedAtBuyer(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "Rider arrival requires RIDER_REQUIRED mode");
         assertState(transaction, "IN_DELIVERY");
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
@@ -532,6 +580,7 @@ public class EscrowService {
     @Transactional
     public EscrowResponse riderMarkDelivered(UUID transactionId, UUID actorUserId) {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "Rider delivery confirmation requires RIDER_REQUIRED mode");
         assertState(transaction, "IN_DELIVERY");
 
         DeliveryAssignmentEntity assignment = getAssignmentForAssignedRider(transaction, actorUserId);
@@ -590,6 +639,12 @@ public class EscrowService {
         assertActorIsSeller(transaction, actorUserId);
         assertState(transaction, "SELLER_ACCEPTED");
 
+        if (DELIVERY_MODE_SELLER_SELF_DELIVERY.equalsIgnoreCase(transaction.getDeliveryMode())) {
+            return updateTransactionStatus(transaction, "IN_DELIVERY", actorUserId, "Seller started self delivery");
+        }
+
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "mark-in-delivery requires RIDER_REQUIRED or SELLER_SELF_DELIVERY mode");
+
         if (transaction.getRider() == null) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Assign a rider before marking in delivery");
         }
@@ -617,6 +672,12 @@ public class EscrowService {
         EscrowTransaction transaction = getTransactionOrThrow(transactionId);
         assertActorIsSeller(transaction, actorUserId);
         assertState(transaction, "IN_DELIVERY");
+
+        if (DELIVERY_MODE_SELLER_SELF_DELIVERY.equalsIgnoreCase(transaction.getDeliveryMode())) {
+            return updateTransactionStatus(transaction, "SELLER_DELIVERED", actorUserId, "Seller confirmed self delivery");
+        }
+
+        assertDeliveryMode(transaction, DELIVERY_MODE_RIDER_REQUIRED, "Seller confirmation with rider workflow requires RIDER_REQUIRED mode");
 
         if (transaction.getRider() != null) {
             DeliveryAssignmentEntity assignment = deliveryAssignmentRepository
@@ -785,6 +846,7 @@ public class EscrowService {
             .initialDepositAmount(transaction.getInitialDepositAmount())
             .currency(transaction.getCurrency())
             .status(transaction.getStatus())
+            .deliveryMode(transaction.getDeliveryMode())
             .deliveryDueAt(transaction.getDeliveryDueAt())
             .autoReleaseAt(transaction.getAutoReleaseAt())
             .createdAt(transaction.getCreatedAt())
@@ -817,6 +879,28 @@ public class EscrowService {
                 "Invalid state transition. Expected " + expectedStatus + " but found " + transaction.getStatus()
             );
         }
+    }
+
+    private void assertDeliveryMode(EscrowTransaction transaction, String expectedDeliveryMode, String message) {
+        String mode = transaction.getDeliveryMode();
+        if (mode == null || !expectedDeliveryMode.equalsIgnoreCase(mode)) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, message + ". Current mode: " + mode);
+        }
+    }
+
+    private String normalizeDeliveryMode(String requestedDeliveryMode) {
+        if (requestedDeliveryMode == null || requestedDeliveryMode.isBlank()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "deliveryMode is required");
+        }
+        String normalized = requestedDeliveryMode.trim().toUpperCase(Locale.ROOT);
+        if (!DELIVERY_MODE_RIDER_REQUIRED.equals(normalized)
+            && !DELIVERY_MODE_SELLER_SELF_DELIVERY.equals(normalized)) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid deliveryMode. Allowed values: RIDER_REQUIRED, SELLER_SELF_DELIVERY"
+            );
+        }
+        return normalized;
     }
 
     private void assertActorIsSeller(EscrowTransaction transaction, UUID actorUserId) {

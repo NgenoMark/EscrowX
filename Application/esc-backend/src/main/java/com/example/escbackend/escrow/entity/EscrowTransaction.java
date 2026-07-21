@@ -69,6 +69,12 @@ public class EscrowTransaction {
     @Column(name = "status", nullable = false, length = 30)
     private String status;
 
+    @Size(max = 30)
+    @NotNull
+    @ColumnDefault("'RIDER_REQUIRED'")
+    @Column(name = "delivery_mode", nullable = false, length = 30)
+    private String deliveryMode;
+
     @NotNull
     @Column(name = "delivery_address")
     private String deliveryAddress;
@@ -103,6 +109,9 @@ public class EscrowTransaction {
         }
         if (status == null || status.isBlank()) {
             status = "CREATED";
+        }
+        if (deliveryMode == null || deliveryMode.isBlank()) {
+            deliveryMode = "RIDER_REQUIRED";
         }
         if (initialDepositAmount == null) {
             initialDepositAmount = amount;

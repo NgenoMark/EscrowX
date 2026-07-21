@@ -5,6 +5,7 @@ import com.example.escbackend.escrow.dto.AssignRiderRequest;
 import com.example.escbackend.escrow.dto.CreateEscrowTransactionRequest;
 import com.example.escbackend.escrow.dto.DeliveryAssignmentHistoryResponse;
 import com.example.escbackend.escrow.dto.EscrowResponse;
+import com.example.escbackend.escrow.dto.SetDeliveryModeRequest;
 import com.example.escbackend.escrow.service.EscrowService;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -98,6 +99,15 @@ public class EscrowController {
         @RequestHeader("X-Actor-User-Id") UUID actorUserId
     ) {
         return escrowService.acceptTransaction(id, actorUserId);
+    }
+
+    @PostMapping("/transactions/{id}/delivery-mode")
+    public EscrowResponse setDeliveryMode(
+        @PathVariable UUID id,
+        @RequestHeader("X-Actor-User-Id") UUID actorUserId,
+        @Valid @RequestBody SetDeliveryModeRequest request
+    ) {
+        return escrowService.setDeliveryMode(id, actorUserId, request.getDeliveryMode());
     }
 
     @PostMapping("/transactions/{id}/mark-in-delivery")
