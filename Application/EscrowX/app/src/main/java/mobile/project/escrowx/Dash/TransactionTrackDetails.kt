@@ -16,8 +16,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Chat
@@ -32,6 +35,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -130,6 +134,8 @@ fun BuyerTransactionDetailScreen(
     var showPayDialog by remember { mutableStateOf(false) }
     var phoneLocalPart by remember { mutableStateOf("") }
     var isPollingPayment by remember { mutableStateOf(false) }
+    var paymentFeedbackMessage by remember { mutableStateOf<String?>(null) }
+    var paymentFeedbackState by remember { mutableStateOf<String?>(null) }
     var showStatusTimeline by remember { mutableStateOf(false) }
     var disputeDetails by remember { mutableStateOf<DisputeDetailsResponse?>(null) }
     val actorRole = session.getUserRole().orEmpty()
@@ -289,8 +295,16 @@ fun BuyerTransactionDetailScreen(
 
     fun normalizeMpesaPhone(rawLocalPart: String): String? {
         val digits = rawLocalPart.filter { it.isDigit() }
-        if (digits.length != 9 || !digits.startsWith("7")) return null
-        return "+254$digits"
+
+        // Accept common Kenyan formats and normalize to +2547XXXXXXXX or +2541XXXXXXXX.
+        val normalized = when {
+            digits.length == 9 && (digits.startsWith("7") || digits.startsWith("1")) -> digits
+            digits.length == 10 && (digits.startsWith("07") || digits.startsWith("01")) -> digits.drop(1)
+            digits.length == 12 && (digits.startsWith("2547") || digits.startsWith("2541")) -> digits.drop(3)
+            else -> null
+        } ?: return null
+
+        return "+254$normalized"
     }
 
     fun refreshTransactionData(showToast: Boolean = true) {
@@ -422,7 +436,7 @@ fun BuyerTransactionDetailScreen(
         api: mobile.project.escrowx.AuthApiService,
         paymentId: String,
         escrowId: String
-    ) {
+    ): Pair<String, String> {
         isPollingPayment = true
         try {
             repeat(12) {
@@ -437,18 +451,15 @@ fun BuyerTransactionDetailScreen(
                 }
 
                 if (latestTxnStatus == "FUNDS_HELD") {
-                    Toast.makeText(context, "Payment received. Funds are now held in escrow.", Toast.LENGTH_LONG).show()
-                    return
+                    return "SUCCESS" to "Payment received. Funds are now held in escrow."
                 }
 
                 if (paymentStatus in listOf("PAID", "SUCCESS", "COMPLETED")) {
-                    Toast.makeText(context, "Payment confirmed.", Toast.LENGTH_LONG).show()
-                    return
+                    return "SUCCESS" to "Payment confirmed."
                 }
 
                 if (paymentStatus in listOf("FAILED", "CANCELLED", "REJECTED")) {
-                    Toast.makeText(context, "Payment was not successful. Please try again.", Toast.LENGTH_LONG).show()
-                    return
+                    return "FAILED" to "Payment was not successful. Please try again."
                 }
             }
 
@@ -458,9 +469,9 @@ fun BuyerTransactionDetailScreen(
                 currentStatus = latestTxnStatus
             }
             if (latestTxnStatus == "FUNDS_HELD") {
-                Toast.makeText(context, "Payment completed.", Toast.LENGTH_LONG).show()
+                return "SUCCESS" to "Payment completed."
             } else {
-                Toast.makeText(context, "Awaiting M-Pesa callback. You can refresh this transaction shortly.", Toast.LENGTH_LONG).show()
+                return "PENDING" to "Awaiting M-Pesa callback. You can retry shortly if needed."
             }
         } finally {
             isPollingPayment = false
@@ -470,7 +481,7 @@ fun BuyerTransactionDetailScreen(
     fun initiateStkPayment() {
         val normalizedPhone = normalizeMpesaPhone(phoneLocalPart)
         if (normalizedPhone == null) {
-            Toast.makeText(context, "Enter a valid number after +254 (e.g. 7XXXXXXXX)", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Enter a valid phone (07XXXXXXXX, 01XXXXXXXX, 7XXXXXXXX, or 1XXXXXXXX)", Toast.LENGTH_LONG).show()
             return
         }
 
@@ -500,13 +511,16 @@ fun BuyerTransactionDetailScreen(
                 val body = resp.body()!!
                 val paymentId = body.paymentId
                 phoneLocalPart = normalizedPhone.removePrefix("+254")
-                showPayDialog = false
-                Toast.makeText(context, body.message ?: "STK push initiated. Check your phone.", Toast.LENGTH_LONG).show()
+                paymentFeedbackState = "PENDING"
+                paymentFeedbackMessage = body.message ?: "STK push initiated. Check your phone."
 
-                pollPaymentUntilSettled(api, paymentId, transactionId)
+                val (resultState, resultMessage) = pollPaymentUntilSettled(api, paymentId, transactionId)
+                paymentFeedbackState = resultState
+                paymentFeedbackMessage = resultMessage
                 refreshTransactionData(showToast = false)
             } catch (e: Exception) {
-                Toast.makeText(context, "Payment error: ${e.message}", Toast.LENGTH_LONG).show()
+                paymentFeedbackState = "FAILED"
+                paymentFeedbackMessage = "Payment error: ${e.message}"
             } finally {
                 isUpdating = false
             }
@@ -702,7 +716,11 @@ fun BuyerTransactionDetailScreen(
                     onDispute = { raiseDispute() },
                     showViewDispute = hasDisputeHistory,
                     onViewDispute = { viewDispute() },
-                    onPay = { showPayDialog = true },
+                    onPay = {
+                        paymentFeedbackMessage = null
+                        paymentFeedbackState = null
+                        showPayDialog = true
+                    },
                     colorScheme = colorScheme
                 )
             }
@@ -722,6 +740,8 @@ fun BuyerTransactionDetailScreen(
             onPhoneChange = { phoneLocalPart = it },
             isUpdating = isUpdating,
             isPollingPayment = isPollingPayment,
+            paymentFeedbackMessage = paymentFeedbackMessage,
+            paymentFeedbackState = paymentFeedbackState,
             onInitiatePayment = { initiateStkPayment() },
             onDismiss = { showPayDialog = false },
             colorScheme = colorScheme
@@ -1639,6 +1659,8 @@ fun PaymentDialog(
     onPhoneChange: (String) -> Unit,
     isUpdating: Boolean,
     isPollingPayment: Boolean,
+    paymentFeedbackMessage: String?,
+    paymentFeedbackState: String?,
     onInitiatePayment: () -> Unit,
     onDismiss: () -> Unit,
     colorScheme: ColorScheme
@@ -1651,6 +1673,9 @@ fun PaymentDialog(
         },
         containerColor = colorScheme.surface,
         shape = RoundedCornerShape(20.dp),
+        modifier = Modifier
+            .fillMaxWidth(0.99f)
+            .heightIn(max = 620.dp),
         title = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1680,84 +1705,150 @@ fun PaymentDialog(
         },
         text = {
             Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 260.dp, max = 420.dp)
+                    .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = colorScheme.primary.copy(alpha = 0.06f),
-                    border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.12f)),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f, fill = false)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = colorScheme.primary.copy(alpha = 0.06f),
+                        border = BorderStroke(1.dp, colorScheme.primary.copy(alpha = 0.12f)),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(
-                            "Product",
-                            fontSize = 11.sp,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            productName,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = colorScheme.onSurface,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            "Amount",
-                            fontSize = 11.sp,
-                            color = colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            amount,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF10B981)
-                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                "Product",
+                                fontSize = 11.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                productName,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "Amount",
+                                fontSize = 11.sp,
+                                color = colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                amount,
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF10B981)
+                            )
+                        }
                     }
-                }
 
-                Text(
-                    "Enter your M-Pesa registered phone number",
-                    fontSize = 13.sp,
-                    color = colorScheme.onSurfaceVariant
-                )
+                    Text(
+                        "Enter your M-Pesa registered phone number",
+                        fontSize = 13.sp,
+                        color = colorScheme.onSurfaceVariant
+                    )
+                }
 
                 OutlinedTextField(
                     value = phoneLocalPart,
                     onValueChange = { input ->
-                        onPhoneChange(input.filter { it.isDigit() }.take(9))
+                        onPhoneChange(input.take(20))
                     },
-                    singleLine = true,
-                    label = { Text("Phone Number") },
-                    prefix = { Text("+254 ") },
-                    placeholder = { Text("7XXXXXXXX") },
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Phone),
                     enabled = !isUpdating && !isPollingPayment,
-                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    placeholder = {
+                        Text(
+                            "07XXXXXXXX or 01XXXXXXXX",
+                            fontSize = 14.sp,
+                            color = colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
                     shape = RoundedCornerShape(12.dp),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFF10B981),
                         unfocusedBorderColor = colorScheme.outlineVariant,
-                        focusedLabelColor = Color(0xFF10B981)
-                    )
+                        focusedContainerColor = colorScheme.surface,
+                        unfocusedContainerColor = colorScheme.surface,
+                        cursorColor = Color(0xFF10B981)
+                    ),
+                    textStyle = androidx.compose.ui.text.TextStyle(
+                        fontSize = 18.sp,
+                        color = colorScheme.onSurface,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    trailingIcon = {
+                        Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+                            if (phoneLocalPart.isNotEmpty()) {
+                                Icon(
+                                    Icons.Default.CheckCircle,
+                                    contentDescription = null,
+                                    tint = if (phoneLocalPart.length >= 9) Color(0xFF10B981) else Color(0xFFF59E0B)
+                                )
+                            }
+                        }
+                    }
                 )
+
+                if (!paymentFeedbackMessage.isNullOrBlank()) {
+                    val feedbackColor = when (paymentFeedbackState) {
+                        "SUCCESS" -> Color(0xFF10B981)
+                        "FAILED" -> Color(0xFFDC2626)
+                        else -> colorScheme.primary
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = feedbackColor.copy(alpha = 0.1f),
+                        border = BorderStroke(1.dp, feedbackColor.copy(alpha = 0.35f)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            paymentFeedbackMessage,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                            fontSize = 13.sp,
+                            color = feedbackColor,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
             }
         },
         confirmButton = {
+            val isSuccess = paymentFeedbackState == "SUCCESS"
+            val isFailure = paymentFeedbackState == "FAILED"
             Button(
-                onClick = onInitiatePayment,
-                enabled = !isUpdating && !isPollingPayment,
+                onClick = if (isSuccess) onDismiss else onInitiatePayment,
+                enabled = if (isSuccess) {
+                    !isUpdating && !isPollingPayment
+                } else {
+                    !isUpdating && !isPollingPayment && (phoneLocalPart.length >= 9)
+                },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF10B981),
                     contentColor = Color.White
                 ),
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.height(48.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
             ) {
                 if (isUpdating || isPollingPayment) {
                     CircularProgressIndicator(
@@ -1767,6 +1858,22 @@ fun PaymentDialog(
                     )
                     Spacer(Modifier.width(8.dp))
                     Text("Processing...", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                } else if (isSuccess) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Payment Went Through", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                } else if (isFailure) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text("Retry STK Push", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 } else {
                     Icon(
                         Icons.Default.Phone,
