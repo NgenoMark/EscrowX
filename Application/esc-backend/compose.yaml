@@ -1,3 +1,5 @@
+name: escrowx-backend-stack
+
 services:
   postgres:
     image: postgres:16
@@ -23,6 +25,8 @@ services:
       dockerfile: Dockerfile
     container_name: escrowx-backend
     restart: unless-stopped
+    env_file:
+      - .env
     depends_on:
       postgres:
         condition: service_healthy
@@ -31,8 +35,26 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/escrowx
       DATABASE_USERNAME: escrowx
       DATABASE_PASSWORD: escrowx
+      UPLOAD_BASE_DIR: /app/uploads
+    volumes:
+      - backend_uploads:/app/uploads
     ports:
       - "8081:8081"
 
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: escrowx-pgadmin
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@escrowx.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_LISTEN_PORT: 80
+    ports:
+      - "5050:80"
+
 volumes:
   postgres_data:
+  backend_uploads:
