@@ -152,6 +152,13 @@ interface AuthApiService {
         @Header("X-Actor-User-Id") actorUserId: String
     ): Response<EscrowResponse>
 
+    @POST("api/v1/transactions/{id}/delivery-mode")
+    suspend fun setDeliveryMode(
+        @Path("id") id: String,
+        @Header("X-Actor-User-Id") actorUserId: String,
+        @Body request: SetDeliveryModeRequest
+    ): Response<EscrowResponse>
+
     @POST("api/v1/transactions/{id}/cancel")
     suspend fun cancelTransaction(
         @Path("id") id: String,
@@ -399,6 +406,7 @@ data class EscrowResponse(
     val initialDepositAmount: Double?,
     val currency: String?,
     val status: String,
+    val deliveryMode: String? = null,
     val riderAssignmentStatus: String? = null,
     val riderPreviousRiderUserId: String? = null,
     val riderReassignmentReason: String? = null,
@@ -412,6 +420,10 @@ data class EscrowResponse(
     val autoReleaseAt: String?,
     val createdAt: String,
     val updatedAt: String
+)
+
+data class SetDeliveryModeRequest(
+    val deliveryMode: String
 )
 
 data class DeliveryAssignmentHistoryResponse(
