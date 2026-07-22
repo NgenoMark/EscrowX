@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
 import mobile.project.escrowx.DeliveryAssignmentHistoryItemResponse
 import mobile.project.escrowx.DisputeDetailsResponse
 import mobile.project.escrowx.RetrofitClient
+import mobile.project.escrowx.SetDeliveryModeRequest
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.dash.DisputeDetailsActivity
 import mobile.project.escrowx.dash.ProfileActivity
@@ -125,11 +126,13 @@ fun SellerTransactionDetailScreen(
     var disputeDetails by remember { mutableStateOf<DisputeDetailsResponse?>(null) }
     var riderDisplayName by remember { mutableStateOf("Not assigned") }
     var riderPhone by remember { mutableStateOf("-") }
+    var isRiderAssigned by remember { mutableStateOf(false) }
     var riderAssignmentStatus by remember { mutableStateOf<String?>(null) }
     var assignmentHistory by remember { mutableStateOf<List<DeliveryAssignmentHistoryItemResponse>>(emptyList()) }
     var currentActiveAssignmentId by remember { mutableStateOf<String?>(null) }
     var riderNameMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
     var riderPhoneMap by remember { mutableStateOf<Map<String, String>>(emptyMap()) }
+    var deliveryMode by remember { mutableStateOf("RIDER_REQUIRED") }
 
     val parsedAmount = displayAmount.replace(",", "").toDoubleOrNull() ?: 0.0
     val formattedAmount = NumberFormat.getCurrencyInstance(Locale("en", "KE"))
@@ -250,7 +253,13 @@ fun SellerTransactionDetailScreen(
         return when (normalizedCurrentStatus) {
             "PENDING_PAYMENT" -> SellerAction("Check Payment", "CHECK_PAYMENT", Icons.Default.Refresh, Color(0xFFF59E0B))
             "FUNDS_HELD" -> SellerAction("Accept Order", "ACCEPT", Icons.Default.CheckCircle, BrandBlue)
-            "SELLER_ACCEPTED" -> SellerAction("Mark In Transit", "IN_DELIVERY", Icons.Default.LocalShipping, Color(0xFF8B5CF6))
+            "SELLER_ACCEPTED" -> {
+                if (deliveryMode == "SELLER_SELF_DELIVERY" || isRiderAssigned) {
+                    SellerAction("Mark In Transit", "IN_DELIVERY", Icons.Default.LocalShipping, Color(0xFF8B5CF6))
+                } else {
+                    null
+                }
+            }
             "IN_DELIVERY" -> SellerAction("Confirm Delivery", "SELLER_DELIVERED", Icons.Default.Inventory, Color(0xFF10B981))
             else -> null
         }
@@ -302,6 +311,7 @@ fun SellerTransactionDetailScreen(
 
                 val txn = txnResp.body()!!
                 currentStatus = txn.status
+                deliveryMode = txn.deliveryMode?.uppercase(Locale.getDefault()) ?: "RIDER_REQUIRED"
                 displayProductName = txn.title
                 displayAmount = txn.amount.toString()
                 displayShippingAddress = txn.deliveryAddress
@@ -321,6 +331,7 @@ fun SellerTransactionDetailScreen(
                 }
 
                 if (!txn.riderId.isNullOrBlank()) {
+                    isRiderAssigned = true
                     try {
                         val riderResp = api.getUserById(txn.riderId)
                         if (riderResp.isSuccessful && riderResp.body() != null) {
@@ -337,6 +348,7 @@ fun SellerTransactionDetailScreen(
                         riderPhone = "-"
                     }
                 } else {
+                    isRiderAssigned = false
                     riderDisplayName = "Not assigned"
                     riderPhone = "-"
                 }
@@ -449,6 +461,40 @@ fun SellerTransactionDetailScreen(
         }
     }
 
+    fun updateDeliveryMode(nextMode: String) {
+        scope.launch {
+            try {
+                isUpdating = true
+                val token = session.getAccessToken()
+                val sellerId = session.getUserId()
+                if (token.isNullOrBlank() || sellerId.isNullOrBlank()) {
+                    Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val api = RetrofitClient.authenticated(token)
+                val response = api.setDeliveryMode(
+                    transactionId,
+                    sellerId,
+                    SetDeliveryModeRequest(deliveryMode = nextMode)
+                )
+
+                if (!response.isSuccessful || response.body() == null) {
+                    val err = response.errorBody()?.string()?.take(180)
+                    Toast.makeText(context, err ?: "Failed to update delivery mode", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
+                deliveryMode = response.body()!!.deliveryMode?.uppercase(Locale.getDefault()) ?: nextMode
+                Toast.makeText(context, "Delivery mode updated to ${prettySellerEscrowState(deliveryMode)}", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+            } finally {
+                isUpdating = false
+            }
+        }
+    }
+
     LaunchedEffect(transactionId) {
         refreshSellerTransactionData(showToast = false)
     }
@@ -462,6 +508,7 @@ fun SellerTransactionDetailScreen(
     }
 
     val nextAction = getNextAction()
+    val isRiderRequired = deliveryMode != "SELLER_SELF_DELIVERY"
     val isCompleted = normalizedCurrentStatus in listOf("COMPLETED", "CANCELLED", "DECLINED", "REFUNDED", "EXPIRED")
     val hasDisputeHistory = disputeDetails != null || normalizedCurrentStatus in listOf(
         "DISPUTED",
@@ -553,12 +600,28 @@ fun SellerTransactionDetailScreen(
                     buyerInitials = deriveInitials(displayBuyerName, buyerInitials),
                     buyerPhone = displayBuyerPhone,
                     amount = formattedAmount,
+                    deliveryMode = deliveryMode,
                     shippingAddress = displayShippingAddress,
                     date = displayDate,
                     onBuyerInfoToggle = { showBuyerInfo = !showBuyerInfo },
                     showBuyerInfo = showBuyerInfo,
                     colorScheme = colorScheme
                 )
+            }
+
+            if (normalizedCurrentStatus == "SELLER_ACCEPTED") {
+                item {
+                    SellerDeliveryModeSelectorCard(
+                        selectedMode = deliveryMode,
+                        isUpdating = isUpdating,
+                        onSelectMode = { nextMode ->
+                            if (nextMode != deliveryMode) {
+                                updateDeliveryMode(nextMode)
+                            }
+                        },
+                        colorScheme = colorScheme
+                    )
+                }
             }
 
             // ===== PAYMENT STATUS CARD =====
@@ -579,18 +642,20 @@ fun SellerTransactionDetailScreen(
             }
 
             // ===== RIDER STATUS CARD =====
-            item {
-                SellerRiderStatusCard(
-                    statusUpper = normalizedCurrentStatus,
-                    riderName = riderDisplayName,
-                    riderPhone = riderPhone,
-                    riderAssignmentStatus = riderAssignmentStatus,
-                    assignmentHistory = assignmentHistory,
-                    currentActiveAssignmentId = currentActiveAssignmentId,
-                    riderNameMap = riderNameMap,
-                    riderPhoneMap = riderPhoneMap,
-                    colorScheme = colorScheme
-                )
+            if (isRiderRequired) {
+                item {
+                    SellerRiderStatusCard(
+                        statusUpper = normalizedCurrentStatus,
+                        riderName = riderDisplayName,
+                        riderPhone = riderPhone,
+                        riderAssignmentStatus = riderAssignmentStatus,
+                        assignmentHistory = assignmentHistory,
+                        currentActiveAssignmentId = currentActiveAssignmentId,
+                        riderNameMap = riderNameMap,
+                        riderPhoneMap = riderPhoneMap,
+                        colorScheme = colorScheme
+                    )
+                }
             }
 
             // ===== ACTIONS CARD =====
@@ -600,6 +665,7 @@ fun SellerTransactionDetailScreen(
                     isCompleted = isCompleted,
                     isUpdating = isUpdating,
                     isPollingPayment = isPollingPayment,
+                    showRiderAssignmentHint = normalizedCurrentStatus == "SELLER_ACCEPTED" && isRiderRequired && !isRiderAssigned,
                     onAction = { updateStatus(it) },
                     onMessageBuyer = {
                         Toast.makeText(context, "💬 Message buyer coming soon", Toast.LENGTH_SHORT).show()
@@ -755,6 +821,7 @@ fun SellerOrderSummaryCard(
     buyerInitials: String,
     buyerPhone: String,
     amount: String,
+    deliveryMode: String,
     shippingAddress: String,
     date: String,
     onBuyerInfoToggle: () -> Unit,
@@ -845,6 +912,12 @@ fun SellerOrderSummaryCard(
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFE65100)
+                    )
+                    Text(
+                        "Delivery: ${if (deliveryMode == "SELLER_SELF_DELIVERY") "Seller Self Delivery" else "Rider Required"}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -1376,11 +1449,88 @@ fun SellerRiderStatusCard(
 }
 
 @Composable
+fun SellerDeliveryModeSelectorCard(
+    selectedMode: String,
+    isUpdating: Boolean,
+    onSelectMode: (String) -> Unit,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Delivery Mode",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colorScheme.onSurface
+            )
+
+            Text(
+                "Choose who handles delivery before transit starts.",
+                fontSize = 12.sp,
+                color = colorScheme.onSurfaceVariant
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val riderSelected = selectedMode == "RIDER_REQUIRED"
+                val selfSelected = selectedMode == "SELLER_SELF_DELIVERY"
+
+                OutlinedButton(
+                    onClick = { onSelectMode("RIDER_REQUIRED") },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isUpdating,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (riderSelected) Color(0xFFE65100).copy(alpha = 0.1f) else Color.Transparent,
+                        contentColor = if (riderSelected) Color(0xFFE65100) else colorScheme.onSurface
+                    ),
+                    border = BorderStroke(
+                        if (riderSelected) 1.5.dp else 1.dp,
+                        if (riderSelected) Color(0xFFE65100) else colorScheme.outlineVariant
+                    )
+                ) {
+                    Text("Rider Required", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+
+                OutlinedButton(
+                    onClick = { onSelectMode("SELLER_SELF_DELIVERY") },
+                    modifier = Modifier.weight(1f),
+                    enabled = !isUpdating,
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (selfSelected) BrandBlue.copy(alpha = 0.1f) else Color.Transparent,
+                        contentColor = if (selfSelected) BrandBlue else colorScheme.onSurface
+                    ),
+                    border = BorderStroke(
+                        if (selfSelected) 1.5.dp else 1.dp,
+                        if (selfSelected) BrandBlue else colorScheme.outlineVariant
+                    )
+                ) {
+                    Text("Seller Self Delivery", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                }
+            }
+        }
+    }
+}
+
+@Composable
 fun SellerActionsCard(
     nextAction: SellerAction?,
     isCompleted: Boolean,
     isUpdating: Boolean,
     isPollingPayment: Boolean,
+    showRiderAssignmentHint: Boolean,
     onAction: (String) -> Unit,
     onMessageBuyer: () -> Unit,
     showViewDispute: Boolean,
@@ -1451,6 +1601,36 @@ fun SellerActionsCard(
                             nextAction.label,
                             fontSize = 14.sp,
                             fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
+            if (showRiderAssignmentHint) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = Color(0xFFFFF3E0),
+                    border = BorderStroke(1.dp, Color(0xFFFFE0B2)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            Icons.Default.Info,
+                            contentDescription = null,
+                            tint = Color(0xFFE65100),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Text(
+                            "Wait for rider assignment before marking this order in transit.",
+                            fontSize = 12.sp,
+                            color = Color(0xFFE65100),
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }

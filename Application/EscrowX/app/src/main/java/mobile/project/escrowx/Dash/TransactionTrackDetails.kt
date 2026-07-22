@@ -122,6 +122,7 @@ fun BuyerTransactionDetailScreen(
     var displayShippingAddress by remember { mutableStateOf(shippingAddress) }
     var displaySellerName by remember { mutableStateOf(sellerName) }
     var displaySellerPhone by remember { mutableStateOf("-") }
+    var deliveryMode by remember { mutableStateOf("RIDER_REQUIRED") }
     var isUpdating by remember { mutableStateOf(false) }
     var isRefreshing by remember { mutableStateOf(false) }
     var riderDisplayName by remember { mutableStateOf("Not assigned") }
@@ -331,6 +332,7 @@ fun BuyerTransactionDetailScreen(
 
                 val txn = txnResp.body()!!
                 currentStatus = txn.status
+                deliveryMode = txn.deliveryMode?.uppercase(Locale.getDefault()) ?: "RIDER_REQUIRED"
                 displayProductName = txn.title
                 displayProductDescription = txn.productDescription
                 displayAmount = txn.amount.toString()
@@ -651,6 +653,7 @@ fun BuyerTransactionDetailScreen(
                     productDescription = displayProductDescription,
                     sellerName = displaySellerName,
                     amount = formattedAmount,
+                    deliveryMode = deliveryMode,
                     shippingAddress = displayShippingAddress,
                     deliveryDate = displayDeliveryDate,
                     colorScheme = colorScheme
@@ -684,18 +687,20 @@ fun BuyerTransactionDetailScreen(
             }
 
             // ===== RIDER STATUS CARD =====
-            item {
-                RiderStatusCard(
-                    statusUpper = statusUpper,
-                    riderName = riderDisplayName,
-                    riderPhone = riderPhone,
-                    riderAssignmentStatus = riderAssignmentStatus,
-                    assignmentHistory = assignmentHistory,
-                    currentActiveAssignmentId = currentActiveAssignmentId,
-                    riderNameMap = riderNameMap,
-                    riderPhoneMap = riderPhoneMap,
-                    colorScheme = colorScheme
-                )
+            if (deliveryMode != "SELLER_SELF_DELIVERY") {
+                item {
+                    RiderStatusCard(
+                        statusUpper = statusUpper,
+                        riderName = riderDisplayName,
+                        riderPhone = riderPhone,
+                        riderAssignmentStatus = riderAssignmentStatus,
+                        assignmentHistory = assignmentHistory,
+                        currentActiveAssignmentId = currentActiveAssignmentId,
+                        riderNameMap = riderNameMap,
+                        riderPhoneMap = riderPhoneMap,
+                        colorScheme = colorScheme
+                    )
+                }
             }
 
             // ===== ACTIONS CARD =====
@@ -856,6 +861,7 @@ fun ItemDetailsCard(
     productDescription: String,
     sellerName: String,
     amount: String,
+    deliveryMode: String,
     shippingAddress: String,
     deliveryDate: String,
     colorScheme: ColorScheme
@@ -973,6 +979,13 @@ fun ItemDetailsCard(
                 icon = Icons.Default.LocationOn,
                 label = "Delivery Address",
                 value = shippingAddress,
+                colorScheme = colorScheme
+            )
+
+            DetailRow(
+                icon = Icons.Default.LocalShipping,
+                label = "Delivery Mode",
+                value = if (deliveryMode == "SELLER_SELF_DELIVERY") "Seller Self Delivery" else "Rider Required",
                 colorScheme = colorScheme
             )
 
