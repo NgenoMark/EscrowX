@@ -655,9 +655,11 @@ fun ImprovedTopAppBar(
         actions = {
             // Notification Bell
             BadgedBox(
+                modifier = Modifier.padding(end = 8.dp, top = 4.dp),
                 badge = {
                     if (unreadCount > 0) {
                         Badge(
+                            modifier = Modifier.offset(x = (-2).dp, y = 2.dp),
                             containerColor = Color(0xFFDC2626),
                             contentColor = Color.White
                         ) {
