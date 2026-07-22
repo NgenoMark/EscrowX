@@ -382,7 +382,6 @@ fun SettingsScreen() {
                 SettingsMenuItem(
                     icon = Icons.Default.Info,
                     title = "About EscrowX",
-                    trailing = "v1.4.2",
                     onClick = { showAboutDialog = true },
                     colorScheme = colorScheme
                 )
@@ -743,11 +742,6 @@ fun SettingsScreen() {
                         fontSize = 22.sp,
                         fontWeight = FontWeight.Bold,
                         color = colorScheme.onSurface
-                    )
-                    Text(
-                        "Version 1.4.2",
-                        fontSize = 14.sp,
-                        color = colorScheme.onSurfaceVariant
                     )
                     Text(
                         "Secure mobile escrow for safer transactions.\nProtecting buyers and sellers since 2024.",

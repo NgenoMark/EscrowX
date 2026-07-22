@@ -140,6 +140,10 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
         }
     }
 
+    val drawerItemColors = NavigationDrawerItemDefaults.colors(
+        selectedContainerColor = Color.Transparent,
+        unselectedContainerColor = Color.Transparent
+    )
     val displayName = userProfile?.displayName?.takeIf { it.isNotBlank() }
         ?: userProfile?.email?.substringBefore("@")
         ?: userName
@@ -159,51 +163,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     bottomEnd = 16.dp
                 )
             ) {
-                // Drawer Header
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(
-                                    BrandBlue,
-                                    BrandBlue.copy(alpha = 0.8f)
-                                )
-                            )
-                        )
-                        .padding(24.dp)
-                ) {
-                    Column {
-                        Box(
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.2f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = "Profile",
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = displayName,
-                            color = Color.White,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.3.sp
-                        )
-                        Text(
-                            text = session.getEmail() ?: "user@escrowx.com",
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-
                 // Drawer Items (streamlined)
                 NavigationDrawerItem(
                     icon = {
@@ -221,6 +180,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = true,
+                    colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
                     },
@@ -243,6 +203,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
                         context.startActivity(Intent(context, TransactionsActivity::class.java).apply {
@@ -268,6 +229,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
                         context.startActivity(Intent(context, ProfileActivity::class.java))
@@ -291,6 +253,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
                         context.startActivity(Intent(context, SettingsActivity::class.java))
@@ -314,6 +277,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
                         context.startActivity(Intent(context, TrackFinancesActivity::class.java).apply {
@@ -346,6 +310,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
                         session.clearSession()
@@ -356,15 +321,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                 )
 
-                Text(
-                    text = "EscrowX v1.0",
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    fontSize = 12.sp,
-                    color = colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
             }
         }
     ) {

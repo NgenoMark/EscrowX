@@ -93,13 +93,6 @@ fun SellerDashboardScreen() {
     val sellerName = userProfile?.businessName?.takeIf { it.isNotBlank() }
         ?: userProfile?.displayName?.takeIf { it.isNotBlank() }
         ?: "Seller"
-    val sellerInitials = sellerName
-        .split(" ")
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString("") { it.take(1).uppercase(Locale.getDefault()) }
-        .ifBlank { "SL" }
-    val sellerEmail = session.getEmail() ?: "seller@escrowx.com"
 
     val recentOrders = remember(sellerOrders) {
         sellerOrders.sortedByDescending { it.createdAt }.take(3)
@@ -184,9 +177,6 @@ fun SellerDashboardScreen() {
         drawerState = drawerState,
         drawerContent = {
             ImprovedSellerDrawerContent(
-                sellerName = sellerName,
-                sellerInitials = sellerInitials,
-                sellerEmail = sellerEmail,
                 onCloseDrawer = { scope.launch { drawerState.close() } },
                 onNavigateToTransactions = {
                     scope.launch { drawerState.close() }
@@ -371,9 +361,6 @@ fun SellerDashboardScreen() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImprovedSellerDrawerContent(
-    sellerName: String,
-    sellerInitials: String,
-    sellerEmail: String,
     onCloseDrawer: () -> Unit,
     onNavigateToTransactions: () -> Unit,
     onNavigateToProfile: () -> Unit,
@@ -396,78 +383,6 @@ fun ImprovedSellerDrawerContent(
             bottomEnd = 16.dp
         )
     ) {
-        // Header with gradient
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    brush = Brush.verticalGradient(
-                        colors = listOf(
-                            Color(0xFF00236F),
-                            Color(0xFF1A4B8C)
-                        )
-                    )
-                )
-                .padding(24.dp)
-        ) {
-            Column {
-                Box(
-                    modifier = Modifier
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = sellerInitials,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp,
-                        color = Color.White
-                    )
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = sellerName,
-                    color = Color.White,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = sellerEmail,
-                    color = Color.White.copy(alpha = 0.7f),
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = Color(0xFF10B981).copy(alpha = 0.2f)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF10B981))
-                        )
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            "Active",
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFF10B981)
-                        )
-                    }
-                }
-            }
-        }
-
         Spacer(modifier = Modifier.height(16.dp))
 
         // Navigation Items
@@ -527,17 +442,6 @@ fun ImprovedSellerDrawerContent(
 
         Spacer(modifier = Modifier.weight(1f))
 
-        // Version info
-        Text(
-            text = "EscrowX v1.0.0",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            fontSize = 11.sp,
-            color = colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-
         HorizontalDivider(
             color = colorScheme.outlineVariant.copy(alpha = 0.3f),
             modifier = Modifier.padding(horizontal = 16.dp)
@@ -571,7 +475,7 @@ fun DrawerMenuItem(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp),
         shape = RoundedCornerShape(12.dp),
-        color = if (isSelected) colorScheme.primary.copy(alpha = 0.08f) else Color.Transparent,
+        color = Color.Transparent,
         onClick = onClick
     ) {
         Row(
@@ -586,7 +490,6 @@ fun DrawerMenuItem(
                 contentDescription = null,
                 tint = when {
                     isDestructive -> Color(0xFFDC2626)
-                    isSelected -> colorScheme.primary
                     else -> colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier.size(22.dp)
@@ -595,10 +498,9 @@ fun DrawerMenuItem(
             Text(
                 label,
                 fontSize = 15.sp,
-                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                fontWeight = FontWeight.Medium,
                 color = when {
                     isDestructive -> Color(0xFFDC2626)
-                    isSelected -> colorScheme.primary
                     else -> colorScheme.onSurface
                 },
                 modifier = Modifier.weight(1f)
