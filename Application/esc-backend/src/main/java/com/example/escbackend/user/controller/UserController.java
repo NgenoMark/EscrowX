@@ -29,6 +29,14 @@ public class UserController {
         return userService.getRiderProfileByUserId(id);
     }
 
+    @PatchMapping("/{id}/rider-profile")
+    public RiderProfileResponse updateRiderProfile(
+        @PathVariable UUID id,
+        @Valid @RequestBody UpdateRiderProfileRequest request
+    ) {
+        return userService.updateRiderProfile(id, request);
+    }
+
     @GetMapping("/by-phone/{phone}")
     public UserDetailsResponse getByPhone(@PathVariable String phone) {
         return userService.getByPhone(phone);

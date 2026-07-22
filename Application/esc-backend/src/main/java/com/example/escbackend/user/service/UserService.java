@@ -37,12 +37,14 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserService.class);
+    private static final Set<String> ALLOWED_RIDER_STATUSES = Set.of("AVAILABLE", "BUSY", "OFFLINE");
 
     private final UserRepository userRepository;
     private final ProfileRepository profileRepository;
@@ -128,6 +130,58 @@ public class UserService {
             .riderStatus(riderProfile.getRiderStatus())
             .createdAt(riderProfile.getCreatedAt())
             .updatedAt(riderProfile.getUpdatedAt())
+            .build();
+    }
+
+    @Transactional
+    public RiderProfileResponse updateRiderProfile(UUID userId, UpdateRiderProfileRequest request) {
+        UserEntity user = userRepository.findById(userId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (user.getRole() != UserRole.RIDER) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "User is not a rider");
+        }
+
+        RiderProfileEntity riderProfile = riderProfileRepository.findById(userId)
+            .orElseGet(() -> {
+                RiderProfileEntity created = new RiderProfileEntity();
+                created.setUserId(userId);
+                return created;
+            });
+
+        if (request.getOperationArea() != null) {
+            riderProfile.setOperationArea(normalizeNullable(request.getOperationArea()));
+        }
+        if (request.getLicenseNumber() != null) {
+            riderProfile.setLicenseNumber(normalizeNullable(request.getLicenseNumber()));
+        }
+        if (request.getVehicleType() != null) {
+            riderProfile.setVehicleType(normalizeNullable(request.getVehicleType()));
+        }
+        if (request.getVehiclePlate() != null) {
+            riderProfile.setVehiclePlate(normalizeNullable(request.getVehiclePlate()));
+        }
+        if (request.getRiderStatus() != null && !request.getRiderStatus().isBlank()) {
+            String normalizedStatus = request.getRiderStatus().trim().toUpperCase(Locale.getDefault());
+            if (!ALLOWED_RIDER_STATUSES.contains(normalizedStatus)) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid rider status. Allowed values: AVAILABLE, BUSY, OFFLINE");
+            }
+            riderProfile.setRiderStatus(normalizedStatus);
+        }
+
+        RiderProfileEntity saved = riderProfileRepository.save(riderProfile);
+
+        return RiderProfileResponse.builder()
+            .userId(saved.getUserId())
+            .displayName(saved.getDisplayName())
+            .phone(saved.getPhone())
+            .operationArea(saved.getOperationArea())
+            .licenseNumber(saved.getLicenseNumber())
+            .vehicleType(saved.getVehicleType())
+            .vehiclePlate(saved.getVehiclePlate())
+            .riderStatus(saved.getRiderStatus())
+            .createdAt(saved.getCreatedAt())
+            .updatedAt(saved.getUpdatedAt())
             .build();
     }
 
@@ -656,6 +710,14 @@ public class UserService {
 
     private boolean isNotBlank(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private String normalizeNullable(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private UserEntity createUserRecord(String email, String phone, String password, UserRole role, UserStatus status) {

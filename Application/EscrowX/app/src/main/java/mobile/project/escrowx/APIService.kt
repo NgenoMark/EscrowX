@@ -86,6 +86,12 @@ interface AuthApiService {
     @GET("api/v1/users/{id}/rider-profile")
     suspend fun getRiderProfileByUserId(@Path("id") id: String): Response<RiderProfileResponse>
 
+    @PATCH("api/v1/users/{id}/rider-profile")
+    suspend fun updateRiderProfile(
+        @Path("id") id: String,
+        @Body request: UpdateRiderProfileRequest
+    ): Response<RiderProfileResponse>
+
     // UPDATE USER PROFILE (PATCH)
     @PATCH("api/v1/users/{id}/update_profile")
     suspend fun updateProfile(
@@ -498,6 +504,14 @@ data class UpdateProfileRequest(
     val address: String? = null,          // ✅ match backend field name
     val shopLocation: String? = null,
     val avatarUrl: String? = null
+)
+
+data class UpdateRiderProfileRequest(
+    val operationArea: String? = null,
+    val licenseNumber: String? = null,
+    val vehicleType: String? = null,
+    val vehiclePlate: String? = null,
+    val riderStatus: String? = null
 )
 
 // Dispute related

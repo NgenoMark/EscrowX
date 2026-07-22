@@ -1,6 +1,7 @@
 package mobile.project.escrowx.dash
 
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.BorderStroke
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -28,10 +30,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import mobile.project.escrowx.RiderProfileResponse
 import mobile.project.escrowx.RetrofitClient
+import mobile.project.escrowx.UpdateProfileRequest
+import mobile.project.escrowx.UpdateRiderProfileRequest
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.ui.theme.EscrowXTheme
@@ -60,12 +66,25 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     val session = remember { SessionManager(context) }
+    val scope = rememberCoroutineScope()
 
     var profile by remember { mutableStateOf<UserDetailsResponse?>(null) }
     var riderProfile by remember { mutableStateOf<RiderProfileResponse?>(null) }
     var isLoading by remember { mutableStateOf(true) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var refreshKey by remember { mutableIntStateOf(0) }
+    var isEditMode by remember { mutableStateOf(false) }
+    var isSaving by remember { mutableStateOf(false) }
+    var editDisplayName by remember { mutableStateOf("") }
+    var editPhone by remember { mutableStateOf("") }
+    var editAddress by remember { mutableStateOf("") }
+    var editOperationArea by remember { mutableStateOf("") }
+    var editLicenseNumber by remember { mutableStateOf("") }
+    var editVehicleType by remember { mutableStateOf("") }
+    var editVehiclePlate by remember { mutableStateOf("") }
+    var editRiderStatus by remember { mutableStateOf("AVAILABLE") }
+    var isRiderStatusExpanded by remember { mutableStateOf(false) }
+    val riderStatusOptions = listOf("AVAILABLE", "BUSY", "OFFLINE")
 
     suspend fun loadProfileData() {
         val token = session.getAccessToken()
@@ -84,6 +103,9 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
 
             if (userResponse.isSuccessful) {
                 profile = userResponse.body()
+                editDisplayName = profile?.displayName ?: ""
+                editPhone = profile?.phone ?: ""
+                editAddress = profile?.address ?: ""
             } else {
                 errorMessage = "Failed to load profile"
             }
@@ -94,6 +116,11 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
 
             if (riderResponse.isSuccessful) {
                 riderProfile = riderResponse.body()
+                editOperationArea = riderProfile?.operationArea ?: ""
+                editLicenseNumber = riderProfile?.licenseNumber ?: ""
+                editVehicleType = riderProfile?.vehicleType ?: ""
+                editVehiclePlate = riderProfile?.vehiclePlate ?: ""
+                editRiderStatus = riderProfile?.riderStatus ?: "AVAILABLE"
             }
         } catch (_: Exception) {
             errorMessage = "Network error"
@@ -117,6 +144,79 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
         .ifBlank { "RD" }
     val isActive = profile?.status.equals("ACTIVE", ignoreCase = true) ?: true
     val formattedDate = profile?.createdAt?.let { formatRiderProfileDate(it) } ?: "N/A"
+
+    fun saveProfileChanges() {
+        if (editDisplayName.isBlank()) {
+            Toast.makeText(context, "Display name is required", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        scope.launch {
+            try {
+                isSaving = true
+                val token = session.getAccessToken()
+                val userId = session.getUserId()
+                if (token.isNullOrBlank() || userId.isNullOrBlank()) {
+                    Toast.makeText(context, "Session expired. Please login again.", Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val api = RetrofitClient.authenticated(token)
+                val profileResponse = withContext(Dispatchers.IO) {
+                    api.updateProfile(
+                        userId,
+                        UpdateProfileRequest(
+                            displayName = editDisplayName.trim(),
+                            phone = editPhone.trim().takeIf { it.isNotBlank() },
+                            address = editAddress.trim().takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+
+                if (!profileResponse.isSuccessful || profileResponse.body() == null) {
+                    val err = profileResponse.errorBody()?.string()?.take(180)
+                    Toast.makeText(context, err ?: "Failed to update profile", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
+                val riderResponse = withContext(Dispatchers.IO) {
+                    api.updateRiderProfile(
+                        userId,
+                        UpdateRiderProfileRequest(
+                            operationArea = editOperationArea.trim().takeIf { it.isNotBlank() },
+                            licenseNumber = editLicenseNumber.trim().takeIf { it.isNotBlank() },
+                            vehicleType = editVehicleType.trim().takeIf { it.isNotBlank() },
+                            vehiclePlate = editVehiclePlate.trim().takeIf { it.isNotBlank() },
+                            riderStatus = editRiderStatus.trim().takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+
+                if (!riderResponse.isSuccessful || riderResponse.body() == null) {
+                    val err = riderResponse.errorBody()?.string()?.take(180)
+                    Toast.makeText(context, err ?: "Failed to update rider profile", Toast.LENGTH_LONG).show()
+                    return@launch
+                }
+
+                profile = profileResponse.body()
+                riderProfile = riderResponse.body()
+                editDisplayName = profile?.displayName ?: ""
+                editPhone = profile?.phone ?: ""
+                editAddress = profile?.address ?: ""
+                editOperationArea = riderProfile?.operationArea ?: ""
+                editLicenseNumber = riderProfile?.licenseNumber ?: ""
+                editVehicleType = riderProfile?.vehicleType ?: ""
+                editVehiclePlate = riderProfile?.vehiclePlate ?: ""
+                editRiderStatus = riderProfile?.riderStatus ?: "AVAILABLE"
+                isEditMode = false
+                Toast.makeText(context, "Profile updated successfully", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "Network error: ${e.message}", Toast.LENGTH_SHORT).show()
+            } finally {
+                isSaving = false
+            }
+        }
+    }
 
     Scaffold(
         containerColor = colorScheme.background,
@@ -366,18 +466,98 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                         value = profile?.phone ?: riderProfile?.phone ?: "Not set",
                         colorScheme = colorScheme
                     )
-                    ProfileDetailRow(
-                        icon = Icons.Default.Business,
-                        label = "Business Name",
-                        value = profile?.businessName ?: "Not set",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.LocationOn,
-                        label = "Address",
-                        value = profile?.address ?: "Not set",
-                        colorScheme = colorScheme
-                    )
+                    if (isEditMode) {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = editDisplayName,
+                            onValueChange = { editDisplayName = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Display Name") },
+                            singleLine = true,
+                            leadingIcon = {
+                                Icon(Icons.Default.Person, contentDescription = null)
+                            },
+                            enabled = !isSaving
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = editPhone,
+                            onValueChange = { editPhone = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Phone") },
+                            singleLine = true,
+                            leadingIcon = {
+                                Icon(Icons.Default.Phone, contentDescription = null)
+                            },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            enabled = !isSaving
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = editAddress,
+                            onValueChange = { editAddress = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Address") },
+                            leadingIcon = {
+                                Icon(Icons.Default.LocationOn, contentDescription = null)
+                            },
+                            maxLines = 3,
+                            enabled = !isSaving
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            OutlinedButton(
+                                onClick = {
+                                    editDisplayName = profile?.displayName ?: ""
+                                    editPhone = profile?.phone ?: ""
+                                    editAddress = profile?.address ?: ""
+                                    editOperationArea = riderProfile?.operationArea ?: ""
+                                    editLicenseNumber = riderProfile?.licenseNumber ?: ""
+                                    editVehicleType = riderProfile?.vehicleType ?: ""
+                                    editVehiclePlate = riderProfile?.vehiclePlate ?: ""
+                                    editRiderStatus = riderProfile?.riderStatus ?: "AVAILABLE"
+                                    isEditMode = false
+                                },
+                                enabled = !isSaving,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("Cancel")
+                            }
+
+                            Button(
+                                onClick = { saveProfileChanges() },
+                                enabled = !isSaving,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                if (isSaving) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(16.dp),
+                                        strokeWidth = 2.dp,
+                                        color = Color.White
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                }
+                                Text(if (isSaving) "Saving..." else "Save")
+                            }
+                        }
+                    } else {
+                        ProfileDetailRow(
+                            icon = Icons.Default.LocationOn,
+                            label = "Address",
+                            value = profile?.address ?: "Not set",
+                            colorScheme = colorScheme
+                        )
+                    }
                     ProfileDetailRow(
                         icon = Icons.Default.Schedule,
                         label = "Member Since",
@@ -446,6 +626,95 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                         value = riderProfile?.riderStatus ?: "AVAILABLE",
                         colorScheme = colorScheme
                     )
+
+                    if (isEditMode) {
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = editOperationArea,
+                            onValueChange = { editOperationArea = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Operation Area") },
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.Route, contentDescription = null) },
+                            enabled = !isSaving
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = editLicenseNumber,
+                            onValueChange = { editLicenseNumber = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("License Number") },
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                            enabled = !isSaving
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = editVehicleType,
+                            onValueChange = { editVehicleType = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Vehicle Type") },
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.DirectionsBike, contentDescription = null) },
+                            enabled = !isSaving
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = editVehiclePlate,
+                            onValueChange = { editVehiclePlate = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("Vehicle Plate") },
+                            singleLine = true,
+                            leadingIcon = { Icon(Icons.Default.ConfirmationNumber, contentDescription = null) },
+                            enabled = !isSaving
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        ExposedDropdownMenuBox(
+                            expanded = isRiderStatusExpanded,
+                            onExpandedChange = { if (!isSaving) isRiderStatusExpanded = !isRiderStatusExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = editRiderStatus,
+                                onValueChange = {},
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor(
+                                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                        enabled = !isSaving
+                                    ),
+                                label = { Text("Rider Status") },
+                                singleLine = true,
+                                readOnly = true,
+                                leadingIcon = { Icon(Icons.Default.LocalShipping, contentDescription = null) },
+                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRiderStatusExpanded) },
+                                enabled = !isSaving
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = isRiderStatusExpanded,
+                                onDismissRequest = { isRiderStatusExpanded = false }
+                            ) {
+                                riderStatusOptions.forEach { status ->
+                                    DropdownMenuItem(
+                                        text = { Text(status) },
+                                        onClick = {
+                                            editRiderStatus = status
+                                            isRiderStatusExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -540,7 +809,7 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                     QuickActionItem(
                         icon = Icons.Default.Edit,
                         label = "Edit Profile",
-                        onClick = { /* Navigate to edit profile */ },
+                        onClick = { isEditMode = true },
                         colorScheme = colorScheme
                     )
                     QuickActionItem(
@@ -719,14 +988,27 @@ fun QuickActionItem(
 
 fun formatRiderProfileDate(dateString: String): String {
     return try {
-        val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSXXX", Locale.getDefault())
-        parser.timeZone = TimeZone.getTimeZone("UTC")
-        val date = parser.parse(dateString)
-        if (date != null) {
-            SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(date)
-        } else {
-            dateString
+        val inputFormats = listOf(
+            "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+            "yyyy-MM-dd'T'HH:mm:ssXXX",
+            "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+            "yyyy-MM-dd'T'HH:mm:ss'Z'",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-dd"
+        )
+
+        val output = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+        inputFormats.forEach { pattern ->
+            runCatching {
+                val parser = SimpleDateFormat(pattern, Locale.getDefault())
+                parser.isLenient = false
+                parser.parse(dateString)
+            }.getOrNull()?.let { parsed ->
+                return output.format(parsed)
+            }
         }
+
+        dateString.substringBefore("T").takeIf { it.length >= 10 } ?: dateString
     } catch (_: Exception) {
         dateString
     }
