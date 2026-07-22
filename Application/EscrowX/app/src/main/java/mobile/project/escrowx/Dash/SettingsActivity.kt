@@ -43,12 +43,6 @@ import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.LoginActivity
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.notifications.FcmTokenRegistrar
-import mobile.project.escrowx.seller.SellerDashboardActivity
-import mobile.project.escrowx.ui.components.BuyerNavBar
-import mobile.project.escrowx.ui.components.BuyerNavItem
-import mobile.project.escrowx.ui.components.SellerNavBar
-import mobile.project.escrowx.ui.components.SellerNavItem
-import mobile.project.escrowx.ui.components.navigateTab
 import mobile.project.escrowx.ui.theme.BrandBlue
 
 object SettingsKeys {
@@ -1140,47 +1134,6 @@ fun PolicySection(
             fontSize = 13.sp,
             color = colorScheme.onSurfaceVariant,
             lineHeight = 20.sp
-        )
-    }
-}
-
-@Composable
-fun SettingsBottomNavigation() {
-    val context = LocalContext.current
-    val role = SessionManager(context).getUserRole() ?: "BUYER"
-    if (role.equals("SELLER", ignoreCase = true)) {
-        SellerNavBar(
-            selectedIndex = SellerNavItem.Profile.index,
-            onItemSelected = { item ->
-                when (item) {
-                    SellerNavItem.Home -> navigateTab(context, SellerDashboardActivity::class.java)
-                    SellerNavItem.Transactions -> {
-                        navigateTab(
-                            context,
-                            TransactionsActivity::class.java,
-                            Bundle().apply { putString("ROLE", "SELLER") }
-                        )
-                    }
-                    SellerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
-                }
-            }
-        )
-    } else {
-        BuyerNavBar(
-            selectedIndex = BuyerNavItem.Profile.index,
-            onItemSelected = { item ->
-                when (item) {
-                    BuyerNavItem.Home -> navigateTab(context, BuyerDashboardActivity::class.java)
-                    BuyerNavItem.Transactions -> {
-                        navigateTab(
-                            context,
-                            TransactionsActivity::class.java,
-                            Bundle().apply { putString("ROLE", "BUYER") }
-                        )
-                    }
-                    BuyerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
-                }
-            }
         )
     }
 }
