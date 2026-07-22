@@ -187,8 +187,7 @@ fun SettingsScreen() {
                     scrolledContainerColor = colorScheme.surface
                 )
             )
-        },
-        bottomBar = { SettingsBottomNavigation() }
+        }
     ) { paddingValues ->
         Column(
             modifier = Modifier
