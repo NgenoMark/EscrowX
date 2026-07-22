@@ -46,11 +46,6 @@ import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.seller.SellerDashboardActivity
-import mobile.project.escrowx.ui.components.BuyerNavBar
-import mobile.project.escrowx.ui.components.BuyerNavItem
-import mobile.project.escrowx.ui.components.SellerNavBar
-import mobile.project.escrowx.ui.components.SellerNavItem
-import mobile.project.escrowx.ui.components.navigateTab
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
@@ -78,7 +73,6 @@ fun UnifiedCreateEscrowScreen(role: String) {
     val scope = rememberCoroutineScope()
     val session = SessionManager(context)
 
-    val isBuyer = role.equals("BUYER", ignoreCase = true)
     val searchLabel = "Buyer Contact"
     val addressLabel = "Delivery Address"
     val pageTitle = "Initialize Escrow"
@@ -350,43 +344,6 @@ fun UnifiedCreateEscrowScreen(role: String) {
                     scrolledContainerColor = colorScheme.surface
                 )
             )
-        },
-        bottomBar = {
-            if (isBuyer) {
-                BuyerNavBar(
-                    selectedIndex = BuyerNavItem.Home.index,
-                    onItemSelected = { item ->
-                        when (item) {
-                            BuyerNavItem.Home -> navigateTab(context, BuyerDashboardActivity::class.java)
-                            BuyerNavItem.Transactions -> {
-                                navigateTab(
-                                    context,
-                                    TransactionsActivity::class.java,
-                                    Bundle().apply { putString("ROLE", "BUYER") }
-                                )
-                            }
-                            BuyerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
-                        }
-                    }
-                )
-            } else {
-                SellerNavBar(
-                    selectedIndex = SellerNavItem.Home.index,
-                    onItemSelected = { item ->
-                        when (item) {
-                            SellerNavItem.Home -> navigateTab(context, SellerDashboardActivity::class.java)
-                            SellerNavItem.Transactions -> {
-                                navigateTab(
-                                    context,
-                                    TransactionsActivity::class.java,
-                                    Bundle().apply { putString("ROLE", "SELLER") }
-                                )
-                            }
-                            SellerNavItem.Profile -> navigateTab(context, ProfileActivity::class.java)
-                        }
-                    }
-                )
-            }
         }
     ) { paddingValues ->
         Column(
