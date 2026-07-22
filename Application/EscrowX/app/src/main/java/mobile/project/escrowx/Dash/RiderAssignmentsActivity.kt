@@ -72,6 +72,7 @@ data class RiderAssignmentRecord(
 class RiderAssignmentsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             EscrowXTheme(
                 darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),

@@ -2,7 +2,9 @@ package mobile.project.escrowx.dash
 
 import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
@@ -59,6 +61,7 @@ private data class RiderAssignmentItem(
 class RiderDashboardActvity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             EscrowXTheme(
                 darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
@@ -85,6 +88,22 @@ private fun RiderDashboardScreen() {
     var newAssignmentsCount by remember { mutableIntStateOf(0) }
     var unreadNotificationsCount by remember { mutableIntStateOf(0) }
     var isRefreshing by remember { mutableStateOf(false) }
+    var lastBackPressAt by remember { mutableLongStateOf(0L) }
+
+    BackHandler {
+        if (selectedTab != RiderNavItem.Home.index) {
+            selectedTab = RiderNavItem.Home.index
+            return@BackHandler
+        }
+
+        val now = System.currentTimeMillis()
+        if (now - lastBackPressAt <= 2000L) {
+            (context as? ComponentActivity)?.finishAffinity()
+        } else {
+            lastBackPressAt = now
+            Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     fun loadRiderData(showLoading: Boolean = true) {
         if (showLoading) isLoading = true

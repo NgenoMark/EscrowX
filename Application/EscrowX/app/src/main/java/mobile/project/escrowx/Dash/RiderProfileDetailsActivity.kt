@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -26,11 +28,11 @@ import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.text.input.KeyboardType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -49,6 +51,7 @@ import java.util.*
 class RiderProfileDetailsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
         setContent {
             EscrowXTheme(
                 darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
@@ -75,6 +78,8 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
     var refreshKey by remember { mutableIntStateOf(0) }
     var isEditMode by remember { mutableStateOf(false) }
     var isSaving by remember { mutableStateOf(false) }
+
+    // Edit fields
     var editDisplayName by remember { mutableStateOf("") }
     var editPhone by remember { mutableStateOf("") }
     var editAddress by remember { mutableStateOf("") }
@@ -241,18 +246,20 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = {
-                        isLoading = true
-                        errorMessage = null
-                        riderProfile = null
-                        profile = null
-                        refreshKey += 1
-                    }) {
-                        Icon(
-                            Icons.Default.Refresh,
-                            contentDescription = "Refresh",
-                            tint = colorScheme.onSurface
-                        )
+                    if (!isEditMode) {
+                        IconButton(onClick = {
+                            isLoading = true
+                            errorMessage = null
+                            riderProfile = null
+                            profile = null
+                            refreshKey += 1
+                        }) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = colorScheme.onSurface
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -325,31 +332,133 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ===== PROFILE HEADER CARD =====
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 2.dp
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    colorScheme.outlineVariant.copy(alpha = 0.3f)
+            ProfileHeaderCard(
+                riderName = riderName,
+                riderInitials = riderInitials,
+                isActive = isActive,
+                colorScheme = colorScheme
+            )
+
+            // ===== EDIT MODE TOGGLE =====
+            if (!isEditMode) {
+                // View Mode - Show Edit Button
+                EditProfileButton(
+                    onClick = { isEditMode = true },
+                    colorScheme = colorScheme
                 )
+            }
+
+            // ===== PROFILE INFORMATION =====
+            ProfileInfoSection(
+                profile = profile,
+                riderProfile = riderProfile,
+                formattedDate = formattedDate,
+                isEditMode = isEditMode,
+                isSaving = isSaving,
+                editDisplayName = editDisplayName,
+                onEditDisplayNameChange = { editDisplayName = it },
+                editPhone = editPhone,
+                onEditPhoneChange = { editPhone = it },
+                editAddress = editAddress,
+                onEditAddressChange = { editAddress = it },
+                editOperationArea = editOperationArea,
+                onEditOperationAreaChange = { editOperationArea = it },
+                editLicenseNumber = editLicenseNumber,
+                onEditLicenseNumberChange = { editLicenseNumber = it },
+                editVehicleType = editVehicleType,
+                onEditVehicleTypeChange = { editVehicleType = it },
+                editVehiclePlate = editVehiclePlate,
+                onEditVehiclePlateChange = { editVehiclePlate = it },
+                editRiderStatus = editRiderStatus,
+                onEditRiderStatusChange = { editRiderStatus = it },
+                isRiderStatusExpanded = isRiderStatusExpanded,
+                onRiderStatusExpandedChange = { isRiderStatusExpanded = it },
+                riderStatusOptions = riderStatusOptions,
+                onSave = { saveProfileChanges() },
+                onCancel = {
+                    editDisplayName = profile?.displayName ?: ""
+                    editPhone = profile?.phone ?: ""
+                    editAddress = profile?.address ?: ""
+                    editOperationArea = riderProfile?.operationArea ?: ""
+                    editLicenseNumber = riderProfile?.licenseNumber ?: ""
+                    editVehicleType = riderProfile?.vehicleType ?: ""
+                    editVehiclePlate = riderProfile?.vehiclePlate ?: ""
+                    editRiderStatus = riderProfile?.riderStatus ?: "AVAILABLE"
+                    isEditMode = false
+                },
+                colorScheme = colorScheme
+            )
+
+            // ===== ACCOUNT STATS =====
+            AccountStatsCard(colorScheme = colorScheme)
+
+            // ===== QUICK ACTIONS =====
+            QuickActionsCard(
+                onEditProfile = { isEditMode = true },
+                onOpenSettings = {
+                    context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
+                },
+                colorScheme = colorScheme
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+// ===================== PROFILE HEADER =====================
+
+@Composable
+fun ProfileHeaderCard(
+    riderName: String,
+    riderInitials: String,
+    isActive: Boolean,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Avatar with gradient ring
+            Box(
+                modifier = Modifier
+                    .size(96.dp)
+                    .padding(4.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.sweepGradient(
+                            colors = listOf(
+                                BrandBlue,
+                                Color(0xFF7C3AED),
+                                BrandBlue
+                            )
+                        )
+                    )
             ) {
-                Column(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(20.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                        .fillMaxSize()
+                        .padding(4.dp)
+                        .clip(CircleShape)
+                        .background(colorScheme.surface),
+                    contentAlignment = Alignment.Center
                 ) {
-                    // Avatar with gradient
                     Box(
                         modifier = Modifier
-                            .size(80.dp)
+                            .fillMaxSize()
+                            .padding(4.dp)
                             .clip(CircleShape)
                             .background(
                                 Brush.horizontalGradient(
@@ -363,476 +472,421 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
                     ) {
                         Text(
                             riderInitials,
-                            fontSize = 30.sp,
+                            fontSize = 32.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                     }
-
-                    // Name & Role
-                    Text(
-                        riderName,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = colorScheme.onSurface
-                    )
-
-                    // Status Badge
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = if (isActive)
-                            Color(0xFF10B981).copy(alpha = 0.12f)
-                        else
-                            Color(0xFFDC2626).copy(alpha = 0.12f)
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(6.dp)
-                                    .clip(CircleShape)
-                                    .background(if (isActive) Color(0xFF10B981) else Color(0xFFDC2626))
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Text(
-                                if (isActive) "Active" else "Inactive",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (isActive) Color(0xFF10B981) else Color(0xFFDC2626)
-                            )
-                        }
-                    }
                 }
             }
 
-            // ===== PROFILE INFORMATION =====
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 2.dp
-                ),
+            // Name & Role
+            Text(
+                riderName,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                color = colorScheme.onSurface
+            )
+
+            Text(
+                "Rider",
+                fontSize = 13.sp,
+                color = colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium
+            )
+
+            // Status Badge
+            Surface(
+                shape = RoundedCornerShape(50),
+                color = if (isActive)
+                    Color(0xFF10B981).copy(alpha = 0.12f)
+                else
+                    Color(0xFFDC2626).copy(alpha = 0.12f),
                 border = BorderStroke(
                     1.dp,
-                    colorScheme.outlineVariant.copy(alpha = 0.3f)
+                    if (isActive) Color(0xFF10B981).copy(alpha = 0.2f)
+                    else Color(0xFFDC2626).copy(alpha = 0.2f)
                 )
             ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(if (isActive) Color(0xFF10B981) else Color(0xFFDC2626))
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Text(
-                        "Profile Information",
-                        fontSize = 15.sp,
+                        if (isActive) "Active" else "Inactive",
+                        fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    ProfileDetailRow(
-                        icon = Icons.Default.Badge,
-                        label = "Role",
-                        value = profile?.role ?: "RIDER",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.Shield,
-                        label = "Status",
-                        value = profile?.status ?: "ACTIVE",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.Person,
-                        label = "Display Name",
-                        value = profile?.displayName ?: riderProfile?.displayName ?: "-",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.Email,
-                        label = "Email",
-                        value = profile?.email ?: "-",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.Phone,
-                        label = "Phone",
-                        value = profile?.phone ?: riderProfile?.phone ?: "Not set",
-                        colorScheme = colorScheme
-                    )
-                    if (isEditMode) {
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = editDisplayName,
-                            onValueChange = { editDisplayName = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Display Name") },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(Icons.Default.Person, contentDescription = null)
-                            },
-                            enabled = !isSaving
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = editPhone,
-                            onValueChange = { editPhone = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Phone") },
-                            singleLine = true,
-                            leadingIcon = {
-                                Icon(Icons.Default.Phone, contentDescription = null)
-                            },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                            enabled = !isSaving
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = editAddress,
-                            onValueChange = { editAddress = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Address") },
-                            leadingIcon = {
-                                Icon(Icons.Default.LocationOn, contentDescription = null)
-                            },
-                            maxLines = 3,
-                            enabled = !isSaving
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    editDisplayName = profile?.displayName ?: ""
-                                    editPhone = profile?.phone ?: ""
-                                    editAddress = profile?.address ?: ""
-                                    editOperationArea = riderProfile?.operationArea ?: ""
-                                    editLicenseNumber = riderProfile?.licenseNumber ?: ""
-                                    editVehicleType = riderProfile?.vehicleType ?: ""
-                                    editVehiclePlate = riderProfile?.vehiclePlate ?: ""
-                                    editRiderStatus = riderProfile?.riderStatus ?: "AVAILABLE"
-                                    isEditMode = false
-                                },
-                                enabled = !isSaving,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Text("Cancel")
-                            }
-
-                            Button(
-                                onClick = { saveProfileChanges() },
-                                enabled = !isSaving,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                if (isSaving) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(16.dp),
-                                        strokeWidth = 2.dp,
-                                        color = Color.White
-                                    )
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                }
-                                Text(if (isSaving) "Saving..." else "Save")
-                            }
-                        }
-                    } else {
-                        ProfileDetailRow(
-                            icon = Icons.Default.LocationOn,
-                            label = "Address",
-                            value = profile?.address ?: "Not set",
-                            colorScheme = colorScheme
-                        )
-                    }
-                    ProfileDetailRow(
-                        icon = Icons.Default.Schedule,
-                        label = "Member Since",
-                        value = formattedDate,
-                        colorScheme = colorScheme
+                        color = if (isActive) Color(0xFF10B981) else Color(0xFFDC2626)
                     )
                 }
             }
-
-            // ===== RIDER PROFILE INFORMATION =====
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 2.dp
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    colorScheme.outlineVariant.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        "Rider Profile Details",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-
-                    ProfileDetailRow(
-                        icon = Icons.Default.Route,
-                        label = "Operation Area",
-                        value = riderProfile?.operationArea ?: "Not set",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.CreditCard,
-                        label = "License Number",
-                        value = riderProfile?.licenseNumber ?: "Not set",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.DirectionsBike,
-                        label = "Vehicle Type",
-                        value = riderProfile?.vehicleType ?: "Not set",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.ConfirmationNumber,
-                        label = "Vehicle Plate",
-                        value = riderProfile?.vehiclePlate ?: "Not set",
-                        colorScheme = colorScheme
-                    )
-                    ProfileDetailRow(
-                        icon = Icons.Default.LocalShipping,
-                        label = "Rider Status",
-                        value = riderProfile?.riderStatus ?: "AVAILABLE",
-                        colorScheme = colorScheme
-                    )
-
-                    if (isEditMode) {
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = editOperationArea,
-                            onValueChange = { editOperationArea = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Operation Area") },
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.Route, contentDescription = null) },
-                            enabled = !isSaving
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = editLicenseNumber,
-                            onValueChange = { editLicenseNumber = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("License Number") },
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
-                            enabled = !isSaving
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = editVehicleType,
-                            onValueChange = { editVehicleType = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Vehicle Type") },
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.DirectionsBike, contentDescription = null) },
-                            enabled = !isSaving
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        OutlinedTextField(
-                            value = editVehiclePlate,
-                            onValueChange = { editVehiclePlate = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("Vehicle Plate") },
-                            singleLine = true,
-                            leadingIcon = { Icon(Icons.Default.ConfirmationNumber, contentDescription = null) },
-                            enabled = !isSaving
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        ExposedDropdownMenuBox(
-                            expanded = isRiderStatusExpanded,
-                            onExpandedChange = { if (!isSaving) isRiderStatusExpanded = !isRiderStatusExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = editRiderStatus,
-                                onValueChange = {},
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .menuAnchor(
-                                        type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                                        enabled = !isSaving
-                                    ),
-                                label = { Text("Rider Status") },
-                                singleLine = true,
-                                readOnly = true,
-                                leadingIcon = { Icon(Icons.Default.LocalShipping, contentDescription = null) },
-                                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRiderStatusExpanded) },
-                                enabled = !isSaving
-                            )
-
-                            ExposedDropdownMenu(
-                                expanded = isRiderStatusExpanded,
-                                onDismissRequest = { isRiderStatusExpanded = false }
-                            ) {
-                                riderStatusOptions.forEach { status ->
-                                    DropdownMenuItem(
-                                        text = { Text(status) },
-                                        onClick = {
-                                            editRiderStatus = status
-                                            isRiderStatusExpanded = false
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // ===== ACCOUNT STATS =====
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 2.dp
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    colorScheme.outlineVariant.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text(
-                        "Account Statistics",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurface
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        StatItem(
-                            modifier = Modifier.weight(1f),
-                            label = "Total Deliveries",
-                            value = "0",
-                            icon = Icons.Default.LocalShipping,
-                            color = Color(0xFF3B82F6),
-                            colorScheme = colorScheme
-                        )
-                        StatItem(
-                            modifier = Modifier.weight(1f),
-                            label = "Completed",
-                            value = "0",
-                            icon = Icons.Default.CheckCircle,
-                            color = Color(0xFF10B981),
-                            colorScheme = colorScheme
-                        )
-                        StatItem(
-                            modifier = Modifier.weight(1f),
-                            label = "Active",
-                            value = "0",
-                            icon = Icons.Default.Pending,
-                            color = Color(0xFFF59E0B),
-                            colorScheme = colorScheme
-                        )
-                    }
-                }
-            }
-
-            // ===== QUICK ACTIONS =====
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = colorScheme.surface
-                ),
-                elevation = CardDefaults.cardElevation(
-                    defaultElevation = 2.dp
-                ),
-                border = BorderStroke(
-                    1.dp,
-                    colorScheme.outlineVariant.copy(alpha = 0.3f)
-                )
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        "Quick Actions",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colorScheme.onSurface
-                    )
-
-                    QuickActionItem(
-                        icon = Icons.Default.Edit,
-                        label = "Edit Profile",
-                        onClick = { isEditMode = true },
-                        colorScheme = colorScheme
-                    )
-                    QuickActionItem(
-                        icon = Icons.Default.Notifications,
-                        label = "Notifications",
-                        onClick = { /* Navigate to notifications */ },
-                        colorScheme = colorScheme
-                    )
-                    QuickActionItem(
-                        icon = Icons.Default.Settings,
-                        label = "Settings",
-                        onClick = { /* Navigate to settings */ },
-                        colorScheme = colorScheme
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
-// ===================== COMPONENTS =====================
+// ===================== EDIT PROFILE BUTTON =====================
+
+@Composable
+fun EditProfileButton(
+    onClick: () -> Unit,
+    colorScheme: ColorScheme
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = colorScheme.primary,
+            contentColor = Color.White
+        ),
+        elevation = ButtonDefaults.buttonElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 0.dp
+        )
+    ) {
+        Icon(
+            Icons.Default.Edit,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            "Edit Profile",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+// ===================== PROFILE INFO SECTION =====================
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ProfileInfoSection(
+    profile: UserDetailsResponse?,
+    riderProfile: RiderProfileResponse?,
+    formattedDate: String,
+    isEditMode: Boolean,
+    isSaving: Boolean,
+    editDisplayName: String,
+    onEditDisplayNameChange: (String) -> Unit,
+    editPhone: String,
+    onEditPhoneChange: (String) -> Unit,
+    editAddress: String,
+    onEditAddressChange: (String) -> Unit,
+    editOperationArea: String,
+    onEditOperationAreaChange: (String) -> Unit,
+    editLicenseNumber: String,
+    onEditLicenseNumberChange: (String) -> Unit,
+    editVehicleType: String,
+    onEditVehicleTypeChange: (String) -> Unit,
+    editVehiclePlate: String,
+    onEditVehiclePlateChange: (String) -> Unit,
+    editRiderStatus: String,
+    onEditRiderStatusChange: (String) -> Unit,
+    isRiderStatusExpanded: Boolean,
+    onRiderStatusExpandedChange: (Boolean) -> Unit,
+    riderStatusOptions: List<String>,
+    onSave: () -> Unit,
+    onCancel: () -> Unit,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Section Title
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "Profile Information",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onSurface
+                )
+                if (isEditMode) {
+                    Surface(
+                        shape = CircleShape,
+                        color = colorScheme.primary.copy(alpha = 0.08f)
+                    ) {
+                        Text(
+                            "Editing",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            // Personal Information
+            Text(
+                "Personal Information",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+
+            if (isEditMode) {
+                OutlinedTextField(
+                    value = editDisplayName,
+                    onValueChange = onEditDisplayNameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Display Name") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Person, contentDescription = null) },
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = editPhone,
+                    onValueChange = onEditPhoneChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Phone") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = editAddress,
+                    onValueChange = onEditAddressChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Address") },
+                    leadingIcon = { Icon(Icons.Default.LocationOn, contentDescription = null) },
+                    maxLines = 3,
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(12.dp)
+                )
+            } else {
+                ProfileDetailRow(
+                    icon = Icons.Default.Person,
+                    label = "Display Name",
+                    value = profile?.displayName ?: "-",
+                    colorScheme = colorScheme
+                )
+                ProfileDetailRow(
+                    icon = Icons.Default.Phone,
+                    label = "Phone",
+                    value = profile?.phone ?: "Not set",
+                    colorScheme = colorScheme
+                )
+                ProfileDetailRow(
+                    icon = Icons.Default.LocationOn,
+                    label = "Address",
+                    value = profile?.address ?: "Not set",
+                    colorScheme = colorScheme
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Rider Details
+            Text(
+                "Rider Details",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = colorScheme.onSurfaceVariant
+            )
+
+            if (isEditMode) {
+                OutlinedTextField(
+                    value = editOperationArea,
+                    onValueChange = onEditOperationAreaChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Operation Area") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.Route, contentDescription = null) },
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = editLicenseNumber,
+                    onValueChange = onEditLicenseNumberChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("License Number") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.CreditCard, contentDescription = null) },
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = editVehicleType,
+                    onValueChange = onEditVehicleTypeChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Vehicle Type") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.DirectionsBike, contentDescription = null) },
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                OutlinedTextField(
+                    value = editVehiclePlate,
+                    onValueChange = onEditVehiclePlateChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Vehicle Plate") },
+                    singleLine = true,
+                    leadingIcon = { Icon(Icons.Default.ConfirmationNumber, contentDescription = null) },
+                    enabled = !isSaving,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = isRiderStatusExpanded,
+                    onExpandedChange = { if (!isSaving) onRiderStatusExpandedChange(!isRiderStatusExpanded) }
+                ) {
+                    OutlinedTextField(
+                        value = editRiderStatus,
+                        onValueChange = {},
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(
+                                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                enabled = !isSaving
+                            ),
+                        label = { Text("Rider Status") },
+                        singleLine = true,
+                        readOnly = true,
+                        leadingIcon = { Icon(Icons.Default.LocalShipping, contentDescription = null) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isRiderStatusExpanded) },
+                        enabled = !isSaving,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    ExposedDropdownMenu(
+                        expanded = isRiderStatusExpanded,
+                        onDismissRequest = { onRiderStatusExpandedChange(false) }
+                    ) {
+                        riderStatusOptions.forEach { status ->
+                            DropdownMenuItem(
+                                text = { Text(status) },
+                                onClick = {
+                                    onEditRiderStatusChange(status)
+                                    onRiderStatusExpandedChange(false)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Save/Cancel Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onCancel,
+                        enabled = !isSaving,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Cancel")
+                    }
+
+                    Button(
+                        onClick = onSave,
+                        enabled = !isSaving && editDisplayName.isNotBlank(),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = colorScheme.primary
+                        )
+                    ) {
+                        if (isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Saving...")
+                        } else {
+                            Icon(
+                                Icons.Default.Save,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text("Save Changes")
+                        }
+                    }
+                }
+            } else {
+                ProfileDetailRow(
+                    icon = Icons.Default.Route,
+                    label = "Operation Area",
+                    value = riderProfile?.operationArea ?: "Not set",
+                    colorScheme = colorScheme
+                )
+                ProfileDetailRow(
+                    icon = Icons.Default.CreditCard,
+                    label = "License Number",
+                    value = riderProfile?.licenseNumber ?: "Not set",
+                    colorScheme = colorScheme
+                )
+                ProfileDetailRow(
+                    icon = Icons.Default.DirectionsBike,
+                    label = "Vehicle Type",
+                    value = riderProfile?.vehicleType ?: "Not set",
+                    colorScheme = colorScheme
+                )
+                ProfileDetailRow(
+                    icon = Icons.Default.ConfirmationNumber,
+                    label = "Vehicle Plate",
+                    value = riderProfile?.vehiclePlate ?: "Not set",
+                    colorScheme = colorScheme
+                )
+                ProfileDetailRow(
+                    icon = Icons.Default.LocalShipping,
+                    label = "Rider Status",
+                    value = riderProfile?.riderStatus ?: "AVAILABLE",
+                    colorScheme = colorScheme
+                )
+                ProfileDetailRow(
+                    icon = Icons.Default.Schedule,
+                    label = "Member Since",
+                    value = formattedDate,
+                    colorScheme = colorScheme
+                )
+            }
+        }
+    }
+}
+
+// ===================== PROFILE DETAIL ROW =====================
 
 @Composable
 fun ProfileDetailRow(
@@ -844,7 +898,7 @@ fun ProfileDetailRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -880,7 +934,6 @@ fun ProfileDetailRow(
                 overflow = TextOverflow.Ellipsis
             )
         }
-        // Optional: Show a verified icon for certain fields
         if (label == "Email" && value != "-" && value != "Not set") {
             Icon(
                 Icons.Default.Verified,
@@ -892,8 +945,67 @@ fun ProfileDetailRow(
     }
 }
 
+// ===================== ACCOUNT STATS CARD =====================
+
 @Composable
-fun StatItem(
+fun AccountStatsCard(colorScheme: ColorScheme) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "Account Statistics",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colorScheme.onSurface
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                StatItemCompact(
+                    modifier = Modifier.weight(1f),
+                    label = "Deliveries",
+                    value = "0",
+                    icon = Icons.Default.LocalShipping,
+                    color = Color(0xFF3B82F6),
+                    colorScheme = colorScheme
+                )
+                StatItemCompact(
+                    modifier = Modifier.weight(1f),
+                    label = "Completed",
+                    value = "0",
+                    icon = Icons.Default.CheckCircle,
+                    color = Color(0xFF10B981),
+                    colorScheme = colorScheme
+                )
+                StatItemCompact(
+                    modifier = Modifier.weight(1f),
+                    label = "Active",
+                    value = "0",
+                    icon = Icons.Default.Pending,
+                    color = Color(0xFFF59E0B),
+                    colorScheme = colorScheme
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun StatItemCompact(
     modifier: Modifier,
     label: String,
     value: String,
@@ -901,12 +1013,10 @@ fun StatItem(
     color: Color,
     colorScheme: ColorScheme
 ) {
-    Card(
+    Surface(
         modifier = modifier,
         shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        ),
+        color = color.copy(alpha = 0.06f),
         border = BorderStroke(1.dp, color.copy(alpha = 0.15f))
     ) {
         Column(
@@ -916,12 +1026,20 @@ fun StatItem(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = color
-            )
+            Box(
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(14.dp),
+                    tint = color
+                )
+            }
             Text(
                 value,
                 fontSize = 18.sp,
@@ -940,10 +1058,60 @@ fun StatItem(
     }
 }
 
+// ===================== QUICK ACTIONS CARD =====================
+
 @Composable
-fun QuickActionItem(
+fun QuickActionsCard(
+    onEditProfile: () -> Unit,
+    onOpenSettings: () -> Unit,
+    colorScheme: ColorScheme
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                "Quick Actions",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colorScheme.onSurface
+            )
+
+            QuickActionItemEnhanced(
+                icon = Icons.Default.Edit,
+                label = "Edit Profile",
+                description = "Update your personal and rider information",
+                onClick = onEditProfile,
+                colorScheme = colorScheme
+            )
+
+            QuickActionItemEnhanced(
+                icon = Icons.Default.Settings,
+                label = "Settings",
+                description = "App preferences and account settings",
+                onClick = onOpenSettings,
+                colorScheme = colorScheme
+            )
+        }
+    }
+}
+
+@Composable
+fun QuickActionItemEnhanced(
     icon: ImageVector,
     label: String,
+    description: String,
     onClick: () -> Unit,
     colorScheme: ColorScheme
 ) {
@@ -961,19 +1129,37 @@ fun QuickActionItem(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = colorScheme.onSurfaceVariant
-            )
-            Text(
-                label,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium,
-                color = colorScheme.onSurface,
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(colorScheme.primary.copy(alpha = 0.08f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                    tint = colorScheme.primary
+                )
+            }
+            Column(
                 modifier = Modifier.weight(1f)
-            )
+            ) {
+                Text(
+                    label,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colorScheme.onSurface
+                )
+                Text(
+                    description,
+                    fontSize = 12.sp,
+                    color = colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Icon(
                 Icons.Default.ChevronRight,
                 contentDescription = null,
