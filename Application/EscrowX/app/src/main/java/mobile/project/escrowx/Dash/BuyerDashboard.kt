@@ -390,7 +390,25 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         }
                     },
                     actions = {
-                        Box {
+                        BadgedBox(
+                            modifier = Modifier.padding(end = 8.dp, top = 4.dp),
+                            badge = {
+                                if (unreadNotificationsCount > 0) {
+                                    Badge(
+                                        modifier = Modifier.offset(x = (-2).dp, y = 2.dp),
+                                        containerColor = Color(0xFFDC2626),
+                                        contentColor = Color.White
+                                    ) {
+                                        Text(
+                                            text = if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString(),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            maxLines = 1
+                                        )
+                                    }
+                                }
+                            }
+                        ) {
                             IconButton(onClick = {
                                 context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
                                 loadUnreadNotificationsCount()
@@ -400,26 +418,6 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                                     contentDescription = "Notifications",
                                     tint = colorScheme.primary
                                 )
-                            }
-
-                            if (unreadNotificationsCount > 0) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(top = 4.dp, end = 4.dp)
-                                        .size(18.dp)
-                                        .clip(CircleShape)
-                                        .background(Color(0xFFDC2626)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString(),
-                                        color = Color.White,
-                                        fontSize = 9.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1
-                                    )
-                                }
                             }
                         }
                     },

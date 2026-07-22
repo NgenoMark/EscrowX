@@ -220,22 +220,26 @@ private fun RiderDashboardScreen() {
                 },
                 actions = {
                     if (isHomeTab) {
-                        IconButton(onClick = {
-                            context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
-                        }) {
-                            BadgedBox(
-                                badge = {
-                                    if (unreadNotificationsCount > 0) {
-                                        Badge(containerColor = Color(0xFFDC2626)) {
-                                            Text(
-                                                if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
-                                                fontSize = 9.sp,
-                                                color = Color.White
-                                            )
-                                        }
+                        BadgedBox(
+                            modifier = Modifier.padding(end = 8.dp, top = 4.dp),
+                            badge = {
+                                if (unreadNotificationsCount > 0) {
+                                    Badge(
+                                        modifier = Modifier.offset(x = (-2).dp, y = 2.dp),
+                                        containerColor = Color(0xFFDC2626),
+                                        contentColor = Color.White
+                                    ) {
+                                        Text(
+                                            if (unreadNotificationsCount > 9) "9+" else unreadNotificationsCount.toString(),
+                                            fontSize = 10.sp
+                                        )
                                     }
                                 }
-                            ) {
+                            }
+                        ) {
+                            IconButton(onClick = {
+                                context.startActivity(Intent(context, SellerNotificationsActivity::class.java))
+                            }) {
                                 Icon(
                                     Icons.Default.NotificationsNone,
                                     contentDescription = "Notifications",
