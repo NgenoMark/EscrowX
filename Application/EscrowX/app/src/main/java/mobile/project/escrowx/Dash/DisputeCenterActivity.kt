@@ -1,4 +1,4 @@
-@file:Suppress("SpellCheckingInspection")
+﻿@file:Suppress("SpellCheckingInspection")
 package mobile.project.escrowx.dash
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
@@ -44,7 +44,7 @@ class DisputeCenterActivity : ComponentActivity() {
         viewModel.fetchUserDisputes(this)
 
         setContent {
-            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(), dynamicColor = false) {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                 var currentFilter by remember { mutableStateOf(DisputeFilter.ALL) }
                 val context = LocalContext.current

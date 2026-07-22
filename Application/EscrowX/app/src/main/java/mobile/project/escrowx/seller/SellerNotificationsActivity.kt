@@ -1,4 +1,4 @@
-package mobile.project.escrowx.seller
+﻿package mobile.project.escrowx.seller
 
 import android.content.Intent
 import android.os.Bundle
@@ -55,7 +55,7 @@ class SellerNotificationsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 SellerNotificationsScreen(onBack = { finish() })

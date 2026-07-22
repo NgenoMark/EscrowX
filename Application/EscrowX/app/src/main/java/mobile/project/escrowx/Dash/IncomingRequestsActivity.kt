@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
@@ -47,7 +47,7 @@ class IncomingRequestsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(), dynamicColor = false) {
                 IncomingRequestsScreen()
             }
         }

@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -51,7 +51,7 @@ class RiderAssignmentDetailsActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 RiderAssignmentDetailsScreen(
@@ -247,7 +247,7 @@ private fun RiderAssignmentDetailsScreen(
             },
             title = {
                 Text(
-                    "Success! 🎉",
+                    "Success! ðŸŽ‰",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.onSurface,
@@ -406,7 +406,7 @@ private fun RiderAssignmentDetailsScreen(
                             riderAssignmentStatus = riderAssignmentStatus,
                             onAcceptDelivery = {
                                 runRiderAction(
-                                    successMessage = "✅ Delivery accepted",
+                                    successMessage = "âœ… Delivery accepted",
                                     onSuccess = {
                                         hasAcceptedDelivery = true
                                         nextRiderAction = RiderNextAction.PICKUP
@@ -417,7 +417,7 @@ private fun RiderAssignmentDetailsScreen(
                             },
                             onPickup = {
                                 runRiderAction(
-                                    successMessage = "📦 Package marked as picked up",
+                                    successMessage = "ðŸ“¦ Package marked as picked up",
                                     onSuccess = { nextRiderAction = RiderNextAction.START_TRANSIT }
                                 ) { api, id, actorId ->
                                     api.riderPickup(id, actorId)
@@ -425,7 +425,7 @@ private fun RiderAssignmentDetailsScreen(
                             },
                             onStartTransit = {
                                 runRiderAction(
-                                    successMessage = "🚚 Transit started",
+                                    successMessage = "ðŸšš Transit started",
                                     onSuccess = { nextRiderAction = RiderNextAction.ARRIVED }
                                 ) { api, id, actorId ->
                                     api.riderStartTransit(id, actorId)
@@ -433,7 +433,7 @@ private fun RiderAssignmentDetailsScreen(
                             },
                             onArrived = {
                                 runRiderAction(
-                                    successMessage = "📍 Arrived at buyer location",
+                                    successMessage = "ðŸ“ Arrived at buyer location",
                                     onSuccess = { nextRiderAction = RiderNextAction.DELIVERED }
                                 ) { api, id, actorId ->
                                     api.riderArrived(id, actorId)
@@ -441,7 +441,7 @@ private fun RiderAssignmentDetailsScreen(
                             },
                             onDelivered = {
                                 runRiderAction(
-                                    successMessage = "✅ Successfully delivered",
+                                    successMessage = "âœ… Successfully delivered",
                                     onSuccess = { nextRiderAction = RiderNextAction.NONE }
                                 ) { api, id, actorId ->
                                     api.riderMarkDelivered(id, actorId)
@@ -915,7 +915,7 @@ fun RiderActionCardEnhanced(
             if (actionMessage != null && !isActionLoading) {
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = if (actionMessage.contains("✅"))
+                    color = if (actionMessage.contains("âœ…"))
                         Color(0xFF10B981).copy(alpha = 0.08f)
                     else
                         MaterialTheme.colorScheme.error.copy(alpha = 0.08f)
@@ -924,7 +924,7 @@ fun RiderActionCardEnhanced(
                         actionMessage,
                         modifier = Modifier.padding(10.dp),
                         fontSize = 13.sp,
-                        color = if (actionMessage.contains("✅"))
+                        color = if (actionMessage.contains("âœ…"))
                             Color(0xFF10B981)
                         else
                             MaterialTheme.colorScheme.error

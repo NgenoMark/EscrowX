@@ -1,4 +1,4 @@
-package mobile.project.escrowx.auth
+﻿package mobile.project.escrowx.auth
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -50,7 +50,7 @@ class ChangePasswordVerificationActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 ChangePasswordVerificationScreen(email = email)
@@ -599,7 +599,7 @@ fun OtpInputFieldEnhanced(
         isError = isError,
         placeholder = {
             Text(
-                "•",
+                "â€¢",
                 fontSize = 16.sp,
                 color = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
             )

@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -56,7 +56,7 @@ class CreateEscrowActivity : ComponentActivity() {
         val role = intent.getStringExtra("ROLE") ?: "BUYER"
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 UnifiedCreateEscrowScreen(role = role)
@@ -104,7 +104,7 @@ fun UnifiedCreateEscrowScreen(role: String) {
     val escrowFee = parsedAmount * 0.015
     val totalAmount = parsedAmount + escrowFee
 
-    // Load logged‑in user profile
+    // Load loggedâ€‘in user profile
     LaunchedEffect(Unit) {
         scope.launch {
             val token = session.getAccessToken()

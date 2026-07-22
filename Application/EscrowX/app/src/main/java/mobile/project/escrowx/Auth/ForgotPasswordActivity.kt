@@ -1,4 +1,4 @@
-package mobile.project.escrowx.auth
+﻿package mobile.project.escrowx.auth
 
 import android.content.Intent
 import android.os.Bundle
@@ -53,7 +53,7 @@ class ForgotPasswordActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 ResetPasswordScreen()
@@ -139,7 +139,7 @@ private fun ResetPasswordScreen() {
                     if (response.isSuccessful && response.body() != null) {
                         val otpPreview = response.body()!!.otpPreview
                         val message = if (!otpPreview.isNullOrBlank()) {
-                            "📧 OTP sent to your email. Dev OTP: $otpPreview"
+                            "ðŸ“§ OTP sent to your email. Dev OTP: $otpPreview"
                         } else {
                             response.body()!!.message ?: "OTP sent successfully"
                         }
@@ -232,7 +232,7 @@ private fun ResetPasswordScreen() {
                 withContext(Dispatchers.Main) {
                     if (response.isSuccessful) {
                         isSuccess = true
-                        Toast.makeText(context, "✅ Password reset successful!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "âœ… Password reset successful!", Toast.LENGTH_LONG).show()
                         delay(1000)
                         context.startActivity(Intent(context, LoginActivity::class.java).apply {
                             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -917,7 +917,7 @@ fun SetNewPasswordForm(
                     )
                 } else if (confirmPassword.isNotEmpty() && doPasswordsMatch) {
                     Text(
-                        "✓ Passwords match",
+                        "âœ“ Passwords match",
                         color = Color(0xFF10B981),
                         fontSize = 11.sp
                     )

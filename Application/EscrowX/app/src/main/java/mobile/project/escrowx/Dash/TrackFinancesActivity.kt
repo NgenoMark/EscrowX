@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import android.os.Bundle
 import android.widget.Toast
@@ -50,7 +50,7 @@ class TrackFinancesActivity : ComponentActivity() {
         val role = intent.getStringExtra("ROLE") ?: sessionRole ?: "BUYER"
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 TrackFinancesScreen(role = role, onBack = { finish() })
@@ -723,7 +723,7 @@ private fun FinanceEntryCardEnhanced(
                         )
                     }
                     Text(
-                        "•",
+                        "â€¢",
                         fontSize = 8.sp,
                         color = colorScheme.onSurfaceVariant
                     )
@@ -755,7 +755,7 @@ private fun FinanceEntryCardEnhanced(
                     color = accentColor
                 )
                 Text(
-                    "View →",
+                    "View â†’",
                     fontSize = 10.sp,
                     color = colorScheme.onSurfaceVariant
                 )

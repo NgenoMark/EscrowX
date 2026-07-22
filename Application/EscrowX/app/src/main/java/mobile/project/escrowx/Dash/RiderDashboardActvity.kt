@@ -62,8 +62,9 @@ class RiderDashboardActvity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
+            val darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState()
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = darkTheme,
                 dynamicColor = false
             ) {
                 RiderDashboardScreen()

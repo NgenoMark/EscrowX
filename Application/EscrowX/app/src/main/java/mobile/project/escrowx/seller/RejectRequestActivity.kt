@@ -1,4 +1,4 @@
-package mobile.project.escrowx.seller
+﻿package mobile.project.escrowx.seller
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
 
@@ -44,7 +44,7 @@ class RejectRequestActivity : ComponentActivity() {
         val amount = intent.getStringExtra("AMOUNT") ?: "85,000"
 
         setContent {
-            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(), dynamicColor = false) {
                 RejectRequestScreen(
                     transactionId = transactionId,
                     productName = productName,

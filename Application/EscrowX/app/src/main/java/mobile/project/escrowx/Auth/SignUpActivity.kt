@@ -1,4 +1,4 @@
-package mobile.project.escrowx.auth
+﻿package mobile.project.escrowx.auth
 
 import android.content.Intent
 import android.os.Bundle
@@ -53,7 +53,7 @@ class SignUpActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 SignUpScreen()
@@ -138,7 +138,7 @@ private fun SignUpScreen() {
                 val response = RetrofitClient.instance.registerUser(registrationPayload)
                 withContext(Dispatchers.Main) {
                     if (response.isSuccessful && response.body() != null) {
-                        Toast.makeText(context, "🎉 Registration Successful!", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, "ðŸŽ‰ Registration Successful!", Toast.LENGTH_LONG).show()
                         context.startActivity(Intent(context, VerificationActivity::class.java).apply {
                             putExtra("EMAIL", trimmedEmail)
                         })
@@ -308,7 +308,7 @@ private fun SignUpScreen() {
                         },
                         supportingText = {
                             Text(
-                                if (hasValidKenyanSubscriberNumber) "✓ Valid Kenya number" else "Enter 9 digits after +254",
+                                if (hasValidKenyanSubscriberNumber) "âœ“ Valid Kenya number" else "Enter 9 digits after +254",
                                 color = if (hasValidKenyanSubscriberNumber) Color(0xFF10B981) else colorScheme.onSurfaceVariant,
                                 fontSize = 11.sp
                             )
@@ -369,7 +369,7 @@ private fun SignUpScreen() {
                                 )
                             } else if (password.isNotEmpty() && isPasswordValid) {
                                 Text(
-                                    "✓ Strong password",
+                                    "âœ“ Strong password",
                                     color = Color(0xFF10B981),
                                     fontSize = 11.sp
                                 )

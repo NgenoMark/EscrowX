@@ -1,4 +1,4 @@
-package mobile.project.escrowx.auth
+﻿package mobile.project.escrowx.auth
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -53,7 +53,7 @@ class CreateNewPasswordActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 CreateNewPasswordScreen(email = email, otp = otp)
@@ -144,7 +144,7 @@ fun CreateNewPasswordScreen(email: String, otp: String) {
                 }
 
                 isSuccess = true
-                Toast.makeText(context, "✅ Password updated successfully!", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, "âœ… Password updated successfully!", Toast.LENGTH_LONG).show()
 
                 delay(1500)
 
@@ -506,7 +506,7 @@ fun CreateNewPasswordScreen(email: String, otp: String) {
                         )
                     } else if (confirmPassword.isNotEmpty() && doPasswordsMatch) {
                         Text(
-                            "✓ Passwords match",
+                            "âœ“ Passwords match",
                             color = Color(0xFF10B981),
                             fontSize = 11.sp
                         )

@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -57,7 +57,7 @@ class SettingsActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 SettingsScreen()
@@ -350,7 +350,7 @@ fun SettingsScreen() {
                     onClick = {
                         Toast.makeText(
                             context,
-                            "FAQs:\n\n• How does escrow work?\n• What are the fees?\n• How to raise a dispute?\n• How long does payment take?\n• Is EscrowX secure?",
+                            "FAQs:\n\nâ€¢ How does escrow work?\nâ€¢ What are the fees?\nâ€¢ How to raise a dispute?\nâ€¢ How long does payment take?\nâ€¢ Is EscrowX secure?",
                             Toast.LENGTH_LONG
                         ).show()
                     },
@@ -574,23 +574,23 @@ fun SettingsScreen() {
                     )
                     PolicySection(
                         title = "1. Information We Collect",
-                        content = "• Personal information (name, email, phone)\n• Transaction details\n• Payment information"
+                        content = "â€¢ Personal information (name, email, phone)\nâ€¢ Transaction details\nâ€¢ Payment information"
                     )
                     PolicySection(
                         title = "2. How We Use Your Information",
-                        content = "• Process escrow transactions\n• Verify your identity\n• Send notifications\n• Improve our services"
+                        content = "â€¢ Process escrow transactions\nâ€¢ Verify your identity\nâ€¢ Send notifications\nâ€¢ Improve our services"
                     )
                     PolicySection(
                         title = "3. Data Security",
-                        content = "• Encrypted data transmission\n• Secure servers\n• Regular security audits"
+                        content = "â€¢ Encrypted data transmission\nâ€¢ Secure servers\nâ€¢ Regular security audits"
                     )
                     PolicySection(
                         title = "4. Data Sharing",
-                        content = "• We do not sell your data\n• Shared only with transaction parties"
+                        content = "â€¢ We do not sell your data\nâ€¢ Shared only with transaction parties"
                     )
                     PolicySection(
                         title = "5. Contact Us",
-                        content = "• Email: privacy@escrowx.com\n• Phone: +254 700 000 000"
+                        content = "â€¢ Email: privacy@escrowx.com\nâ€¢ Phone: +254 700 000 000"
                     )
                 }
             },
@@ -647,31 +647,31 @@ fun SettingsScreen() {
                     )
                     PolicySection(
                         title = "1. Escrow Service",
-                        content = "• Funds are held securely until both parties agree\n• Disputes are resolved within 48-72 hours\n• Escrow fee is 1.5% of transaction amount"
+                        content = "â€¢ Funds are held securely until both parties agree\nâ€¢ Disputes are resolved within 48-72 hours\nâ€¢ Escrow fee is 1.5% of transaction amount"
                     )
                     PolicySection(
                         title = "2. Buyer Responsibilities",
-                        content = "• Verify items before releasing funds\n• Raise disputes within inspection period"
+                        content = "â€¢ Verify items before releasing funds\nâ€¢ Raise disputes within inspection period"
                     )
                     PolicySection(
                         title = "3. Seller Responsibilities",
-                        content = "• Deliver items as described\n• Provide tracking information"
+                        content = "â€¢ Deliver items as described\nâ€¢ Provide tracking information"
                     )
                     PolicySection(
                         title = "4. Dispute Resolution",
-                        content = "• Both parties must provide evidence\n• EscrowX mediates fairly\n• Decision is final"
+                        content = "â€¢ Both parties must provide evidence\nâ€¢ EscrowX mediates fairly\nâ€¢ Decision is final"
                     )
                     PolicySection(
                         title = "5. Fees & Charges",
-                        content = "• Escrow fee: 1.5% of transaction value\n• Refund fee: KES 100 for cancelled transactions"
+                        content = "â€¢ Escrow fee: 1.5% of transaction value\nâ€¢ Refund fee: KES 100 for cancelled transactions"
                     )
                     PolicySection(
                         title = "6. Account Termination",
-                        content = "• Violation of terms may lead to suspension\n• Fraudulent activity reported to authorities"
+                        content = "â€¢ Violation of terms may lead to suspension\nâ€¢ Fraudulent activity reported to authorities"
                     )
                     PolicySection(
                         title = "7. Liability",
-                        content = "• EscrowX is not responsible for item quality\n• We facilitate secure payment only"
+                        content = "â€¢ EscrowX is not responsible for item quality\nâ€¢ We facilitate secure payment only"
                     )
                 }
             },
@@ -759,17 +759,17 @@ fun SettingsScreen() {
                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         Text(
-                            "🔒 Secure",
+                            "ðŸ”’ Secure",
                             fontSize = 12.sp,
                             color = colorScheme.onSurfaceVariant
                         )
                         Text(
-                            "⚡ Fast",
+                            "âš¡ Fast",
                             fontSize = 12.sp,
                             color = colorScheme.onSurfaceVariant
                         )
                         Text(
-                            "💪 Reliable",
+                            "ðŸ’ª Reliable",
                             fontSize = 12.sp,
                             color = colorScheme.onSurfaceVariant
                         )
@@ -871,7 +871,7 @@ fun ProfileHeaderCard(
                         )
                     }
                     Text(
-                        "·",
+                        "Â·",
                         fontSize = 12.sp,
                         color = colorScheme.onSurfaceVariant
                     )

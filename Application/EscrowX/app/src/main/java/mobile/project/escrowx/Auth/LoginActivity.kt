@@ -1,4 +1,4 @@
-package mobile.project.escrowx.auth
+﻿package mobile.project.escrowx.auth
 
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -59,7 +59,7 @@ class LoginActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 LoginScreen()

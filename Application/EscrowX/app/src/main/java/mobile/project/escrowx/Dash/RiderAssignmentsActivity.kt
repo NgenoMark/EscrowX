@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import android.content.Intent
 import android.os.Bundle
@@ -75,7 +75,7 @@ class RiderAssignmentsActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 RiderAssignmentsScreen(onBack = { finish() })
@@ -534,7 +534,7 @@ private fun AssignmentRow(
                 }
 
                 Text(
-                    text = "View →",
+                    text = "View â†’",
                     fontSize = 10.sp,
                     color = colorScheme.primary,
                     fontWeight = FontWeight.Medium

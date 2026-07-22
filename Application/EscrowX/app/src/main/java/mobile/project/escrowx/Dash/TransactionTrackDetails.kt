@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -74,7 +74,7 @@ class BuyerTransactionDetailActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 BuyerTransactionDetailScreen(
@@ -1209,7 +1209,7 @@ fun PaymentStatusCard(
 
                     Text(
                         when {
-                            isMet -> "✓ Done"
+                            isMet -> "âœ“ Done"
                             isCurrent -> "In Progress"
                             else -> "Pending"
                         },
@@ -1429,7 +1429,7 @@ fun TransactionProgressCard(
 
                             if (isMet) {
                                 Text(
-                                    "✓",
+                                    "âœ“",
                                     fontSize = 14.sp,
                                     color = Color(0xFF10B981)
                                 )

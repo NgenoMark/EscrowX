@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import android.net.Uri
 import android.os.Bundle
@@ -63,7 +63,7 @@ class DisputeDetailsActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 DisputeDetailsScreen(disputeId = disputeId, transactionId = transactionId)

@@ -1,4 +1,4 @@
-package mobile.project.escrowx.seller
+﻿package mobile.project.escrowx.seller
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -71,7 +71,7 @@ class SellerTransactionDetailActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 SellerTransactionDetailScreen(
@@ -150,7 +150,7 @@ fun SellerTransactionDetailScreen(
             "BUYER_CONFIRMED_DELIVERED" -> "Awaiting Release"
             "RELEASE_PENDING" -> "Release Pending"
             "RELEASE_PROCESSING" -> "Processing"
-            "COMPLETED" -> "Completed ✓"
+            "COMPLETED" -> "Completed âœ“"
             "CANCELLED" -> "Cancelled"
             "DECLINED" -> "Declined"
             "DISPUTED" -> "Disputed"
@@ -204,7 +204,7 @@ fun SellerTransactionDetailScreen(
                 Icons.Default.Payments
             )
             "COMPLETED" -> SellerStatusConfig(
-                "Completed ✓",
+                "Completed âœ“",
                 Color(0xFF10B981),
                 Color(0xFF10B981),
                 Color(0xFF10B981).copy(alpha = 0.12f),
@@ -277,11 +277,11 @@ fun SellerTransactionDetailScreen(
                     currentStatus = latestStatus
                 }
                 if (latestStatus == "FUNDS_HELD") {
-                    Toast.makeText(context, "✅ Buyer payment confirmed! Funds are secured.", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, "âœ… Buyer payment confirmed! Funds are secured.", Toast.LENGTH_LONG).show()
                     return
                 }
             }
-            Toast.makeText(context, "⏳ Still waiting for buyer payment. Please check again shortly.", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "â³ Still waiting for buyer payment. Please check again shortly.", Toast.LENGTH_LONG).show()
         } finally {
             isPollingPayment = false
         }
@@ -402,7 +402,7 @@ fun SellerTransactionDetailScreen(
                 }
 
                 if (showToast) {
-                    Toast.makeText(context, "🔄 Transaction updated", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "ðŸ”„ Transaction updated", Toast.LENGTH_SHORT).show()
                 }
             } catch (e: Exception) {
                 if (showToast) {
@@ -452,7 +452,7 @@ fun SellerTransactionDetailScreen(
 
                 currentStatus = response.body()!!.status
                 val statusName = prettySellerEscrowState(normalizeSellerEscrowStatus(currentStatus))
-                Toast.makeText(context, "✅ Status updated to: $statusName", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "âœ… Status updated to: $statusName", Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
                 Toast.makeText(context, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             } finally {
@@ -668,7 +668,7 @@ fun SellerTransactionDetailScreen(
                     showRiderAssignmentHint = normalizedCurrentStatus == "SELLER_ACCEPTED" && isRiderRequired && !isRiderAssigned,
                     onAction = { updateStatus(it) },
                     onMessageBuyer = {
-                        Toast.makeText(context, "💬 Message buyer coming soon", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "ðŸ’¬ Message buyer coming soon", Toast.LENGTH_SHORT).show()
                     },
                     showViewDispute = hasDisputeHistory,
                     onViewDispute = { viewDispute() },
@@ -1179,7 +1179,7 @@ fun SellerPaymentStatusCard(
 
                     Text(
                         when {
-                            isMet -> "✓ Complete"
+                            isMet -> "âœ“ Complete"
                             isCurrent -> "In Progress"
                             else -> "Pending"
                         },
@@ -1409,7 +1409,7 @@ fun SellerTransactionTimeline(
 
                             if (isMet) {
                                 Text(
-                                    "✓",
+                                    "âœ“",
                                     fontSize = 14.sp,
                                     color = Color(0xFF10B981)
                                 )

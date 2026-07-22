@@ -63,8 +63,9 @@ class BuyerDashboardActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            val darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState()
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = darkTheme,
                 dynamicColor = false
             ) {
                 BuyerDashboardScreen()

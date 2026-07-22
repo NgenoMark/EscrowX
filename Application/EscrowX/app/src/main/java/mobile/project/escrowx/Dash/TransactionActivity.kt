@@ -1,4 +1,4 @@
-package mobile.project.escrowx.dash
+﻿package mobile.project.escrowx.dash
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
 import mobile.project.escrowx.ui.theme.ThemePreferenceManager
@@ -65,7 +65,7 @@ class TransactionsActivity : ComponentActivity() {
         val role = intent.getStringExtra("ROLE") ?: sessionRole ?: "BUYER"
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 TransactionsScreen(role = role)
@@ -994,7 +994,7 @@ fun getActiveFilterSummary(
     if (partyFilter != TransactionPartyFilter.ALL) {
         parts.add(partyFilter.name.lowercase(Locale.getDefault()))
     }
-    return parts.joinToString(" • ")
+    return parts.joinToString(" â€¢ ")
 }
 
 @Composable

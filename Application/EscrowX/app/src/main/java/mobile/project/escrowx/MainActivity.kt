@@ -1,4 +1,4 @@
-package mobile.project.escrowx
+﻿package mobile.project.escrowx
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -20,7 +20,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->

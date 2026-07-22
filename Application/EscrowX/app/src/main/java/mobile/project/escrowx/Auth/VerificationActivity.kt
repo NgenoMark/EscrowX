@@ -1,4 +1,4 @@
-package mobile.project.escrowx.auth
+﻿package mobile.project.escrowx.auth
 
 import android.content.Intent
 import android.os.Bundle
@@ -56,7 +56,7 @@ class VerificationActivity : ComponentActivity() {
 
         setContent {
             EscrowXTheme(
-                darkTheme = ThemePreferenceManager.isDarkModeEnabled(this),
+                darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(),
                 dynamicColor = false
             ) {
                 VerificationScreen(email = email)
@@ -115,7 +115,7 @@ private fun VerificationScreen(email: String) {
                                 Toast.LENGTH_LONG
                             ).show()
                         } else {
-                            Toast.makeText(context, "🎉 Account Activated Successfully!", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "ðŸŽ‰ Account Activated Successfully!", Toast.LENGTH_LONG).show()
                         }
 
                         delay(800)
@@ -282,7 +282,7 @@ private fun VerificationScreen(email: String) {
                     if (success) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
-                                "Account Verified! 🎉",
+                                "Account Verified! ðŸŽ‰",
                                 fontSize = 28.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF10B981),
@@ -568,7 +568,7 @@ private fun VerificationScreen(email: String) {
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                "✓ Account Active",
+                                "âœ“ Account Active",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = Color(0xFF10B981)
@@ -683,7 +683,7 @@ fun OtpInputFieldEnhanced(
         isError = isError,
         placeholder = {
             Text(
-                "•",
+                "â€¢",
                 fontSize = 20.sp,
                 color = colorScheme.onSurfaceVariant.copy(alpha = 0.3f)
             )

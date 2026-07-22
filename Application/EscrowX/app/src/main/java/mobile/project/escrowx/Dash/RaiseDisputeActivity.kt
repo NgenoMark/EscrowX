@@ -1,4 +1,4 @@
-@file:Suppress("SpellCheckingInspection")
+﻿@file:Suppress("SpellCheckingInspection")
 package mobile.project.escrowx.dash
 
 import mobile.project.escrowx.ui.theme.EscrowXTheme
@@ -57,7 +57,7 @@ class RaiseDisputeActivity : ComponentActivity() {
         val transactionAmount = intent.getStringExtra("TRANSACTION_AMOUNT") ?: "0"
 
         setContent {
-            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(), dynamicColor = false) {
                 RaiseDisputeScreen(
                     transactionId = transactionId,
                     transactionTitle = transactionTitle,

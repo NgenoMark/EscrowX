@@ -1,4 +1,4 @@
-@file:Suppress("SpellCheckingInspection")
+﻿@file:Suppress("SpellCheckingInspection")
 
 package mobile.project.escrowx.dash
 
@@ -59,7 +59,7 @@ class PaymentActivity : ComponentActivity() {
         val deliveryAddress = intent.getStringExtra("DELIVERY_ADDRESS") ?: ""
 
         setContent {
-            EscrowXTheme(darkTheme = ThemePreferenceManager.isDarkModeEnabled(this), dynamicColor = false) {
+            EscrowXTheme(darkTheme = ThemePreferenceManager.rememberDarkModeEnabledState(), dynamicColor = false) {
                 PaymentScreen(
                     itemName = itemName,
                     transactionAmount = transactionAmount,
