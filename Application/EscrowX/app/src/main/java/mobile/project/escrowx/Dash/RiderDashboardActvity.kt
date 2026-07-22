@@ -42,7 +42,6 @@ import kotlinx.coroutines.withContext
 import mobile.project.escrowx.EscrowResponse
 import mobile.project.escrowx.RetrofitClient
 import mobile.project.escrowx.UserDetailsResponse
-import mobile.project.escrowx.auth.LoginActivity
 import mobile.project.escrowx.auth.SessionManager
 import mobile.project.escrowx.seller.SellerNotificationsActivity
 import mobile.project.escrowx.ui.components.RiderNavBar
@@ -327,6 +326,9 @@ private fun RiderDashboardScreen() {
                     onOpenProfile = {
                         context.startActivity(Intent(context, RiderProfileDetailsActivity::class.java))
                     },
+                    onOpenSettings = {
+                        context.startActivity(Intent(context, SettingsActivity::class.java))
+                    },
                     colorScheme = colorScheme
                 )
             }
@@ -508,179 +510,6 @@ private fun RiderAssignmentsTab(
                     colorScheme = colorScheme
                 )
             }
-        }
-    }
-}
-
-// ===================== PROFILE TAB =====================
-
-@Composable
-private fun RiderProfileTab(
-    padding: PaddingValues,
-    profile: UserDetailsResponse?,
-    onOpenProfile: () -> Unit,
-    colorScheme: ColorScheme
-) {
-    val context = LocalContext.current
-    val riderName = profile?.displayName?.ifBlank { null }
-        ?: profile?.email?.substringBefore("@")
-        ?: "Rider"
-    val riderInitials = riderName
-        .split(" ")
-        .filter { it.isNotBlank() }
-        .take(2)
-        .joinToString("") { it.take(1).uppercase(Locale.getDefault()) }
-        .ifBlank { "RD" }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        // Profile Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            border = BorderStroke(1.dp, colorScheme.outlineVariant.copy(alpha = 0.3f))
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.horizontalGradient(
-                                colors = listOf(
-                                    BrandBlue,
-                                    BrandBlue.copy(alpha = 0.7f)
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        riderInitials,
-                        fontSize = 28.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                }
-                Text(
-                    riderName,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = colorScheme.onSurface
-                )
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = colorScheme.primary.copy(alpha = 0.08f)
-                ) {
-                    Text(
-                        "Rider",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                    )
-                }
-
-                HorizontalDivider(
-                    color = colorScheme.outlineVariant.copy(alpha = 0.2f),
-                    thickness = 0.5.dp
-                )
-
-                ProfileInfoRow(
-                    icon = Icons.Default.Email,
-                    label = "Email",
-                    value = profile?.email ?: "-",
-                    colorScheme = colorScheme
-                )
-                ProfileInfoRow(
-                    icon = Icons.Default.Phone,
-                    label = "Phone",
-                    value = profile?.phone ?: "Not set",
-                    colorScheme = colorScheme
-                )
-                ProfileInfoRow(
-                    icon = Icons.Default.Badge,
-                    label = "Status",
-                    value = profile?.status ?: "Active",
-                    colorScheme = colorScheme
-                )
-            }
-        }
-
-        // Action Buttons
-        Button(
-            onClick = onOpenProfile,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = colorScheme.primary,
-                contentColor = Color.White
-            ),
-            elevation = ButtonDefaults.buttonElevation(
-                defaultElevation = 2.dp,
-                pressedElevation = 0.dp
-            )
-        ) {
-            Icon(
-                Icons.Default.Person,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                "View Full Profile",
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-        }
-
-        // Logout Button
-        OutlinedButton(
-            onClick = {
-                val session = SessionManager(context)
-                session.clearSession()
-                context.startActivity(Intent(context, LoginActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-                })
-            },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(14.dp),
-            colors = ButtonDefaults.outlinedButtonColors(
-                contentColor = MaterialTheme.colorScheme.error
-            ),
-            border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.error)
-        ) {
-            Icon(
-                Icons.Default.Logout,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp)
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                "Logout",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Medium
-            )
         }
     }
 }
@@ -1107,45 +936,6 @@ fun EmptyStateCard(
                 fontSize = 13.sp,
                 color = colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
-fun ProfileInfoRow(
-    icon: ImageVector,
-    label: String,
-    value: String,
-    colorScheme: ColorScheme
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = colorScheme.onSurfaceVariant
-        )
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                label,
-                fontSize = 11.sp,
-                color = colorScheme.onSurfaceVariant,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                value,
-                fontSize = 14.sp,
-                color = colorScheme.onSurface,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
             )
         }
     }
