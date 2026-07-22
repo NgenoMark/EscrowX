@@ -392,15 +392,6 @@ private fun RiderProfileDetailsScreen(onBack: () -> Unit) {
             // ===== ACCOUNT STATS =====
             AccountStatsCard(colorScheme = colorScheme)
 
-            // ===== QUICK ACTIONS =====
-            QuickActionsCard(
-                onEditProfile = { isEditMode = true },
-                onOpenSettings = {
-                    context.startActivity(android.content.Intent(context, SettingsActivity::class.java))
-                },
-                colorScheme = colorScheme
-            )
-
             Spacer(modifier = Modifier.height(16.dp))
         }
     }
