@@ -141,9 +141,14 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
     }
 
     val drawerItemColors = NavigationDrawerItemDefaults.colors(
-        selectedContainerColor = Color.Transparent,
-        unselectedContainerColor = Color.Transparent
+        selectedContainerColor = colorScheme.primary.copy(alpha = 0.12f),
+        unselectedContainerColor = Color.Transparent,
+        selectedIconColor = colorScheme.primary,
+        selectedTextColor = colorScheme.primary,
+        unselectedIconColor = colorScheme.onSurfaceVariant,
+        unselectedTextColor = colorScheme.onSurface
     )
+    val drawerItemShape = RoundedCornerShape(24.dp)
     val displayName = userProfile?.displayName?.takeIf { it.isNotBlank() }
         ?: userProfile?.email?.substringBefore("@")
         ?: userName
@@ -154,7 +159,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
             ModalDrawerSheet(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(300.dp),
+                    .width(280.dp),
                 drawerContainerColor = colorScheme.surface,
                 drawerShape = RoundedCornerShape(
                     topStart = 0.dp,
@@ -163,6 +168,16 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                     bottomEnd = 16.dp
                 )
             ) {
+                Text(
+                    text = "EscrowX",
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp),
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = colorScheme.onSurface
+                )
+
                 // Drawer Items (streamlined)
                 NavigationDrawerItem(
                     icon = {
@@ -180,6 +195,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = true,
+                    shape = drawerItemShape,
                     colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -203,6 +219,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    shape = drawerItemShape,
                     colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -229,6 +246,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    shape = drawerItemShape,
                     colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -253,6 +271,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    shape = drawerItemShape,
                     colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -277,6 +296,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    shape = drawerItemShape,
                     colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }
@@ -310,6 +330,7 @@ fun BuyerDashboardScreen(viewModel: BuyerDashViewmodel = viewModel()) {
                         )
                     },
                     selected = false,
+                    shape = drawerItemShape,
                     colors = drawerItemColors,
                     onClick = {
                         scope.launch { drawerState.close() }

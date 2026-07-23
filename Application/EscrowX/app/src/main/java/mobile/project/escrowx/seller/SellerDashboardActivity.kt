@@ -374,7 +374,7 @@ fun ImprovedSellerDrawerContent(
     ModalDrawerSheet(
         modifier = Modifier
             .fillMaxHeight()
-            .width(300.dp),
+            .width(280.dp),
         drawerContainerColor = colorScheme.surface,
         drawerShape = RoundedCornerShape(
             topStart = 0.dp,
@@ -383,6 +383,16 @@ fun ImprovedSellerDrawerContent(
             bottomEnd = 16.dp
         )
     ) {
+        Text(
+            text = "EscrowX",
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = colorScheme.onSurface
+        )
+
         Spacer(modifier = Modifier.height(16.dp))
 
         // Navigation Items
@@ -475,7 +485,7 @@ fun DrawerMenuItem(
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 2.dp),
         shape = RoundedCornerShape(12.dp),
-        color = Color.Transparent,
+        color = if (isSelected) colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent,
         onClick = onClick
     ) {
         Row(
@@ -490,6 +500,7 @@ fun DrawerMenuItem(
                 contentDescription = null,
                 tint = when {
                     isDestructive -> Color(0xFFDC2626)
+                    isSelected -> colorScheme.primary
                     else -> colorScheme.onSurfaceVariant
                 },
                 modifier = Modifier.size(22.dp)
@@ -498,9 +509,10 @@ fun DrawerMenuItem(
             Text(
                 label,
                 fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
+                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
                 color = when {
                     isDestructive -> Color(0xFFDC2626)
+                    isSelected -> colorScheme.primary
                     else -> colorScheme.onSurface
                 },
                 modifier = Modifier.weight(1f)
